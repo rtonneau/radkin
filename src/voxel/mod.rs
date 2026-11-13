@@ -4,6 +4,7 @@
 pub mod config;
 pub mod diffusion;
 pub mod grid;
+pub mod reaction;
 
 pub use config::{DEFAULT_DIFFUSION, VoxelConfig};
 pub use diffusion::{Diffusion, Scheme};

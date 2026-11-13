@@ -92,7 +92,7 @@ impl VoxelGrid {
     }
 }
 
-/// Concentrations [mol/L] of `n_species` species on every voxel, stored
+/// Concentrations [µmol/L, as the kernel] of `n_species` dynamic species on every voxel, stored
 /// species-major (structure of arrays): `field(s)[voxel]`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct VoxelState {

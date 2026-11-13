@@ -16,6 +16,12 @@ thiserror = "2"
 log = "0.4"
 env_logger = "0.11"
 clap = { version = "4", features = ["derive"] }
+rayon = { version = "1", optional = true }
+
+[features]
+default = ["parallel"]
+# Reaction step of voxel runs spread over rayon threads (bit-identical to serial).
+parallel = ["dep:rayon"]
 
 [dev-dependencies]
 approx = "0.5"
