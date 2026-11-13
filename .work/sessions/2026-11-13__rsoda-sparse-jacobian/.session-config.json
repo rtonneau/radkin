@@ -159,6 +159,30 @@
         "ticket": "04-rsoda-ci-docs-pr",
         "commit": "ed436a2"
       }
+    },
+    {
+      "at": "2026-11-13T08:03:34.293Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-radkin-sparse-kernel-jacobian.md",
+        "03-implement/05-radkin-sparse-kernel-jacobian/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-radkin-sparse-kernel-jacobian"
+      }
+    },
+    {
+      "at": "2026-11-13T08:08:26.041Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-radkin-sparse-kernel-jacobian/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-radkin-sparse-kernel-jacobian",
+        "commit": "08aa316"
+      }
     }
   ],
   "current_phase": "ship",
