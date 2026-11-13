@@ -23,7 +23,7 @@ reaction = "HO2 + O_atom -> O2 + OH_r"
 k_value = 2.02e10
 
 [[reactions.k_reaction]]
-reaction = "2 O_atom -> O2"      # Geant4: O + O -> O2
+reaction = "O_atom + O_atom -> O2"  # Geant4: O + O -> O2 ("2 O_atom" would be a species: O_atom is not a formula)
 k_value = 2.20e10
 
 [[reactions.k_reaction]]
