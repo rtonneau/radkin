@@ -19,12 +19,13 @@ impl Polynomial {
     }
 
     /// Constant polynomial from a scalar; with `log10` it stores `log10(v)`
-    /// (`-inf` for `v <= 0`, i.e. k = 0).
+    /// (`-inf` for `v <= 0`, i.e. k = 0). A negative value gives `[-inf]`
+    /// in both cases (radiopyo `polynomial_factory`).
     pub fn from_value(value: f64, log10: bool) -> Self {
         let c = match (log10, value >= 0.0) {
-            (false, _) => value,
+            (_, false) => f64::NEG_INFINITY,
+            (false, true) => value,
             (true, true) => value.log10(),
-            (true, false) => f64::NEG_INFINITY,
         };
         Self { coef: vec![c] }
     }

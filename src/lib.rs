@@ -5,6 +5,7 @@ pub mod chemistry;
 pub mod config;
 pub mod consts;
 pub mod error;
+pub mod gvalues;
 pub mod physics;
 pub mod poly;
 pub mod pyfloat;
