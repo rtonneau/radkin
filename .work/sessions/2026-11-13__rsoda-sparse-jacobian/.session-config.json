@@ -183,9 +183,33 @@
         "ticket": "05-radkin-sparse-kernel-jacobian",
         "commit": "08aa316"
       }
+    },
+    {
+      "at": "2026-11-13T08:08:26.432Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-radkin-sparse-option-cli.md",
+        "03-implement/06-radkin-sparse-option-cli/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-radkin-sparse-option-cli"
+      }
+    },
+    {
+      "at": "2026-11-13T08:11:39.759Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/06-radkin-sparse-option-cli/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-radkin-sparse-option-cli",
+        "commit": "fbd0f3d"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/rsoda-sparse-jacobian",
     "base_branch": "main",
