@@ -132,3 +132,23 @@ All cases are faster (-4.1% to -9.7%, median about -8%).
 
 The dense and sparse kernel Jacobians are 4-8% of the solve. They were left
 as they are.
+
+### Dense LU factor and solve in rsoda (ticket 04), dropped
+
+The dense `dgefa`/`dgesl` inner loops were rewritten on column slices (the
+same element operations in the same order, bit-identical, no bounds checks).
+Microbenchmark, 22x22 matrix of 30% density: `dgefa` 2.9 -> 1.9 us (-33%),
+`dgesl` 360 -> 300 ns (-15%). `dgesl` is close to its latency bound: back
+substitution chains one division per row, and removing it (multiplying by
+stored reciprocals) would change the results.
+
+At the solve level the gain is below the 5% rule. Dense cases gain -1.2% to
+-4.8%, around -3% (factor + lin are about 20% of a dense solve). The sparse
+cases, which do not use this code, moved by +1% to +8%, which gives the
+noise floor between two builds:
+
+{ab}
+
+Not kept. The patch is in the ticket-04 log of the session
+(`.work/sessions/2026-11-13__rsoda-per-step-overhead/03-implement/04-rsoda-dense-lu/`)
+in case a later need (e.g. larger dense systems) makes it pay.
