@@ -135,6 +135,30 @@
         "ticket": "03-kernel-optimization",
         "commit": "53a7ee9"
       }
+    },
+    {
+      "at": "2026-11-13T08:59:54.303Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-rsoda-dense-lu.md",
+        "03-implement/04-rsoda-dense-lu/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-rsoda-dense-lu"
+      }
+    },
+    {
+      "at": "2026-11-13T09:03:08.311Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-rsoda-dense-lu/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-rsoda-dense-lu",
+        "commit": "9479528"
+      }
     }
   ],
   "current_phase": "ship",
