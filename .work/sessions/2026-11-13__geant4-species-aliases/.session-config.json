@@ -84,9 +84,33 @@
         "ticket": "01-option3-aliases-diffusion",
         "commit": "5574842"
       }
+    },
+    {
+      "at": "2026-11-13T22:31:20.832Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-voxel-example-o-atom-fixture.md",
+        "03-implement/02-voxel-example-o-atom-fixture/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-voxel-example-o-atom-fixture"
+      }
+    },
+    {
+      "at": "2026-11-13T22:35:08.024Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/02-voxel-example-o-atom-fixture/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-voxel-example-o-atom-fixture",
+        "commit": "b6e22cb"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "fix/geant4-option3-species",
     "base_branch": "main",
