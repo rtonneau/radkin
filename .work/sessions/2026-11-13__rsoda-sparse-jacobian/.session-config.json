@@ -111,6 +111,30 @@
         "ticket": "02-rsoda-sparsity-pattern-coloring",
         "commit": "54b5605"
       }
+    },
+    {
+      "at": "2026-11-13T07:52:59.041Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-rsoda-faer-sparse-solver.md",
+        "03-implement/03-rsoda-faer-sparse-solver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-rsoda-faer-sparse-solver"
+      }
+    },
+    {
+      "at": "2026-11-13T08:01:23.683Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-rsoda-faer-sparse-solver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-rsoda-faer-sparse-solver",
+        "commit": "90a301c"
+      }
     }
   ],
   "current_phase": "ship",
