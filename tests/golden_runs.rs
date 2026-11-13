@@ -33,10 +33,9 @@ fn strings(v: &Value) -> Vec<String> {
 }
 
 /// Rows (label -> values at `indices`) of species and rates, labelled as radiopyo's golden.
-fn result_rows(
-    res: &OdeResult,
-    indices: &[usize],
-) -> (Vec<(String, Vec<f64>)>, Vec<(String, Vec<f64>)>) {
+type Rows = Vec<(String, Vec<f64>)>;
+
+fn result_rows(res: &OdeResult, indices: &[usize]) -> (Rows, Rows) {
     let (labels, rows) = res.concentrations();
     let species = labels
         .iter()
