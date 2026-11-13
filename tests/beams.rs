@@ -57,7 +57,7 @@ fn beams_match_radiopyo_golden() {
 
 #[test]
 fn short_pulse_is_rejected() {
-    let err = Beam::pulsed(1e6, 0.01, 5e-7, None, None).unwrap_err();
+    let err = Beam::pulsed(1e6, 0.01, 3e-7, None, None).unwrap_err();
     assert!(matches!(err, RadkinError::ShortBeamOn(_)), "{err}");
 }
 

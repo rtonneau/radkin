@@ -6,8 +6,8 @@ use std::path::PathBuf;
 pub const T_ZERO: f64 = 1e-7;
 /// Default first step given to LSODA [s].
 pub const FIRST_STEP: f64 = 1e-15;
-/// Shortest configured beam ON time [s].
-pub const MIN_BEAM_ON_TIME: f64 = 1e-6;
+/// Shortest configured beam ON time [s] (0.4 µs; a shorter configured ON time is rejected, a shorter run-time ON span is added analytically).
+pub const MIN_BEAM_ON_TIME: f64 = 0.4e-6;
 /// Relative slack on the configured ON time check.
 pub const ON_TIME_RTOL: f64 = 1e-9;
 /// Relative tolerance used when counting periods.
