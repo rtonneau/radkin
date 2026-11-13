@@ -84,12 +84,20 @@ struct ChemSystem<'a> {
 
 impl OdeSystem for ChemSystem<'_> {
     fn rhs(&mut self, t: f64, y: &[f64], ydot: &mut [f64]) -> std::result::Result<(), LsodaError> {
+        #[cfg(feature = "timing")]
+        let started = std::time::Instant::now();
         derive(y, self.source.at(t), self.mat, &mut self.ws, ydot);
+        #[cfg(feature = "timing")]
+        timing::add_rhs(started.elapsed());
         Ok(())
     }
 
     fn jac(&mut self, _t: f64, y: &[f64], pd: &mut [f64]) -> std::result::Result<(), LsodaError> {
+        #[cfg(feature = "timing")]
+        let started = std::time::Instant::now();
         jacobian(y, self.mat, &mut self.ws, pd);
+        #[cfg(feature = "timing")]
+        timing::add_jac(started.elapsed());
         Ok(())
     }
 
@@ -111,12 +119,87 @@ impl OdeSystem for ChemSystem<'_> {
             .sparse
             .as_ref()
             .expect("sparse Jacobian only requested in sparse mode");
+        #[cfg(feature = "timing")]
+        let started = std::time::Instant::now();
         jacobian_sparse(y, self.mat, sj, &mut self.ws, values);
+        #[cfg(feature = "timing")]
+        timing::add_jac(started.elapsed());
         Ok(())
     }
 
     fn has_jac_sparse(&self) -> bool {
         self.sparse.is_some()
+    }
+}
+
+/// Time breakdown of the solves run on this thread (cargo feature `timing`).
+///
+/// Every [`solve`] adds its kernel calls (right-hand side, dense or sparse
+/// Jacobian) and its rsoda linear-solver calls ([`rsoda::TimingStats`]) to a
+/// thread-local total, which [`timing::take`] returns and resets. A chunked
+/// run, made of many solves, is summed.
+#[cfg(feature = "timing")]
+pub mod timing {
+    use std::cell::Cell;
+    use std::time::Duration;
+
+    /// Call counts and wall times accumulated by [`super::solve`].
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub struct Breakdown {
+        /// Kernel right-hand-side calls ([`crate::kernel::derive`]).
+        pub n_rhs: usize,
+        pub t_rhs: Duration,
+        /// Kernel Jacobian calls (dense or sparse).
+        pub n_jac: usize,
+        pub t_jac: Duration,
+        /// rsoda `LinearSolver::prepare` calls: Jacobian evaluation (so
+        /// `t_jac`, or the finite-difference RHS calls), then assembly and
+        /// factorization of the iteration matrix.
+        pub n_prepare: usize,
+        pub t_prepare: Duration,
+        /// rsoda `LinearSolver::solve` calls.
+        pub n_solve: usize,
+        pub t_solve: Duration,
+    }
+
+    thread_local! {
+        static TOTAL: Cell<Breakdown> = Cell::new(Breakdown::default());
+    }
+
+    fn update(f: impl FnOnce(&mut Breakdown)) {
+        TOTAL.with(|c| {
+            let mut b = c.get();
+            f(&mut b);
+            c.set(b);
+        });
+    }
+
+    pub(super) fn add_rhs(d: Duration) {
+        update(|b| {
+            b.n_rhs += 1;
+            b.t_rhs += d;
+        });
+    }
+
+    pub(super) fn add_jac(d: Duration) {
+        update(|b| {
+            b.n_jac += 1;
+            b.t_jac += d;
+        });
+    }
+
+    pub(super) fn add_solver(s: &rsoda::TimingStats) {
+        update(|b| {
+            b.n_prepare += s.n_prepare;
+            b.t_prepare += s.t_prepare;
+            b.n_solve += s.n_solve;
+            b.t_solve += s.t_solve;
+        });
+    }
+
+    /// The totals since the last call on this thread; resets them.
+    pub fn take() -> Breakdown {
+        TOTAL.with(|c| c.replace(Breakdown::default()))
     }
 }
 
@@ -197,6 +280,8 @@ pub fn solve(
             }
         }
     }
+    #[cfg(feature = "timing")]
+    timing::add_solver(&solver.timing());
     sol.nfev = solver.nfe();
     sol.njev = solver.nje();
     sol.nst = solver.nst();
