@@ -1,0 +1,2237 @@
+{
+ "H2O2 <-> H3O_plus + HO2_minus": {
+  "reactants": [
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H3O_plus",
+    1,
+    "+"
+   ],
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r <-> O_minus + H3O_plus": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "H3O_plus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO2 <-> O2_minus + H3O_plus": {
+  "reactants": [
+   [
+    "HO2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "H3O_plus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO2 + OH_minus <-> O2_minus + H2O": {
+  "reactants": [
+   [
+    "HO2",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H2O <-> H3O_plus + OH_minus": {
+  "reactants": [
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H3O_plus",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H2O2 + OH_minus <-> HO2_minus + H2O": {
+  "reactants": [
+   [
+    "H2O2",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + H2O <-> H_r + OH_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r <-> e_aq + H3O_plus": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "H3O_plus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + OH_minus <-> O_minus + H2O": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + OH_r -> OH_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "OH_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + H2O2 -> OH_r + OH_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + O2_minus + H2O -> HO2_minus + OH_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + HO2 -> HO2_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "HO2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + O2 -> O2_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2 e_aq -> H2 + 2 OH_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    2,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + H_r -> H2 + OH_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "H_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + HO2_minus -> O_minus + OH_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + O_minus + H2O -> 2 OH_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_minus",
+    2,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + O3_minus + H2O ->  2 OH_minus + O2": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "O3_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_minus",
+    2,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "e_aq + O3 -> O3_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "O3",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O3_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + H2O -> H2 + OH_r": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2",
+    1,
+    "+"
+   ],
+   [
+    "OH_r",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + O_minus -> OH_minus": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "O_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + HO2_minus -> OH_r + OH_minus": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + O3_minus ->  OH_minus + O2": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "O3_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + H_r-> H2": {
+  "reactants": [
+   [
+    "H_r",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + OH_r -> H2O": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "OH_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + H2O2 -> OH_r + H2O": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + O2 -> HO2": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + HO2 -> H2O2": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "HO2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + O2_minus -> HO2_minus": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "O2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "H_r + O3 -> HO3": {
+  "reactants": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "O3",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO3",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + OH_r -> H2O2": {
+  "reactants": [
+   [
+    "OH_r",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + HO2 -> H2O + O2": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "HO2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2O",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + O2_minus -> OH_minus + O2": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "O2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + H2 -> H_r + H2O": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "H2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + H2O2 -> HO2 + H2O": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + O_minus -> HO2_minus": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "O_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + HO2_minus -> HO2 + OH_minus": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + O3_minus -> O3 + OH_minus": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "O3_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O3",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + O3_minus -> 2 O2_minus + H3O_plus ": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "O3_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2_minus",
+    2,
+    "+"
+   ],
+   [
+    "H3O_plus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + O3 -> HO2 + O2": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "O3",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO2 + O2_minus -> HO2_minus + O2": {
+  "reactants": [
+   [
+    "HO2",
+    1,
+    "+"
+   ],
+   [
+    "O2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO2 + HO2 -> H2O2 + O2": {
+  "reactants": [
+   [
+    "HO2",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2O2",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO2 + O_minus -> O2 + OH_minus": {
+  "reactants": [
+   [
+    "HO2",
+    1,
+    "+"
+   ],
+   [
+    "O_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO2 + H2O2 -> OH_r + O2 + H2O": {
+  "reactants": [
+   [
+    "HO2",
+    1,
+    "+"
+   ],
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO2 + HO2_minus -> OH_r + OH_minus + O2": {
+  "reactants": [
+   [
+    "HO2",
+    1,
+    "+"
+   ],
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO2 + O3_minus -> OH_minus + 2O2": {
+  "reactants": [
+   [
+    "HO2",
+    1,
+    "+"
+   ],
+   [
+    "O3_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    2,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO2 + O3 -> HO3 + O2": {
+  "reactants": [
+   [
+    "HO2",
+    1,
+    "+"
+   ],
+   [
+    "O3",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO3",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2 O2_minus +  2 H2O -> H2O2 + 2OH_minus + O2": {
+  "reactants": [
+   [
+    "O2_minus",
+    2,
+    "+"
+   ],
+   [
+    "H2O",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2O2",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    2,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O2_minus + O_minus + H2O -> 2OH_minus  + O2": {
+  "reactants": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_minus",
+    2,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O2_minus + H2O2 -> OH_r + OH_minus + O2": {
+  "reactants": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O2_minus + HO2_minus -> O_minus + OH_minus + O2": {
+  "reactants": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O2_minus + O3_minus + H2O -> 2O2 + 2OH_minus": {
+  "reactants": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "O3_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2",
+    2,
+    "+"
+   ],
+   [
+    "OH_minus",
+    2,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O2_minus + O3 -> O3_minus + O2": {
+  "reactants": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "O3",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O3_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2 O_minus + H2O -> HO2_minus + OH_minus": {
+  "reactants": [
+   [
+    "O_minus",
+    2,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O_minus + O2 -> O3_minus": {
+  "reactants": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O3_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O_minus + H2 -> H_r + OH_minus": {
+  "reactants": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O_minus + H2O2 -> O2_minus + H2O": {
+  "reactants": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O_minus + HO2_minus -> O2_minus + OH_minus": {
+  "reactants": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O_minus + O3_minus -> 2 O2_minus": {
+  "reactants": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "O3_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2_minus",
+    2,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O_minus + O3 -> O2_minus + O2": {
+  "reactants": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "O3",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O3_minus -> O_minus + O2": {
+  "reactants": [
+   [
+    "O3_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O3_minus + H3O_plus -> OH_r + O2": {
+  "reactants": [
+   [
+    "O3_minus",
+    1,
+    "+"
+   ],
+   [
+    "H3O_plus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO3 -> OH_r + O2": {
+  "reactants": [
+   [
+    "HO3",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2 O2_minus -> H2O2 + O2": {
+  "reactants": [
+   [
+    "O2_minus",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2O2",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "Fe_plus_plus + H2O2 -> Fe_plus_plus_plus + OH_minus + OH_r": {
+  "reactants": [
+   [
+    "Fe_plus_plus",
+    1,
+    "+"
+   ],
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "Fe_plus_plus_plus",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ],
+   [
+    "OH_r",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "RH + H_r -> RH_r": {
+  "reactants": [
+   [
+    "RH",
+    1,
+    "+"
+   ],
+   [
+    "H_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "RH_r",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "RH + e_aq -> RH_r": {
+  "reactants": [
+   [
+    "RH",
+    1,
+    "+"
+   ],
+   [
+    "e_aq",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "RH_r",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + GSH -> RH_r": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "GSH",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "RH_r",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + RH -> R_r + H2O": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "RH",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "R_r",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "R_r + O2 -> ROO_r": {
+  "reactants": [
+   [
+    "R_r",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "ROO_r",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "R_r -> trash": {
+  "reactants": [
+   [
+    "R_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "trash",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2 R_r -> trash": {
+  "reactants": [
+   [
+    "R_r",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "trash",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2 ROO_r -> O2 + ROH + RO": {
+  "reactants": [
+   [
+    "ROO_r",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2",
+    1,
+    "+"
+   ],
+   [
+    "ROH",
+    1,
+    "+"
+   ],
+   [
+    "RO",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "ROO_r -> trash": {
+  "reactants": [
+   [
+    "ROO_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "trash",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "ROO_r + unsat_lipid -> ROOH + R_r": {
+  "reactants": [
+   [
+    "ROO_r",
+    1,
+    "+"
+   ],
+   [
+    "unsat_lipid",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "ROOH",
+    1,
+    "+"
+   ],
+   [
+    "R_r",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2 H2O2 -- catalase >> O2 + 2H2O": {
+  "reactants": [
+   [
+    "H2O2",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    2,
+    "+"
+   ]
+  ],
+  "enzyme": "catalase"
+ },
+ "Fe++ + B -> C": {
+  "reactants": [
+   [
+    "Fe_plus_plus",
+    1,
+    "+"
+   ],
+   [
+    "B",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "C",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "HO2-+H->X": {
+  "reactants": [
+   [
+    "HO2_minus",
+    1,
+    "+"
+   ],
+   [
+    "H",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "X",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2O2 + 2OH_minus -> X": {
+  "reactants": [
+   [
+    "O2",
+    2,
+    "+"
+   ],
+   [
+    "OH_minus",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "X",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "A-> B - 2B + 3 C": {
+  "reactants": [
+   [
+    "A",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "B",
+    1,
+    "-"
+   ],
+   [
+    "C",
+    3,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "A -> -B + C": {
+  "reactants": [
+   [
+    "A",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "B",
+    1,
+    "-"
+   ],
+   [
+    "C",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "A+B->2C+D": {
+  "reactants": [
+   [
+    "A",
+    1,
+    "+"
+   ],
+   [
+    "B",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "C",
+    2,
+    "+"
+   ],
+   [
+    "D",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "-> A + B": {
+  "reactants": [],
+  "products": [
+   [
+    "A",
+    1,
+    "+"
+   ],
+   [
+    "B",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "A + B -> C - D": {
+  "reactants": [
+   [
+    "A",
+    1,
+    "+"
+   ],
+   [
+    "B",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "C",
+    1,
+    "+"
+   ],
+   [
+    "D",
+    1,
+    "-"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OO_r->x": {
+  "reactants": [
+   [
+    "OO_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "x",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O2_r_minus -- SOD >> H2O2": {
+  "reactants": [
+   [
+    "O2_r_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": "SOD"
+ },
+ "2H2O2 -- catalase >> O2 + 2 H2O": {
+  "reactants": [
+   [
+    "H2O2",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "O2",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    2,
+    "+"
+   ]
+  ],
+  "enzyme": "catalase"
+ },
+ "A -- E >> B + C - D": {
+  "reactants": [
+   [
+    "A",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "B",
+    1,
+    "+"
+   ],
+   [
+    "C",
+    1,
+    "+"
+   ],
+   [
+    "D",
+    1,
+    "-"
+   ]
+  ],
+  "enzyme": "E"
+ },
+ "Ab2c -> d": {
+  "reactants": [
+   [
+    "Ab2c",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "d",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "A + B -> ": {
+  "reactants": [
+   [
+    "A",
+    1,
+    "+"
+   ],
+   [
+    "B",
+    1,
+    "+"
+   ]
+  ],
+  "products": [],
+  "enzyme": null
+ }
+}
