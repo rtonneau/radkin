@@ -111,6 +111,30 @@
         "ticket": "02-bench-time-breakdown-baseline",
         "commit": "009f64a"
       }
+    },
+    {
+      "at": "2026-11-13T08:49:47.869Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-kernel-optimization.md",
+        "03-implement/03-kernel-optimization/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-kernel-optimization"
+      }
+    },
+    {
+      "at": "2026-11-13T08:59:48.665Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-kernel-optimization/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-kernel-optimization",
+        "commit": "53a7ee9"
+      }
     }
   ],
   "current_phase": "ship",
