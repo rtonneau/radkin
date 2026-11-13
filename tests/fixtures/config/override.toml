@@ -1,0 +1,22 @@
+[includes]
+toml = ["base.toml"]
+
+[parameters]
+temperature = 37
+
+[[reactions.k_reaction]]
+reaction = "B + A -> C"
+k_value = 2e9
+
+[[reactions.k_reaction]]
+reaction = "D -> E"
+k_value = 3.0
+
+[[reactions.equilibrium]]
+reaction = "X <-> Z + Y"
+k_forward = 4.0
+k_equilibrium = 0.5
+
+[[reactions.acid_base]]
+reaction = "H2O2 <-> HO2_minus + H3O_plus"
+k_forward = 0.2

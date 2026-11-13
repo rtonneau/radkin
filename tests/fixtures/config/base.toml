@@ -1,0 +1,31 @@
+[parameters]
+pH = 7.0
+
+[concentrations.initial]
+O2 = 50e-6
+
+[reactions.radiolytic]
+e_aq = 2.8
+
+[[reactions.k_reaction]]
+reaction = "A + B -> C"
+k_value = 1e9
+
+[[reactions.k_reaction]]
+reaction = "C -> A + B"
+k_value = 5.0
+
+[[reactions.equilibrium]]
+reaction = "X <-> Y + Z"
+k_forward = 1.0
+k_backward = 2.0
+
+[[reactions.acid_base]]
+reaction = "H2O2 <-> H3O_plus + HO2_minus"
+pKa = 11.65
+k_forward = 9.43e-2
+k_backward = 5.02e10
+
+[[beam.constant]]
+dose_rate = 1.0
+LET = 0.2
