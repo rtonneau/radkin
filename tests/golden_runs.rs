@@ -4,6 +4,7 @@
 
 use radkin::physics::Beam;
 use radkin::result::OdeResult;
+use radkin::solver::JacobianMode;
 use radkin::unit_cell::{ChunkOptions, RunOptions, UnitCell};
 use serde_json::Value;
 
@@ -11,6 +12,22 @@ const RTOL_RUN: f64 = 1e-6;
 const ATOL_SPECIES_RUN: f64 = 1e-10;
 const ATOL_RATES_RUN_FRAC_OF_MAX: f64 = 1e-7;
 const N_POINTS_RELATIVE_SPREAD: f64 = 0.15;
+
+/// Every run is checked with the dense analytic Jacobian (radiopyo's
+/// setting) and with the sparse one, analytic and finite-difference.
+const MODES: [(JacobianMode, bool, &str); 3] = [
+    (JacobianMode::Dense, true, "dense"),
+    (JacobianMode::Sparse, true, "sparse"),
+    (JacobianMode::Sparse, false, "sparse-fd"),
+];
+
+fn mode_options(jacobian: JacobianMode, use_jac: bool) -> RunOptions {
+    RunOptions {
+        jacobian,
+        use_jac,
+        ..Default::default()
+    }
+}
 
 fn runs() -> Value {
     serde_json::from_str(&std::fs::read_to_string("tests/golden/runs.json").unwrap()).unwrap()
@@ -125,43 +142,61 @@ fn assert_n_points(res: &OdeResult, g: &Value, what: &str) {
 #[test]
 fn labarbe_run_matches_golden() {
     let golden = runs();
-    let mut cell = UnitCell::from_toml("data/config_Labarbe.toml").unwrap();
-    let res = cell
-        .run((1e-7, 10.0), &RunOptions::default(), None)
-        .unwrap();
-    assert_n_points(&res, &golden["labarbe_run"], "labarbe_run");
-    let last = res.t().len() - 1;
-    assert_run(&res, &[0, last], &golden["labarbe_run"], "labarbe_run");
+    for (jacobian, use_jac, mode) in MODES {
+        let mut cell = UnitCell::from_toml("data/config_Labarbe.toml").unwrap();
+        let res = cell
+            .run((1e-7, 10.0), &mode_options(jacobian, use_jac), None)
+            .unwrap();
+        let what = format!("labarbe_run/{mode}");
+        assert_n_points(&res, &golden["labarbe_run"], &what);
+        let last = res.t().len() - 1;
+        assert_run(&res, &[0, last], &golden["labarbe_run"], &what);
+    }
 }
 
 #[test]
 fn labarbe_curve_matches_golden() {
     let golden = runs();
-    let mut cell = UnitCell::from_toml("data/config_Labarbe.toml").unwrap();
-    let opts = RunOptions {
-        t_eval: Some(floats(&golden["labarbe_curve_t_eval"])),
-        ..Default::default()
-    };
-    let res = cell.run((1e-7, 10.0), &opts, None).unwrap();
-    let all: Vec<usize> = (0..res.t().len()).collect();
-    assert_run(&res, &all, &golden["labarbe_curve"], "labarbe_curve");
+    for (jacobian, use_jac, mode) in MODES {
+        let mut cell = UnitCell::from_toml("data/config_Labarbe.toml").unwrap();
+        let opts = RunOptions {
+            t_eval: Some(floats(&golden["labarbe_curve_t_eval"])),
+            ..mode_options(jacobian, use_jac)
+        };
+        let res = cell.run((1e-7, 10.0), &opts, None).unwrap();
+        let all: Vec<usize> = (0..res.t().len()).collect();
+        assert_run(
+            &res,
+            &all,
+            &golden["labarbe_curve"],
+            &format!("labarbe_curve/{mode}"),
+        );
+    }
 }
 
 #[test]
 fn chunked_pulsed_run_matches_golden() {
     let golden = runs();
     let g = &golden["chunked_run"];
+    for (jacobian, use_jac, mode) in MODES {
+        chunked_pulsed_run(g, jacobian, use_jac, mode);
+    }
+}
+
+fn chunked_pulsed_run(g: &Value, jacobian: JacobianMode, use_jac: bool, mode: &str) {
+    let what = format!("chunked_run/{mode}");
     let mut cell = UnitCell::from_toml("data/advanced_water_radiolysis.toml").unwrap();
     let beam = Beam::pulsed_from_dose_per_pulse(2.0, 0.01, 2e-6, Some(3.0), None, None).unwrap();
     cell.set_beam(beam, "default", Some(2.5)).unwrap();
     let opts = ChunkOptions {
+        run: mode_options(jacobian, use_jac),
         max_step_size_on: Some(1e-7),
         max_step_size_off: Some(1e-3),
         ..Default::default()
     };
     let res = cell.chunked_run((0.0, 0.05), &opts).unwrap();
     assert_eq!(res.n_points.len(), g["n_points"].as_array().unwrap().len());
-    assert_n_points(&res, g, "chunked_run");
+    assert_n_points(&res, g, &what);
     let mut edges = std::collections::BTreeSet::new();
     let mut first = 0;
     for n in &res.n_points {
@@ -170,7 +205,7 @@ fn chunked_pulsed_run_matches_golden() {
         first += n;
     }
     let edges: Vec<usize> = edges.into_iter().collect();
-    assert_run(&res, &edges, g, "chunked_run");
+    assert_run(&res, &edges, g, &what);
     for (label, ge) in strings(&g["g_labels"]).iter().zip(floats(&g["g_values"])) {
         let r = cell
             .env
@@ -179,7 +214,7 @@ fn chunked_pulsed_run_matches_golden() {
             .iter()
             .find(|r| &r.label() == label)
             .unwrap();
-        assert!((r.ge() - ge).abs() <= 1e-12 * ge, "{label}");
+        assert!((r.ge() - ge).abs() <= 1e-12 * ge, "{what} {label}");
     }
 }
 
@@ -190,51 +225,54 @@ fn paper_points_match_golden() {
             .unwrap();
     let rtol = golden["rtol"].as_f64().unwrap();
     let mut failures = Vec::new();
-    for p in golden["points"].as_array().unwrap() {
-        let config = format!("data/{}", p["config"].as_str().unwrap());
-        let mut cell = UnitCell::from_toml(&config).unwrap();
-        cell.env.variable_gvalues = true;
-        cell.env
-            .set_initial_cc("O2", p["o2_initial_um"].as_f64().unwrap() * 1e-6)
+    for (jacobian, use_jac, mode) in MODES {
+        for p in golden["points"].as_array().unwrap() {
+            let config = format!("data/{}", p["config"].as_str().unwrap());
+            let mut cell = UnitCell::from_toml(&config).unwrap();
+            cell.env.variable_gvalues = true;
+            cell.env
+                .set_initial_cc("O2", p["o2_initial_um"].as_f64().unwrap() * 1e-6)
+                .unwrap();
+            let (dr, dose) = (
+                p["dose_rate"].as_f64().unwrap(),
+                p["dose"].as_f64().unwrap(),
+            );
+            cell.set_beam(
+                Beam::single_pulse(dr, dose, None).unwrap(),
+                "default",
+                p["let"].as_f64(),
+            )
             .unwrap();
-        let (dr, dose) = (
-            p["dose_rate"].as_f64().unwrap(),
-            p["dose"].as_f64().unwrap(),
-        );
-        cell.set_beam(
-            Beam::single_pulse(dr, dose, None).unwrap(),
-            "default",
-            p["let"].as_f64(),
-        )
-        .unwrap();
-        let opts = ChunkOptions {
-            max_step_size_on: p["max_step_size_on"].as_f64(),
-            max_step_size_final: p["max_step_size_final"].as_f64(),
-            ..Default::default()
-        };
-        let res = cell
-            .single_pulse_run((0.0, p["t_end"].as_f64().unwrap()), &opts)
-            .unwrap();
-        let (labels, rows) = res.concentrations();
-        let col = |l: &str| labels.iter().position(|x| x == l).unwrap();
-        let last = rows.last().unwrap();
-        let ph_min = rows
-            .iter()
-            .map(|r| -(r[col("H3O_plus")] * 1e-6).log10())
-            .fold(f64::INFINITY, f64::min);
-        for (key, got) in [
-            ("o2_final", last[col("O2")]),
-            ("h2o2_final", last[col("H2O2")]),
-            ("ph_min", ph_min),
-        ] {
-            let exp = p[key].as_f64().unwrap();
-            if (got - exp).abs() > rtol * exp.abs() {
-                failures.push(format!(
-                    "{} dr={dr} pO2={} {key}: {got:e} vs {exp:e} (rel {:.2e})",
-                    p["scenario"],
-                    p["po2"],
-                    (got - exp).abs() / exp.abs()
-                ));
+            let opts = ChunkOptions {
+                run: mode_options(jacobian, use_jac),
+                max_step_size_on: p["max_step_size_on"].as_f64(),
+                max_step_size_final: p["max_step_size_final"].as_f64(),
+                ..Default::default()
+            };
+            let res = cell
+                .single_pulse_run((0.0, p["t_end"].as_f64().unwrap()), &opts)
+                .unwrap();
+            let (labels, rows) = res.concentrations();
+            let col = |l: &str| labels.iter().position(|x| x == l).unwrap();
+            let last = rows.last().unwrap();
+            let ph_min = rows
+                .iter()
+                .map(|r| -(r[col("H3O_plus")] * 1e-6).log10())
+                .fold(f64::INFINITY, f64::min);
+            for (key, got) in [
+                ("o2_final", last[col("O2")]),
+                ("h2o2_final", last[col("H2O2")]),
+                ("ph_min", ph_min),
+            ] {
+                let exp = p[key].as_f64().unwrap();
+                if (got - exp).abs() > rtol * exp.abs() {
+                    failures.push(format!(
+                        "{mode} {} dr={dr} pO2={} {key}: {got:e} vs {exp:e} (rel {:.2e})",
+                        p["scenario"],
+                        p["po2"],
+                        (got - exp).abs() / exp.abs()
+                    ));
+                }
             }
         }
     }

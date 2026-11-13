@@ -1,0 +1,253 @@
+{
+  "session_id": "2026-11-13__rsoda-sparse-jacobian",
+  "feature_name": "rsoda-sparse-jacobian",
+  "scratch_dir": ".scratch/tests/2026-11-13__rsoda-sparse-jacobian",
+  "created_at": "2026-11-13T07:30:24.587Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-13T07:30:24.587Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T07:36:36.230Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-13T07:37:01.338Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T07:37:05.438Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T07:38:54.472Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/rsoda-sparse-jacobian",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-13T07:38:54.512Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-rsoda-linear-solver-trait.md",
+        "02-plan/tickets/02-rsoda-sparsity-pattern-coloring.md",
+        "02-plan/tickets/03-rsoda-faer-sparse-solver.md",
+        "02-plan/tickets/04-rsoda-ci-docs-pr.md",
+        "02-plan/tickets/05-radkin-sparse-kernel-jacobian.md",
+        "02-plan/tickets/06-radkin-sparse-option-cli.md"
+      ],
+      "detail": {
+        "tickets": 6
+      }
+    },
+    {
+      "at": "2026-11-13T07:39:04.245Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-rsoda-linear-solver-trait.md",
+        "03-implement/01-rsoda-linear-solver-trait/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-rsoda-linear-solver-trait"
+      }
+    },
+    {
+      "at": "2026-11-13T07:49:45.684Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-rsoda-linear-solver-trait/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-rsoda-linear-solver-trait",
+        "commit": "c9d0010"
+      }
+    },
+    {
+      "at": "2026-11-13T07:50:06.352Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-rsoda-sparsity-pattern-coloring.md",
+        "03-implement/02-rsoda-sparsity-pattern-coloring/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-rsoda-sparsity-pattern-coloring"
+      }
+    },
+    {
+      "at": "2026-11-13T07:52:57.540Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-rsoda-sparsity-pattern-coloring/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-rsoda-sparsity-pattern-coloring",
+        "commit": "54b5605"
+      }
+    },
+    {
+      "at": "2026-11-13T07:52:59.041Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-rsoda-faer-sparse-solver.md",
+        "03-implement/03-rsoda-faer-sparse-solver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-rsoda-faer-sparse-solver"
+      }
+    },
+    {
+      "at": "2026-11-13T08:01:23.683Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-rsoda-faer-sparse-solver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-rsoda-faer-sparse-solver",
+        "commit": "90a301c"
+      }
+    },
+    {
+      "at": "2026-11-13T08:01:24.110Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-rsoda-ci-docs-pr.md",
+        "03-implement/04-rsoda-ci-docs-pr/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-rsoda-ci-docs-pr"
+      }
+    },
+    {
+      "at": "2026-11-13T08:03:33.868Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-rsoda-ci-docs-pr/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-rsoda-ci-docs-pr",
+        "commit": "ed436a2"
+      }
+    },
+    {
+      "at": "2026-11-13T08:03:34.293Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-radkin-sparse-kernel-jacobian.md",
+        "03-implement/05-radkin-sparse-kernel-jacobian/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-radkin-sparse-kernel-jacobian"
+      }
+    },
+    {
+      "at": "2026-11-13T08:08:26.041Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-radkin-sparse-kernel-jacobian/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-radkin-sparse-kernel-jacobian",
+        "commit": "08aa316"
+      }
+    },
+    {
+      "at": "2026-11-13T08:08:26.432Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-radkin-sparse-option-cli.md",
+        "03-implement/06-radkin-sparse-option-cli/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-radkin-sparse-option-cli"
+      }
+    },
+    {
+      "at": "2026-11-13T08:11:39.759Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/06-radkin-sparse-option-cli/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-radkin-sparse-option-cli",
+        "commit": "fbd0f3d"
+      }
+    },
+    {
+      "at": "2026-11-13T08:11:50.452Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-11-13T08:11:55.514Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/3"
+      }
+    },
+    {
+      "at": "2026-11-13T08:11:50.718Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/rsoda-sparse-jacobian",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-13T07:38:54.472Z",
+    "pr_url": "https://github.com/rtonneau/radkin/pull/3"
+  },
+  "ship_mode": "inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 3,
+    "path": ".work/changelog/2026-11-13__rsoda-sparse-jacobian.md",
+    "written_at": "2026-11-13T08:11:50.446Z"
+  },
+  "finished_at": "2026-11-13T08:11:50.718Z"
+}

@@ -7,11 +7,13 @@
 //! [`rsoda::Lsoda::nordsieck`] for the `t_eval` points of each step,
 //! including one equal to the step's end, as scipy does.
 
-use rsoda::{JacobianKind, Lsoda, LsodaError, OdeSystem, OptionsBuilder, Tolerance};
+use rsoda::{
+    JacobianKind, Lsoda, LsodaError, OdeSystem, OptionsBuilder, SparsityPattern, Tolerance,
+};
 
 use crate::dense::lsoda_dense_output;
 use crate::error::{RadkinError, Result};
-use crate::kernel::{Workspace, derive, jacobian};
+use crate::kernel::{SparseJacobian, Workspace, derive, jacobian, jacobian_sparse};
 use crate::matrices::SimMatrices;
 use crate::physics::Beam;
 
@@ -36,6 +38,17 @@ impl DoseRateSource {
     }
 }
 
+/// Storage of the Jacobian and linear solver of the stiff (BDF) steps.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum JacobianMode {
+    /// Dense LU (rsoda's LINPACK port, as scipy's LSODA).
+    #[default]
+    Dense,
+    /// Sparse LU on the kernel's sparsity pattern
+    /// ([`crate::kernel::SparseJacobian`]).
+    Sparse,
+}
+
 /// Step options (scipy `solve_ivp` keyword arguments).
 #[derive(Debug, Clone, PartialEq)]
 pub struct SolveOptions {
@@ -45,6 +58,8 @@ pub struct SolveOptions {
     pub max_step: Option<f64>,
     /// Analytic Jacobian (else finite differences).
     pub use_jac: bool,
+    /// Dense or sparse Jacobian and linear solver.
+    pub jacobian: JacobianMode,
     /// Output times; `None` stores every step (and the initial point).
     pub t_eval: Option<Vec<f64>>,
 }
@@ -64,6 +79,7 @@ struct ChemSystem<'a> {
     mat: &'a SimMatrices,
     source: &'a DoseRateSource,
     ws: Workspace,
+    sparse: Option<SparseJacobian>,
 }
 
 impl OdeSystem for ChemSystem<'_> {
@@ -79,6 +95,28 @@ impl OdeSystem for ChemSystem<'_> {
 
     fn has_jac(&self) -> bool {
         true
+    }
+
+    fn sparsity_pattern(&self) -> Option<&SparsityPattern> {
+        self.sparse.as_ref().map(SparseJacobian::pattern)
+    }
+
+    fn jac_sparse(
+        &mut self,
+        _t: f64,
+        y: &[f64],
+        values: &mut [f64],
+    ) -> std::result::Result<(), LsodaError> {
+        let sj = self
+            .sparse
+            .as_ref()
+            .expect("sparse Jacobian only requested in sparse mode");
+        jacobian_sparse(y, self.mat, sj, &mut self.ws, values);
+        Ok(())
+    }
+
+    fn has_jac_sparse(&self) -> bool {
+        self.sparse.is_some()
     }
 }
 
@@ -113,13 +151,15 @@ pub fn solve(
         mat,
         source,
         ws: Workspace::new(mat),
+        sparse: (opts.jacobian == JacobianMode::Sparse).then(|| SparseJacobian::new(mat)),
     };
     let mut builder = OptionsBuilder::new(y0.len())
         .tolerance(Tolerance::scalar(opts.rtol, opts.atol))
-        .jacobian(if opts.use_jac {
-            JacobianKind::DenseUser
-        } else {
-            JacobianKind::DenseFd
+        .jacobian(match (opts.jacobian, opts.use_jac) {
+            (JacobianMode::Dense, true) => JacobianKind::DenseUser,
+            (JacobianMode::Dense, false) => JacobianKind::DenseFd,
+            (JacobianMode::Sparse, true) => JacobianKind::SparseUser,
+            (JacobianMode::Sparse, false) => JacobianKind::SparseFd,
         })
         .h0(opts.first_step);
     if let Some(h) = opts.max_step {
@@ -187,6 +227,7 @@ mod tests {
             first_step: 1e-15,
             max_step: None,
             use_jac: true,
+            jacobian: JacobianMode::Dense,
             t_eval: None,
         }
     }
@@ -208,6 +249,7 @@ mod tests {
         let o = SolveOptions {
             t_eval: Some(vec![0.0, 0.5, 1.0]),
             use_jac: false,
+            jacobian: JacobianMode::Dense,
             ..opts()
         };
         let sol = solve(&mat, &DoseRateSource::None, (0.0, 1.0), &y0, &o).unwrap();
