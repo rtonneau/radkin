@@ -1,0 +1,23 @@
+# ==================================================================================
+# tonneau_2025.toml: ready-to-run chemistry of Tonneau et al. 2025
+# (Phys. Med. Biol. 70 235021), inputs of the original runs quoted in the text
+# (radiopyo examples/tonneau_2025_pmb/paper_runs.py, SCENARIOS["original"]).
+#
+# The chemistry is CONFIG_PAPER_01.toml (included, unchanged). This file adds what
+# paper_runs sets in code: dose-rate dependent G-values (Boscolo LET table scaled by
+# the GF(DR) fit), LET 0.56 keV/um and a single pulse. The default beam is the
+# paper's 30 Gy delivery at 1e7 Gy/s (3 us). The initial O2 is CONFIG_PAPER_01's
+# 52 uM; paper_runs sets [O2] = pO2 [%] / 100 x 1.3e3 uM.
+# Run with: radkin run data/tonneau_2025.toml --mode single-pulse --t-span 0 500 --out DIR
+# ==================================================================================
+
+[includes]
+toml = ["radkin/CONFIG_PAPER_01.toml"]
+
+[parameters]
+variable_GValues = true
+
+[[beam.singlepulse]]
+dose_rate = 1e7 # Peak dose rate [Gy/s]
+max_dose = 30   # Dose [Gy]
+LET = 0.56      # Linear Energy Transfer [keV / um]
