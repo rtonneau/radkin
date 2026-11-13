@@ -8,6 +8,7 @@ pub mod error;
 pub mod gvalues;
 pub mod kernel;
 pub mod matrices;
+pub mod output;
 pub mod physics;
 pub mod poly;
 pub mod pyfloat;
