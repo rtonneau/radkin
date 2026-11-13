@@ -336,7 +336,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 [[package]]
 name = "rsoda"
 version = "0.1.0"
-source = "git+https://github.com/rtonneau/rsoda?rev=ae76eee#ae76eee69d6d494be9253eaee819c77ee962c934"
+source = "git+https://github.com/rtonneau/rsoda?rev=312b742#312b74205f0d6061037f5a642522bb2a35ae6a27"
 
 [[package]]
 name = "serde"

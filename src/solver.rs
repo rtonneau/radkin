@@ -1,13 +1,15 @@
 //! `scipy.integrate.solve_ivp(method="LSODA")` equivalent on rsoda.
 //!
 //! scipy drives LSODA one step at a time (`ITASK = 5`, `TCRIT = t_bound`)
-//! and fills `t_eval` from the Nordsieck history of each step (DINTDY).
-//! Here: [`rsoda::Lsoda::step_tcrit`] for the steps, and
-//! [`rsoda::Lsoda::integrate`] for `t_eval` points inside the last step
-//! (it interpolates there without stepping).
+//! and fills `t_eval` from the Nordsieck history of each step with its own
+//! dense output (not DINTDY). Here: [`rsoda::Lsoda::step_tcrit`] for the
+//! steps, and [`crate::dense::lsoda_dense_output`] on
+//! [`rsoda::Lsoda::nordsieck`] for the `t_eval` points of each step,
+//! including one equal to the step's end, as scipy does.
 
 use rsoda::{JacobianKind, Lsoda, LsodaError, OdeSystem, OptionsBuilder, Tolerance};
 
+use crate::dense::lsoda_dense_output;
 use crate::error::{RadkinError, Result};
 use crate::kernel::{Workspace, derive, jacobian};
 use crate::matrices::SimMatrices;
@@ -143,15 +145,11 @@ pub fn solve(
                 sol.y.push(solver.y().to_vec());
             }
             Some(te) => {
-                let y_step = solver.y().to_vec();
+                let nord = solver.nordsieck();
                 while next_eval < te.len() && te[next_eval] <= t {
                     let tout = te[next_eval];
-                    let y = if tout == t {
-                        y_step.clone()
-                    } else {
-                        solver.integrate(tout).map_err(|e| fail(solver.t(), &e))?;
-                        solver.y().to_vec()
-                    };
+                    let mut y = vec![0.0; y0.len()];
+                    lsoda_dense_output(&nord, t, tout, &mut y);
                     sol.t.push(tout);
                     sol.y.push(y);
                     next_eval += 1;
