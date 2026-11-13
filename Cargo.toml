@@ -7,7 +7,7 @@ description = "Rust port of radiopyo: homogeneous water radiolysis kinetics solv
 repository = "https://github.com/rtonneau/radkin"
 
 [dependencies]
-rsoda = { git = "https://github.com/rtonneau/rsoda", rev = "2f47645", features = ["sparse"] }
+rsoda = { git = "https://github.com/rtonneau/rsoda", rev = "f5d1312", features = ["sparse"] }
 toml = { version = "0.8", features = ["preserve_order"] }
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
@@ -16,6 +16,11 @@ thiserror = "2"
 log = "0.4"
 env_logger = "0.11"
 clap = { version = "4", features = ["derive"] }
+
+[features]
+# Time breakdown of each solve (kernel RHS/Jacobian, rsoda prepare/solve), for
+# examples/bench.rs --breakdown. Off by default; no timers without it.
+timing = ["rsoda/timing"]
 
 [dev-dependencies]
 approx = "0.5"

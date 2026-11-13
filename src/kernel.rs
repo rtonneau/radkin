@@ -85,11 +85,134 @@ impl Prepared {
         }
     }
 
+    /// [`Prepared::fill`] for the right-hand side: `raw` and `clip`, plus `sw`
+    /// when `with_switch`. `sl` is left as it is (only Jacobians read it),
+    /// and so is `sw` without `with_switch`: the caller must not read it.
+    fn fill_rhs(&mut self, y_full: &[f64], with_switch: bool) {
+        for (i, &v) in y_full.iter().enumerate() {
+            self.raw[i] = v;
+            self.clip[i] = v.max(0.0);
+        }
+        if with_switch {
+            for (sw, &c) in self.sw.iter_mut().zip(&self.clip[..y_full.len()]) {
+                *sw = c / (c + EPS);
+            }
+        }
+    }
+
     fn copy_from(&mut self, o: &Prepared) {
         self.raw.copy_from_slice(&o.raw);
         self.clip.copy_from_slice(&o.clip);
         self.sw.copy_from_slice(&o.sw);
         self.sl.copy_from_slice(&o.sl);
+    }
+}
+
+/// Reactant slots and stoichiometry entries stored inline in a [`Packed`]
+/// reaction; longer ones continue in [`PackedK`]'s tail arrays.
+const SLOTS: usize = 3;
+const ROWS: usize = 4;
+
+/// One mass-action reaction laid out for the right-hand side: fixed-width
+/// reactant slots (padded with the factor-1 index) and stoichiometry
+/// entries (padded with a dummy row of coefficient 0), so the inner loops
+/// have a fixed trip count.
+#[derive(Debug, Clone, Copy)]
+struct Packed {
+    k: f64,
+    slots: [usize; SLOTS],
+    rows: [usize; ROWS],
+    coefs: [f64; ROWS],
+    /// Ranges of the extra slots and entries in the tail arrays (usually
+    /// empty).
+    slot_tail: (usize, usize),
+    row_tail: (usize, usize),
+    has_negative: bool,
+}
+
+/// [`crate::matrices::KMatrices`] as [`Packed`] reactions. The products and
+/// the order of the additions into each species are those of
+/// [`compute_rates`] and [`species_rates`]: padding multiplies by exactly 1
+/// and adds into a dummy row, and the tail continues in order.
+#[derive(Debug, Clone)]
+struct PackedK {
+    reactions: Vec<Packed>,
+    slot_tail: Vec<usize>,
+    row_tail: Vec<(usize, f64)>,
+}
+
+impl PackedK {
+    fn new(mat: &SimMatrices) -> Self {
+        let k = &mat.k;
+        let (pad_slot, dummy_row) = (mat.n_species, mat.n_dyn);
+        let mut out = Self {
+            reactions: Vec::with_capacity(k.k_values.len()),
+            slot_tail: Vec::new(),
+            row_tail: Vec::new(),
+        };
+        for r in 0..k.k_values.len() {
+            let mut slots = [pad_slot; SLOTS];
+            let reactants = &k.reactant_index[r];
+            let inline = reactants.len().min(SLOTS);
+            slots[..inline].copy_from_slice(&reactants[..inline]);
+            let st = out.slot_tail.len();
+            out.slot_tail.extend(&reactants[inline..]);
+            let (mut rows, mut coefs) = ([dummy_row; ROWS], [0.0; ROWS]);
+            let col = &k.stoichiometry[r];
+            for (e, &(i, c)) in col.iter().take(ROWS).enumerate() {
+                rows[e] = i;
+                coefs[e] = c;
+            }
+            let rt = out.row_tail.len();
+            out.row_tail.extend(col.iter().skip(ROWS));
+            out.reactions.push(Packed {
+                k: k.k_values[r],
+                slots,
+                rows,
+                coefs,
+                slot_tail: (st, out.slot_tail.len()),
+                row_tail: (rt, out.row_tail.len()),
+                has_negative: !k.negative_index[r].is_empty(),
+            });
+        }
+        out
+    }
+
+    /// The mass-action rates into `rates` and their balance added into `acc`
+    /// (length `n_dyn + 1`, the last entry being the dummy row).
+    fn rates_and_balance(
+        &self,
+        p: &Prepared,
+        mat: &SimMatrices,
+        rates: &mut [f64],
+        acc: &mut [f64],
+    ) {
+        for (r, (x, rate_out)) in self.reactions.iter().zip(rates.iter_mut()).enumerate() {
+            let mut prod = 1.0;
+            for &s in &x.slots {
+                prod *= p.clip[s];
+            }
+            if x.slot_tail.0 != x.slot_tail.1 {
+                for &s in &self.slot_tail[x.slot_tail.0..x.slot_tail.1] {
+                    prod *= p.clip[s];
+                }
+            }
+            let law = prod * x.k;
+            let rate = if x.has_negative {
+                law * switch(&p.sw, &mat.k.negative_index[r])
+            } else {
+                law
+            };
+            *rate_out = rate;
+            for e in 0..ROWS {
+                acc[x.rows[e]] += x.coefs[e] * rate;
+            }
+            if x.row_tail.0 != x.row_tail.1 {
+                for &(i, c) in &self.row_tail[x.row_tail.0..x.row_tail.1] {
+                    acc[i] += c * rate;
+                }
+            }
+        }
     }
 }
 
@@ -103,6 +226,10 @@ pub struct Workspace {
     acc: Vec<f64>,
     deriv: Vec<(usize, f64)>,
     grad: Vec<f64>,
+    packed_k: PackedK,
+    /// Some reaction has a "negative" product, so every rate evaluation
+    /// reads the depletion switches `sw`.
+    has_negative: bool,
 }
 
 impl Workspace {
@@ -112,9 +239,13 @@ impl Workspace {
             p: Prepared::new(mat.n_species),
             p0: Prepared::new(mat.n_species),
             rates: ReactionRates::new(mat),
-            acc: vec![0.0; mat.n_dyn],
+            // One more than n_dyn: the dummy row of the packed reactions.
+            acc: vec![0.0; mat.n_dyn + 1],
             deriv: Vec::with_capacity(16),
             grad: vec![0.0; mat.n_species],
+            packed_k: PackedK::new(mat),
+            has_negative: mat.k.negative_index.iter().any(|v| !v.is_empty())
+                || mat.enzymatic.negative_index.iter().any(|v| !v.is_empty()),
         }
     }
 
@@ -234,6 +365,45 @@ pub fn reaction_rates(
     compute_rates(&ws.p, dose_rate, mat, out);
 }
 
+/// The radiolytic and enzymatic rates (as [`compute_rates`]) added to `acc`
+/// after the mass-action ones (as [`species_rates`]).
+fn other_rates_and_balance(
+    p: &Prepared,
+    dose_rate: f64,
+    mat: &SimMatrices,
+    out: &mut ReactionRates,
+    acc: &mut [f64],
+) {
+    for (o, y) in out.radiolytic.iter_mut().zip(&mat.radiolytic.yields) {
+        *o = y * dose_rate;
+    }
+    let ez = &mat.enzymatic;
+    for r in 0..ez.k_values.len() {
+        let law = michaelis(
+            &p.clip,
+            ez.k_values[r],
+            ez.k_michaelis[r],
+            ez.enzyme_index[r],
+            ez.substrate_index[r],
+        );
+        out.enzymatic[r] = if ez.negative_index[r].is_empty() {
+            law
+        } else {
+            law * switch(&p.sw, &ez.negative_index[r])
+        };
+    }
+    for (col, r) in ez.stoichiometry.iter().zip(&out.enzymatic) {
+        for &(i, c) in col {
+            acc[i] += c * r;
+        }
+    }
+    for (sp, r) in mat.radiolytic.species.iter().zip(&out.radiolytic) {
+        if let Some(i) = sp {
+            acc[*i] += r;
+        }
+    }
+}
+
 /// Species balance `S·r` [mol/L/s] of the dynamic species.
 pub fn species_rates(rates: &ReactionRates, mat: &SimMatrices, acc: &mut [f64]) {
     acc.fill(0.0);
@@ -257,9 +427,14 @@ pub fn species_rates(rates: &ReactionRates, mat: &SimMatrices, acc: &mut [f64]) 
 /// Right-hand side: `dydt` [µmol/L/s] of the dynamic state `y` [µmol/L].
 pub fn derive(y: &[f64], dose_rate: f64, mat: &SimMatrices, ws: &mut Workspace, dydt: &mut [f64]) {
     to_full_molar(y, mat, &mut ws.y_full);
-    ws.p.fill(&ws.y_full);
-    compute_rates(&ws.p, dose_rate, mat, &mut ws.rates);
-    species_rates(&ws.rates, mat, &mut ws.acc);
+    // The switches are read by the rates of reactions with negative products
+    // and by the overshoot relaxation (a dynamic species below 0).
+    let with_switch = ws.has_negative || y[..mat.n_dyn].iter().any(|&v| v < 0.0);
+    ws.p.fill_rhs(&ws.y_full, with_switch);
+    ws.acc.fill(0.0);
+    ws.packed_k
+        .rates_and_balance(&ws.p, mat, &mut ws.rates.k, &mut ws.acc);
+    other_rates_and_balance(&ws.p, dose_rate, mat, &mut ws.rates, &mut ws.acc);
     for (j, &yj) in y.iter().enumerate().take(mat.n_dyn) {
         if yj < 0.0 {
             let slope = overshoot(j, mat, ws, false);
@@ -669,5 +844,103 @@ fn scatter(col: &[(usize, f64)], deriv: &[(usize, f64)], n: usize, pd: &mut [f64
         for &(i, c) in col {
             pd[i + s * n] += c * d;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chemistry::env::SimEnv;
+    use crate::config::Config;
+
+    fn labarbe() -> SimMatrices {
+        let cfg = Config::load("data/config_Labarbe.toml").unwrap();
+        SimMatrices::build(&SimEnv::from_config(&cfg).unwrap()).unwrap()
+    }
+
+    /// [`derive`] as composed from the reference steps: full preparation,
+    /// [`compute_rates`], [`species_rates`], overshoot.
+    fn reference_derive(y: &[f64], dose_rate: f64, mat: &SimMatrices, dydt: &mut [f64]) {
+        let mut ws = Workspace::new(mat);
+        let mut rates = ReactionRates::new(mat);
+        let mut acc = vec![0.0; mat.n_dyn];
+        to_full_molar(y, mat, &mut ws.y_full);
+        ws.p.fill(&ws.y_full);
+        compute_rates(&ws.p, dose_rate, mat, &mut rates);
+        species_rates(&rates, mat, &mut acc);
+        for (j, &yj) in y.iter().enumerate() {
+            if yj < 0.0 {
+                acc[j] += overshoot(j, mat, &mut ws, false) * ws.y_full[j];
+            }
+        }
+        for (o, a) in dydt.iter_mut().zip(&acc) {
+            *o = a * 1e6;
+        }
+    }
+
+    /// Deterministic states of magnitude 1e-6..1e2 µmol/L, a share of the
+    /// components negative.
+    fn states(n: usize, count: usize, negative_share: f64) -> Vec<Vec<f64>> {
+        let mut seed = 0x2545_f491_4f6c_dd1du64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        (0..count)
+            .map(|_| {
+                (0..n)
+                    .map(|_| {
+                        let mag = 10f64.powf(-6.0 + 8.0 * next());
+                        if next() < negative_share { -mag } else { mag }
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn assert_derive_is_reference(mat: &SimMatrices) {
+        let n = mat.n_dyn;
+        // One workspace for every state, so values left by a previous call
+        // (e.g. switches skipped for an all-positive state) cannot leak.
+        let mut ws = Workspace::new(mat);
+        let (mut got, mut want) = (vec![0.0; n], vec![0.0; n]);
+        for share in [0.0, 0.2, 0.0, 0.5] {
+            for y in states(n, 50, share) {
+                derive(&y, 3.0, mat, &mut ws, &mut got);
+                reference_derive(&y, 3.0, mat, &mut want);
+                let bits = |v: &[f64]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+                assert_eq!(bits(&got), bits(&want), "share {share}, y = {y:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn packed_reactions_cover_long_rows() {
+        // Labarbe has a 4-slot reaction and 5-entry stoichiometries, so the
+        // tail arrays are used.
+        let p = PackedK::new(&labarbe());
+        assert!(!p.slot_tail.is_empty());
+        assert!(!p.row_tail.is_empty());
+    }
+
+    #[test]
+    fn derive_is_bit_identical_to_the_reference_steps() {
+        assert_derive_is_reference(&labarbe());
+    }
+
+    #[test]
+    fn derive_is_bit_identical_with_negative_products() {
+        // Synthetic: mark the first stoichiometry species of every third
+        // reaction as a negative product, so the rates read the switches.
+        let mut mat = labarbe();
+        for r in (0..mat.k.k_values.len()).step_by(3) {
+            if let Some(&(i, _)) = mat.k.stoichiometry[r].first() {
+                mat.k.negative_index[r] = vec![i];
+            }
+        }
+        assert!(Workspace::new(&mat).has_negative);
+        assert_derive_is_reference(&mat);
     }
 }

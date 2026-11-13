@@ -36,3 +36,13 @@ _Avoid_: structure, mask
 **Column coloring**:
 A grouping of Jacobian columns that share no nonzero row, so one finite-difference RHS call per group estimates all of its columns (Curtis-Powell-Reid).
 _Avoid_: column grouping, compression
+
+### Performance
+
+**Time breakdown**:
+The split of one solve's wall time into kernel RHS, kernel Jacobian, linear-solver factor, linear-solver solve, and the remainder (rsoda bookkeeping and output storage), measured by the instrumented bench.
+_Avoid_: profile (also means a sampling profile), timings
+
+**Per-RHS cost**:
+Solve time divided by the number of RHS evaluations (nfev), solver overhead included; the headline figure compared against radiopyo.
+_Avoid_: RHS time (that is the kernel's share only)
