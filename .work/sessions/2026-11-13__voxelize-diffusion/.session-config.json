@@ -1,0 +1,75 @@
+{
+  "session_id": "2026-11-13__voxelize-diffusion",
+  "feature_name": "voxelize-diffusion",
+  "scratch_dir": ".scratch/tests/2026-11-13__voxelize-diffusion",
+  "created_at": "2026-11-13T21:01:03.926Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-13T21:01:03.926Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T21:16:09.919Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-13T21:16:34.937Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T21:16:35.039Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T21:19:31.131Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/voxel-diffusion",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-13T21:19:31.154Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-voxel-grid-config.md",
+        "02-plan/tickets/02-adi-diffusion.md",
+        "02-plan/tickets/03-voxel-reaction-step.md",
+        "02-plan/tickets/04-strang-adaptive-driver.md",
+        "02-plan/tickets/05-geant4-seed-import.md",
+        "02-plan/tickets/06-voxel-output-cli-docs.md"
+      ],
+      "detail": {
+        "tickets": 6
+      }
+    }
+  ],
+  "current_phase": "ship",
+  "git": {
+    "branch": "feat/voxel-diffusion",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-13T21:19:31.131Z",
+    "pr_url": null
+  }
+}
