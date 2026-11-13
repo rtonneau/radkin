@@ -159,6 +159,30 @@
         "ticket": "04-rsoda-dense-lu",
         "commit": "9479528"
       }
+    },
+    {
+      "at": "2026-11-13T09:03:28.452Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-step-bookkeeping-and-output.md",
+        "03-implement/05-step-bookkeeping-and-output/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-step-bookkeeping-and-output"
+      }
+    },
+    {
+      "at": "2026-11-13T09:13:04.713Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-step-bookkeeping-and-output/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-step-bookkeeping-and-output",
+        "commit": "c51ac6a"
+      }
     }
   ],
   "current_phase": "ship",
