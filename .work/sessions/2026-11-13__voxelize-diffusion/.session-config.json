@@ -63,6 +63,30 @@
       "detail": {
         "tickets": 6
       }
+    },
+    {
+      "at": "2026-11-13T21:19:36.776Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-voxel-grid-config.md",
+        "03-implement/01-voxel-grid-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-voxel-grid-config"
+      }
+    },
+    {
+      "at": "2026-11-13T21:22:26.721Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-voxel-grid-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-voxel-grid-config",
+        "commit": "83758df"
+      }
     }
   ],
   "current_phase": "ship",
@@ -71,5 +95,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-13T21:19:31.131Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "inline"
 }
