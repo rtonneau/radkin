@@ -85,6 +85,30 @@
         "ticket": "01-background-voxels",
         "commit": "1d22775"
       }
+    },
+    {
+      "at": "2026-11-13T23:49:12.193Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-geant4-reference.md",
+        "03-implement/02-geant4-reference/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-geant4-reference"
+      }
+    },
+    {
+      "at": "2026-11-13T23:49:21.215Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-geant4-reference/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-geant4-reference",
+        "commit": "dd8051d"
+      }
     }
   ],
   "current_phase": "ship",
