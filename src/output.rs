@@ -18,7 +18,7 @@ use crate::error::{RadkinError, Result};
 use crate::result::{OdeResult, ShortOnSpan};
 
 /// Revision of rsoda pinned in `Cargo.toml`.
-pub const RSODA_REV: &str = "ae76eee";
+pub const RSODA_REV: &str = "312b742";
 
 /// Run metadata written to `run.json`.
 #[derive(Debug, Clone, Serialize)]
