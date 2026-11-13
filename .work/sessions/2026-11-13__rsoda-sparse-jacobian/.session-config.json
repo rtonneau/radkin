@@ -135,6 +135,30 @@
         "ticket": "03-rsoda-faer-sparse-solver",
         "commit": "90a301c"
       }
+    },
+    {
+      "at": "2026-11-13T08:01:24.110Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-rsoda-ci-docs-pr.md",
+        "03-implement/04-rsoda-ci-docs-pr/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-rsoda-ci-docs-pr"
+      }
+    },
+    {
+      "at": "2026-11-13T08:03:33.868Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-rsoda-ci-docs-pr/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-rsoda-ci-docs-pr",
+        "commit": "ed436a2"
+      }
     }
   ],
   "current_phase": "ship",
