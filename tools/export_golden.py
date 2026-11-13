@@ -195,7 +195,10 @@ def export_parser(radiopyo: Path, out: Path) -> None:
     from radiopyo.parser import RPARSER
 
     strings = []
-    for f in (radiopyo / "radiopyo" / "data").glob("*.toml"):
+    files = list((radiopyo / "radiopyo" / "data").glob("*.toml"))
+    files += list((radiopyo / "examples" / "tonneau_2025_pmb" / "data").glob("*.toml"))
+    files += list((radiopyo / "docs" / "issues" / "fenton").glob("*.toml"))
+    for f in files:
         cfg = tomllib.loads(f.read_text(encoding="utf8"))
         for section in cfg.get("reactions", {}).values():
             if isinstance(section, list):

@@ -268,7 +268,12 @@ fn parse_side(input: &str, side: &str, signed: bool) -> Result<Vec<(String, u32,
             i += 1;
         }
         let mut run: Vec<char> = chars[run_start..i].to_vec();
-        let next_starts_species = i < chars.len() && is_word(chars[i]);
+        // Next non-blank char starts a species ("H_r+ OH_minus", "A+B").
+        let mut k = i;
+        while k < chars.len() && chars[k].is_whitespace() {
+            k += 1;
+        }
+        let next_starts_species = k < chars.len() && is_word(chars[k]);
         let mut separator = None;
         if !run.is_empty() && next_starts_species {
             separator = run.pop();

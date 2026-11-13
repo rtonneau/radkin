@@ -1938,6 +1938,300 @@
   ],
   "enzyme": "catalase"
  },
+ "e_aq + H2O -> H_r + OH_minus": {
+  "reactants": [
+   [
+    "e_aq",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O2_minus + O_minus -> 2OH_minus  + O2": {
+  "reactants": [
+   [
+    "O2_minus",
+    1,
+    "+"
+   ],
+   [
+    "O_minus",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "OH_minus",
+    2,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "O_minus + H2 -> H_r+ OH_minus": {
+  "reactants": [
+   [
+    "O_minus",
+    1,
+    "+"
+   ],
+   [
+    "H2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H_r",
+    1,
+    "+"
+   ],
+   [
+    "OH_minus",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2 O2_r_minus -> H2O2 + O2": {
+  "reactants": [
+   [
+    "O2_r_minus",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "H2O2",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "RH + H_r -> R_r + molHr": {
+  "reactants": [
+   [
+    "RH",
+    1,
+    "+"
+   ],
+   [
+    "H_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "R_r",
+    1,
+    "+"
+   ],
+   [
+    "molHr",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "OH_r + RH -> R_r + H2O + molOHr": {
+  "reactants": [
+   [
+    "OH_r",
+    1,
+    "+"
+   ],
+   [
+    "RH",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "R_r",
+    1,
+    "+"
+   ],
+   [
+    "H2O",
+    1,
+    "+"
+   ],
+   [
+    "molOHr",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "R_r + O2 -> ROO_r + mol1": {
+  "reactants": [
+   [
+    "R_r",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "ROO_r",
+    1,
+    "+"
+   ],
+   [
+    "mol1",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2 R_r -> RR": {
+  "reactants": [
+   [
+    "R_r",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "RR",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "2 ROO_r -> ROOR + O2": {
+  "reactants": [
+   [
+    "ROO_r",
+    2,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "ROOR",
+    1,
+    "+"
+   ],
+   [
+    "O2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "ROO_r -> x": {
+  "reactants": [
+   [
+    "ROO_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "x",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "R_r -> y": {
+  "reactants": [
+   [
+    "R_r",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "y",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
+ "ROO_r + RH -> ROOH + R_r + mol2": {
+  "reactants": [
+   [
+    "ROO_r",
+    1,
+    "+"
+   ],
+   [
+    "RH",
+    1,
+    "+"
+   ]
+  ],
+  "products": [
+   [
+    "ROOH",
+    1,
+    "+"
+   ],
+   [
+    "R_r",
+    1,
+    "+"
+   ],
+   [
+    "mol2",
+    1,
+    "+"
+   ]
+  ],
+  "enzyme": null
+ },
  "Fe++ + B -> C": {
   "reactants": [
    [
