@@ -159,6 +159,30 @@
         "ticket": "04-strang-adaptive-driver",
         "commit": "5b1db69"
       }
+    },
+    {
+      "at": "2026-11-13T21:29:33.952Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-geant4-seed-import.md",
+        "03-implement/05-geant4-seed-import/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-geant4-seed-import"
+      }
+    },
+    {
+      "at": "2026-11-13T21:31:53.357Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-geant4-seed-import/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-geant4-seed-import",
+        "commit": "70af9ec"
+      }
     }
   ],
   "current_phase": "ship",
