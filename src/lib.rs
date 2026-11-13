@@ -16,5 +16,6 @@ pub mod pyfloat;
 pub mod result;
 pub mod solver;
 pub mod unit_cell;
+pub mod voxel;
 
 pub use error::{RadkinError, Result};

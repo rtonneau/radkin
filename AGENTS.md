@@ -2,7 +2,8 @@
 
 radkin is a Rust port of radiopyo: homogeneous chemical kinetics of water radiolysis
 (G-values, rate equations, beams), solved with the LSODA solver rsoda. Phase 1 reproduces
-radiopyo's results. Phase 2 (planned) adds a voxelised 3D geometry with species diffusion.
+radiopyo's results. Phase 2 adds a voxelised 3D geometry with species diffusion, seeded by
+Geant4-DNA molecules and coupled to the chemistry by Strang splitting (`src/voxel/`, ADR 0002).
 See `README.md` for usage and `docs/superpowers/specs/` for the Phase-1 design.
 
 ## Related repositories
@@ -60,6 +61,9 @@ Python with `-I`.
 - `src/solver.rs`: wraps rsoda to behave like scipy `solve_ivp(method="LSODA")`.
 - `src/unit_cell.rs`, `src/result.rs`, `src/output.rs`, `src/bin/radkin.rs`: the run,
   chunked and single-pulse drivers, the results, and the CSV/JSON outputs and CLI.
+- `src/voxel/`: Phase 2. Grid and state, `[voxel]` config, ADI diffusion, per-voxel reaction
+  step (rayon), Strang driver with step-doubling, Geant4 seeds, simulation and outputs
+  (`radkin voxel`).
 - `tests/golden/*.json`: radiopyo reference data exported by `tools/export_golden.py`.
 - `data/`: radiopyo's config TOMLs and the Boscolo CSV.
 

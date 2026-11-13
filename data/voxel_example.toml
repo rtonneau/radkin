@@ -1,0 +1,30 @@
+# Voxel reaction-diffusion example: radkin chemistry of CONFIG_PAPER_01 seeded
+# by a synthetic 6-spur track. Run with:
+#   radkin voxel data/voxel_example.toml --out out/voxel_example
+
+[includes]
+toml = ["radkin/CONFIG_PAPER_01.toml"]
+
+[voxel]
+clip = false
+
+[voxel.grid]
+dims = [8, 8, 12]
+spacing_nm = 6.0
+origin_nm = [-24.0, -24.0, -36.0]
+
+# [voxel.diffusion]   # m^2/s, overrides the Geant4-DNA defaults
+# O2 = 2.4e-9
+
+[[voxel.seed]]
+file = "voxel_example_molecules.csv"
+time = 1e-12
+energy_ev = 360.0   # deposited energy of the track [eV] (illustrative)
+
+[voxel.run]
+t_start = 0.0
+t_end = 1e-7
+snapshots = [1e-12, 1e-9, 1e-8, 1e-7]
+rtol = 1e-2
+atol = 1e-3
+dt_initial = 1e-13

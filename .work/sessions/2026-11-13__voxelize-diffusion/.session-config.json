@@ -1,0 +1,253 @@
+{
+  "session_id": "2026-11-13__voxelize-diffusion",
+  "feature_name": "voxelize-diffusion",
+  "scratch_dir": ".scratch/tests/2026-11-13__voxelize-diffusion",
+  "created_at": "2026-11-13T21:01:03.926Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-13T21:01:03.926Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T21:16:09.919Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-13T21:16:34.937Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T21:16:35.039Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T21:19:31.131Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/voxel-diffusion",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-13T21:19:31.154Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-voxel-grid-config.md",
+        "02-plan/tickets/02-adi-diffusion.md",
+        "02-plan/tickets/03-voxel-reaction-step.md",
+        "02-plan/tickets/04-strang-adaptive-driver.md",
+        "02-plan/tickets/05-geant4-seed-import.md",
+        "02-plan/tickets/06-voxel-output-cli-docs.md"
+      ],
+      "detail": {
+        "tickets": 6
+      }
+    },
+    {
+      "at": "2026-11-13T21:19:36.776Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-voxel-grid-config.md",
+        "03-implement/01-voxel-grid-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-voxel-grid-config"
+      }
+    },
+    {
+      "at": "2026-11-13T21:22:26.721Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-voxel-grid-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-voxel-grid-config",
+        "commit": "83758df"
+      }
+    },
+    {
+      "at": "2026-11-13T21:25:05.211Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-adi-diffusion.md",
+        "03-implement/02-adi-diffusion/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-adi-diffusion"
+      }
+    },
+    {
+      "at": "2026-11-13T21:25:05.678Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-adi-diffusion/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-adi-diffusion",
+        "commit": "212f4c1"
+      }
+    },
+    {
+      "at": "2026-11-13T21:25:10.092Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-voxel-reaction-step.md",
+        "03-implement/03-voxel-reaction-step/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-voxel-reaction-step"
+      }
+    },
+    {
+      "at": "2026-11-13T21:27:17.645Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-voxel-reaction-step/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-voxel-reaction-step",
+        "commit": "9847303"
+      }
+    },
+    {
+      "at": "2026-11-13T21:27:35.010Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-strang-adaptive-driver.md",
+        "03-implement/04-strang-adaptive-driver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-strang-adaptive-driver"
+      }
+    },
+    {
+      "at": "2026-11-13T21:28:59.659Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-strang-adaptive-driver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-strang-adaptive-driver",
+        "commit": "5b1db69"
+      }
+    },
+    {
+      "at": "2026-11-13T21:29:33.952Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-geant4-seed-import.md",
+        "03-implement/05-geant4-seed-import/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-geant4-seed-import"
+      }
+    },
+    {
+      "at": "2026-11-13T21:31:53.357Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-geant4-seed-import/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-geant4-seed-import",
+        "commit": "70af9ec"
+      }
+    },
+    {
+      "at": "2026-11-13T21:31:58.029Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-voxel-output-cli-docs.md",
+        "03-implement/06-voxel-output-cli-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-voxel-output-cli-docs"
+      }
+    },
+    {
+      "at": "2026-11-13T21:36:54.688Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/06-voxel-output-cli-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-voxel-output-cli-docs",
+        "commit": "ede169b"
+      }
+    },
+    {
+      "at": "2026-11-13T21:37:06.597Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-11-13T21:37:12.154Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/6"
+      }
+    },
+    {
+      "at": "2026-11-13T21:37:06.857Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/voxel-diffusion",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-13T21:19:31.131Z",
+    "pr_url": "https://github.com/rtonneau/radkin/pull/6"
+  },
+  "ship_mode": "inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 6,
+    "path": ".work/changelog/2026-11-13__voxelize-diffusion.md",
+    "written_at": "2026-11-13T21:37:06.591Z"
+  },
+  "finished_at": "2026-11-13T21:37:06.857Z"
+}

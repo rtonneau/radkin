@@ -37,6 +37,24 @@ _Avoid_: structure, mask
 A grouping of Jacobian columns that share no nonzero row, so one finite-difference RHS call per group estimates all of its columns (Curtis-Powell-Reid).
 _Avoid_: column grouping, compression
 
+### Voxel model
+
+**Voxel grid**:
+The uniform Cartesian nx×ny×nz domain with per-axis spacing and zero-flux boundaries; each voxel holds one full species state vector.
+_Avoid_: mesh, lattice, cell (cell means the Phase-1 unit cell)
+
+**Seed**:
+A set of Geant4-DNA molecules (CSV: species, x, y, z) binned into voxel concentrations and injected into the grid at a given time.
+_Avoid_: track input, initial condition (a seed may arrive later than t0)
+
+**Splitting step**:
+One Strang step reaction(dt/2) → diffusion(dt) → reaction(dt/2) over the whole grid; its dt is adapted by step-doubling.
+_Avoid_: time step (ambiguous with rsoda's internal steps)
+
+**Snapshot**:
+The full 3D concentration field of every species at a requested output time.
+_Avoid_: frame, dump
+
 ### Performance
 
 **Time breakdown**:
