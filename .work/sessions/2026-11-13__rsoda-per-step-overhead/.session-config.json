@@ -87,6 +87,30 @@
         "ticket": "01-rsoda-timing-feature",
         "commit": "f07a9dd"
       }
+    },
+    {
+      "at": "2026-11-13T08:44:17.993Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-bench-time-breakdown-baseline.md",
+        "03-implement/02-bench-time-breakdown-baseline/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-bench-time-breakdown-baseline"
+      }
+    },
+    {
+      "at": "2026-11-13T08:49:43.066Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-bench-time-breakdown-baseline/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-bench-time-breakdown-baseline",
+        "commit": "009f64a"
+      }
     }
   ],
   "current_phase": "ship",
