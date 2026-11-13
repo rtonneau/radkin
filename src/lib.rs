@@ -4,6 +4,7 @@
 pub mod chemistry;
 pub mod config;
 pub mod consts;
+pub mod dense;
 pub mod error;
 pub mod gvalues;
 pub mod kernel;

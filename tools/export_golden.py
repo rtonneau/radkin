@@ -215,11 +215,61 @@ def export_parser(radiopyo: Path, out: Path) -> None:
     (out / "parser_labels.json").write_text(json.dumps(result, indent=1))
 
 
+def export_dense(out: Path) -> None:
+    """scipy's LSODA dense output on real steps (Robertson), for src/dense.rs.
+
+    Each record is the history as `LSODA._dense_output_impl` reads it
+    (`rwork[20:]`, `iwork[13:15]`, `rwork[10:12]`) and the values of
+    `solver.dense_output()` at points of the step just taken.
+    """
+    from scipy.integrate import LSODA
+
+    def rober(_t, y):
+        return [
+            -0.04 * y[0] + 1.0e4 * y[1] * y[2],
+            0.04 * y[0] - 1.0e4 * y[1] * y[2] - 3.0e7 * y[1] ** 2,
+            3.0e7 * y[1] ** 2,
+        ]
+
+    n = 3
+    solver = LSODA(rober, 0.0, [1.0, 0.0, 0.0], 4.0e10, rtol=1e-4, atol=[1e-6, 1e-10, 1e-6])
+    steps = []
+    while solver.status == "running" and len(steps) < 400:
+        solver.step()
+        it = solver._lsoda_solver._integrator.iwork
+        rw = solver._lsoda_solver._integrator.rwork
+        nqu, nq = int(it[13]), int(it[14])
+        ncol = max(nqu, nq) + 1
+        dense = solver.dense_output()
+        ts = [solver.t_old + f * (solver.t - solver.t_old) for f in (0.0, 0.25, 0.5, 0.9, 1.0)]
+        steps.append({
+            "yh": rw[20:20 + ncol * n].tolist(),
+            "nyh": n,
+            "n": n,
+            "nq": nq,
+            "nqu": nqu,
+            "h": float(rw[11]),
+            "hu": float(rw[10]),
+            "tn": float(rw[12]),
+            "t_step": float(solver.t),
+            "t": ts,
+            "y": [dense(t).tolist() for t in ts],
+        })
+    lowered = sum(s["nq"] < s["nqu"] for s in steps)
+    assert lowered > 0, "no order decrease in the Robertson run"
+    (out / "dense_output.json").write_text(json.dumps({"steps": steps}, indent=1))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--radiopyo", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--only", choices=["dense"], help="export only this file")
     args = parser.parse_args()
+    if args.only == "dense":
+        args.out.mkdir(parents=True, exist_ok=True)
+        export_dense(args.out)
+        return
     sys.path.insert(0, str(args.radiopyo))
     import radiopyo  # noqa: F401
 
@@ -232,6 +282,7 @@ def main() -> None:
     export_beams(g, args.out)
     export_runs(g, args.out)
     export_paper(args.radiopyo, args.out)
+    export_dense(args.out)
     for p in sorted(args.out.glob("*.json")):
         print(f"{p.name}: {p.stat().st_size / 1024:.1f} kB")
 
