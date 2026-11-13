@@ -121,3 +121,31 @@ fn sparse_jacobian_flag_matches_dense_run() {
         );
     }
 }
+
+#[test]
+fn voxel_example_writes_yields_and_snapshots() {
+    let dir = std::env::temp_dir().join(format!("radkin_cli_voxel_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let out = radkin()
+        .args(["voxel", "data/voxel_example.toml", "--out"])
+        .arg(&dir)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let yields = std::fs::read_to_string(dir.join("yields.csv")).unwrap();
+    let header = yields.lines().next().unwrap();
+    assert!(header.starts_with("t,") && header.contains("N_e_aq") && header.contains("G_OH_r"));
+    let index: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("snapshots.json")).unwrap())
+            .unwrap();
+    let snaps = index["snapshots"].as_array().unwrap();
+    assert_eq!(snaps.len(), 4);
+    let first = snaps[0]["files"][0].as_str().unwrap();
+    let bytes = std::fs::read(dir.join(first)).unwrap();
+    assert_eq!(&bytes[..6], b"\x93NUMPY");
+    let _ = std::fs::remove_dir_all(&dir);
+}

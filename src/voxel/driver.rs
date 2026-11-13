@@ -69,6 +69,9 @@ pub struct VoxelRun {
     pub solve: SolveOptions,
     pub steps: Vec<StepRecord>,
     pub rejected: usize,
+    /// When `Some`, the domain sum of every species [µmol/L summed over
+    /// voxels] after each accepted step, as `(t, sums)`.
+    pub totals: Option<Vec<(f64, Vec<f64>)>>,
     dt: f64,
     rannacher_pending: bool,
 }
@@ -92,6 +95,7 @@ impl VoxelRun {
             solve,
             steps: Vec::new(),
             rejected: 0,
+            totals: None,
             dt,
             rannacher_pending: true,
         }
@@ -106,6 +110,29 @@ impl VoxelRun {
         }
         self.rannacher_pending = true;
         self.dt = self.control.dt_initial;
+        self.record_totals();
+    }
+
+    /// Start recording domain sums (records the current state first).
+    pub fn track_totals(&mut self) {
+        self.totals = Some(Vec::new());
+        self.record_totals();
+    }
+
+    /// Domain sum of every species [µmol/L summed over voxels].
+    pub fn domain_sums(&self) -> Vec<f64> {
+        (0..self.state.n_species)
+            .map(|s| self.state.field(s).iter().sum())
+            .collect()
+    }
+
+    fn record_totals(&mut self) {
+        if self.totals.is_some() {
+            let sums = self.domain_sums();
+            if let Some(v) = self.totals.as_mut() {
+                v.push((self.t, sums));
+            }
+        }
     }
 
     fn strang(&mut self, state: &mut VoxelState, t: f64, dt: f64, damped: bool) -> Result<()> {
@@ -159,6 +186,7 @@ impl VoxelRun {
                     error: err,
                 });
                 self.rannacher_pending = false;
+                self.record_totals();
                 // A landing step was cut short: keep the earlier proposal if larger.
                 let next = dt * factor;
                 self.dt = if landing { self.dt.max(next) } else { next };

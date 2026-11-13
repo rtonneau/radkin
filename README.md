@@ -101,12 +101,75 @@ pwsh tools/acceptance.ps1 -Python <python with radiopyo> -Radiopyo <radiopyo che
 Results agree to solver tolerance, not bit for bit: scipy's `solve_ivp` wraps ODEPACK's
 LSODA while rsoda is a direct port of the thread-safe Fortran fork.
 
-## Phase 2 (planned)
+## Voxel reaction-diffusion (Phase 2)
 
-Voxelised 3D geometry with species diffusion coefficients, integrated as one ODE system.
-rsoda's dense or banded Jacobians do not scale to `n_voxels × n_species` unknowns, so the
-Phase-2 design will choose between operator splitting (rsoda per voxel + a diffusion step)
-and a sparse/Krylov solver.
+`radkin voxel CONFIG --out DIR` runs the chemistry of `CONFIG` (with its includes) on a
+uniform Cartesian voxel grid seeded by Geant4-DNA molecules. Each splitting step is
+Strang: reaction(dt/2), diffusion(dt), reaction(dt/2) (ADR 0002 in `.work/adr/`).
+
+- The reaction half-step is an independent rsoda run per voxel, parallelised with rayon
+  (cargo feature `parallel`, on by default; the results are bit-identical to serial).
+- Diffusion uses Crank-Nicolson ADI with zero-flux boundaries. After each injection,
+  backward-Euler substeps (Rannacher start) keep the concentrations non-negative.
+- dt is adaptive by step doubling and lands exactly on seed and snapshot times.
+
+```toml
+[includes]
+toml = ["radkin/CONFIG_PAPER_01.toml"]   # chemistry
+
+[voxel]
+clip = false                 # true: drop out-of-grid molecules (lost fraction is logged)
+
+[voxel.grid]
+dims = [8, 8, 12]
+spacing_nm = 6.0             # or [dx, dy, dz]
+origin_nm = [-24, -24, -36]
+
+[voxel.diffusion]            # m^2/s; defaults are Geant4-DNA's for e_aq, OH_r, H3O_plus,
+O2 = 2.4e-9                  # H_r, H2, H2O2, OH_minus; other species do not diffuse
+
+[voxel.geant4]
+aliases = { "O2^0" = "O2" }  # Geant4 name -> radkin label (standard water species built in)
+ignore = ["H2O^0"]
+
+[[voxel.seed]]               # one entry per injection
+file = "track.csv"           # species,x,y,z[,event_id]; positions in nm
+time = 1e-12                 # s
+events = [0]                 # optional event_id filter
+offset_nm = [0, 0, 0]
+energy_ev = 360.0            # optional: deposited energy, enables G(t)
+
+[voxel.run]
+t_end = 1e-7
+snapshots = [1e-12, 1e-9, 1e-7]
+rtol = 1e-2                  # splitting error control (atol in µmol/L)
+atol = 1e-3
+```
+
+The background species come from the chemistry's initial concentrations, uniform over the
+grid. Each molecule adds `1/(N_A V)` to its voxel. The molecule CSV is written on the
+Geant4 side, e.g. from a chem `TimeStepAction` with `G4MolecularConfiguration::GetName()`
+(`e_aq^-1`, `°OH^0`, `H3O^1`, ...) or the user IDs (`e_aq`, `°OH`, `H3Op`, `OHm`, ...).
+
+Outputs:
+
+| file | content |
+|---|---|
+| `yields.csv` | `t`, `N_<sp>` (molecules in the domain) at every accepted step; with `energy_ev`, `G_<sp>` = (N - N(t_start)) / (E / 100 eV) |
+| `snapshots/t<k>_<sp>.npy` | concentration field [mol/L], C order, shape `(nz, ny, nx)` |
+| `snapshots.json` | grid, species, snapshot times and files, step counts |
+
+`python -I tools/compare_geant4.py DIR [--geant4 g4.csv]` plots G(t), optionally against
+Geant4-DNA chemistry yields (a CSV with columns `t,species,G`).
+
+**Mean-field caveat.** Each voxel is well mixed, so one molecule in a (5 nm)^3 voxel is
+about 13 mM, and second-order terms such as `e_aq + e_aq` act even on a lone molecule.
+Voxels larger than the spur size (a few nm) mix a spur too early and overestimate
+recombination. Voxels much smaller than the mean distance between molecules make
+the continuum description meaningless. Check that the results are stable as the voxel
+size changes, and compare against Geant4-DNA step-by-step chemistry before trusting
+absolute G-values. The example (`data/voxel_example.toml`, a synthetic track) shows the
+workflow; its numbers are illustrative only.
 
 ## License
 

@@ -33,6 +33,35 @@ enum Mode {
 enum Command {
     /// Run a simulation and write its outputs.
     Run(Box<RunArgs>),
+    /// Voxel reaction-diffusion run seeded by Geant4-DNA molecules
+    /// (`[voxel]` sections of the configuration).
+    Voxel(VoxelArgs),
+}
+
+#[derive(clap::Args)]
+struct VoxelArgs {
+    /// TOML configuration file with `[voxel.grid]`, `[[voxel.seed]]` and `[voxel.run]`.
+    config: PathBuf,
+    /// Output directory.
+    #[arg(long)]
+    out: PathBuf,
+}
+
+fn voxel(a: &VoxelArgs) -> radkin::Result<()> {
+    let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
+    let started = std::time::Instant::now();
+    let out = sim.run()?;
+    radkin::voxel::write_voxel_dir(&a.out, &out, &sim.voxel.grid)?;
+    eprintln!(
+        "radkin: voxel run of {} voxels, {} steps ({} rejected) in {:.1} s; {} snapshots written to {}",
+        sim.voxel.grid.n_voxels(),
+        out.n_steps,
+        out.n_rejected,
+        started.elapsed().as_secs_f64(),
+        out.snapshots.len(),
+        a.out.display()
+    );
+    Ok(())
 }
 
 #[derive(clap::Args)]
@@ -171,6 +200,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match &cli.command {
         Command::Run(a) => run(a),
+        Command::Voxel(a) => voxel(a),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
