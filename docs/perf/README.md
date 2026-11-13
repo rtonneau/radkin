@@ -152,3 +152,38 @@ noise floor between two builds:
 Not kept. The patch is in the ticket-04 log of the session
 (`.work/sessions/2026-11-13__rsoda-per-step-overhead/03-implement/04-rsoda-dense-lu/`)
 in case a later need (e.g. larger dense systems) makes it pay.
+
+### rsoda step bookkeeping (ticket 05), kept
+
+A temporary cycle-counter probe (`rdtsc` per DSTODA jump target, not
+committed) split rsoda's run on Labarbe (dense) as: RHS calls 32%, linear
+solves 15%, prepare 13%, and rsoda's own work about 32%. The latter was
+predict (9%), the corrector's vector updates (about 9%), the history update
+after a step (7%), and the driver's error weights and checks (3%). These were
+indexed loops over the history array and the work vectors, with bounds checks
+and no vectorization.
+
+Kept: `predict`/`retract` run as column updates on slices (each sweep is
+`col(c) += col(c + 1)` for ascending columns, the same values as the indexed
+sweep, checked bit for bit by a unit test), and the corrector, history update
+and rescale loops zip their vectors. Same element operations in the same
+order, so the results are bit-identical. rsoda's golden counters and states
+are unchanged, and nfev/nst are unchanged on every case below.
+
+{ab}
+
+All cases are faster (-5.8% to -18.4%, dense around -15%, sparse around
+-11%).
+
+Dropped:
+
+- **4-lane `vmnorm`** (four running maxima, bit-identical because the max
+  ignores NaN and does not depend on order): -0.6% to -3.6%, below the rule.
+
+{vm}
+
+- **Flat output storage in `solver::solve`** (one `Vec<f64>` instead of a
+  `Vec` per stored step). The upper bound, not storing at all, is -6% to
+  -8% on run-mode cases. A flat buffer that still copies each step gives 0%
+  to -7.6% (most cases -1% to -3.6%). It would also change the public
+  `OdeResult::y()` layout. Not worth it.
