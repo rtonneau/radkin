@@ -111,6 +111,30 @@
         "ticket": "02-adi-diffusion",
         "commit": "212f4c1"
       }
+    },
+    {
+      "at": "2026-11-13T21:25:10.092Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-voxel-reaction-step.md",
+        "03-implement/03-voxel-reaction-step/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-voxel-reaction-step"
+      }
+    },
+    {
+      "at": "2026-11-13T21:27:17.645Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-voxel-reaction-step/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-voxel-reaction-step",
+        "commit": "9847303"
+      }
     }
   ],
   "current_phase": "ship",
