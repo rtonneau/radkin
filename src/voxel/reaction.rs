@@ -11,6 +11,20 @@ use crate::matrices::SimMatrices;
 use crate::solver::{DoseRateSource, SolveOptions, solve};
 use crate::voxel::grid::VoxelState;
 
+/// Absolute tolerance of the background match, as a fraction of the solver
+/// atol.
+pub const BACKGROUND_ATOL_FACTOR: f64 = 1e-3;
+/// Relative tolerance of the background match.
+pub const BACKGROUND_RTOL: f64 = 1e-12;
+
+/// Whether voxel state `y` matches the background `bg` within
+/// `atol + BACKGROUND_RTOL * |bg|` per species.
+pub fn is_background(y: &[f64], bg: &[f64], atol: f64) -> bool {
+    y.iter()
+        .zip(bg)
+        .all(|(a, b)| (a - b).abs() <= atol + BACKGROUND_RTOL * b.abs())
+}
+
 /// Integrate every voxel of `state` (dynamic species, µmol/L) over
 /// `[t, t + h]`. `opts.t_eval` is ignored.
 pub fn reaction_step(
@@ -20,14 +34,27 @@ pub fn reaction_step(
     h: f64,
     opts: &SolveOptions,
 ) -> Result<()> {
+    reaction_step_background(mat, state, None, t, h, opts).map(|_| ())
+}
+
+/// [`reaction_step`] with background voxels: when `background` is given, it
+/// is integrated once over `[t, t + h]` and every voxel that matches it at
+/// the start (see [`is_background`], atol `BACKGROUND_ATOL_FACTOR * opts.atol`)
+/// receives that result instead of its own rsoda run. The other voxels are
+/// integrated exactly as without a background. Returns the number of
+/// background voxels.
+pub fn reaction_step_background(
+    mat: &SimMatrices,
+    state: &mut VoxelState,
+    background: Option<&mut Vec<f64>>,
+    t: f64,
+    h: f64,
+    opts: &SolveOptions,
+) -> Result<usize> {
     if h <= 0.0 {
-        return Ok(());
+        return Ok(0);
     }
     let n_sp = state.n_species;
-    let mut aos = vec![0.0; n_sp * state.n_voxels];
-    for (v, y) in aos.chunks_mut(n_sp).enumerate() {
-        state.gather(v, y);
-    }
     let mut o = opts.clone();
     o.t_eval = Some(vec![t + h]);
     if o.first_step >= h {
@@ -38,11 +65,44 @@ pub fn reaction_step(
         y.copy_from_slice(&sol.y[0]);
         Ok(())
     };
-    run_voxels(&mut aos, n_sp, one)?;
-    for (v, y) in aos.chunks(n_sp).enumerate() {
-        state.scatter(v, y);
+    let mut y = vec![0.0; n_sp];
+    let Some(bg) = background else {
+        let mut aos = vec![0.0; n_sp * state.n_voxels];
+        for (v, y) in aos.chunks_mut(n_sp).enumerate() {
+            state.gather(v, y);
+        }
+        run_voxels(&mut aos, n_sp, one)?;
+        for (v, y) in aos.chunks(n_sp).enumerate() {
+            state.scatter(v, y);
+        }
+        return Ok(0);
+    };
+    assert_eq!(bg.len(), n_sp);
+    let atol = BACKGROUND_ATOL_FACTOR * opts.atol;
+    let mut active = Vec::new();
+    let mut aos = Vec::new();
+    for v in 0..state.n_voxels {
+        state.gather(v, &mut y);
+        if !is_background(&y, bg, atol) {
+            active.push(v);
+            aos.extend_from_slice(&y);
+        }
     }
-    Ok(())
+    let n_background = state.n_voxels - active.len();
+    run_voxels(&mut aos, n_sp, one)?;
+    // Always advanced, so it stays the background of later steps.
+    one(bg)?;
+    let mut next = active.iter().zip(aos.chunks(n_sp)).peekable();
+    for v in 0..state.n_voxels {
+        match next.peek() {
+            Some((a, y)) if **a == v => {
+                state.scatter(v, y);
+                next.next();
+            }
+            _ => state.scatter(v, bg),
+        }
+    }
+    Ok(n_background)
 }
 
 #[cfg(feature = "parallel")]

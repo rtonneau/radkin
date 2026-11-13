@@ -116,6 +116,10 @@ Strang: reaction(dt/2), diffusion(dt), reaction(dt/2) (ADR 0002 in `.work/adr/`)
 - Diffusion uses Crank-Nicolson ADI with zero-flux boundaries. After each injection,
   backward-Euler substeps (Rannacher start) keep the concentrations non-negative.
 - dt is adaptive by step doubling and lands exactly on seed and snapshot times.
+- Background voxels, which still hold only the uniform initial solution (within
+  `1e-3 * solver_atol + 1e-12 * |c|`), share one rsoda run per half-step, so untouched
+  voxels cost almost nothing. Diffusion then acts on the deviation from that background.
+  Set `background_voxels = false` in `[voxel.run]` to integrate every voxel.
 
 ```toml
 [includes]
@@ -148,6 +152,7 @@ t_end = 1e-7
 snapshots = [1e-12, 1e-9, 1e-7]
 rtol = 1e-2                  # splitting error control (atol in µmol/L)
 atol = 1e-3
+# background_voxels = true   # share one integration for untouched voxels
 ```
 
 The background species come from the chemistry's initial concentrations, uniform over the

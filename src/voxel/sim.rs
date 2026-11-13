@@ -37,6 +37,8 @@ pub struct RunSettings {
     pub snapshots: Vec<f64>,
     pub control: StepControl,
     pub solve: SolveOptions,
+    /// Advance background voxels with one shared integration (default true).
+    pub background_voxels: bool,
 }
 
 fn opt_num(t: &toml::Table, key: &str) -> Result<Option<f64>> {
@@ -73,6 +75,15 @@ impl RunSettings {
                     RadkinError::Config("voxel.run.snapshots must be a list of numbers".into())
                 })?,
         };
+        let background_voxels = match t.get("background_voxels") {
+            None => true,
+            Some(toml::Value::Boolean(b)) => *b,
+            Some(_) => {
+                return Err(RadkinError::Config(
+                    "voxel.run.background_voxels must be a boolean".into(),
+                ));
+            }
+        };
         let d = StepControl::default();
         let control = StepControl {
             rtol: opt_num(t, "rtol")?.unwrap_or(d.rtol),
@@ -100,6 +111,7 @@ impl RunSettings {
             snapshots,
             control,
             solve,
+            background_voxels,
         })
     }
 }
@@ -194,7 +206,8 @@ impl VoxelSimulation {
         let mat = SimMatrices::build(&self.env)?;
         let coeffs: Vec<f64> = species.iter().map(|s| self.voxel.diffusion_of(s)).collect();
         let grid = self.voxel.grid.clone();
-        let state = VoxelState::uniform(&self.env.initial_values(), grid.n_voxels());
+        let y0 = self.env.initial_values();
+        let state = VoxelState::uniform(&y0, grid.n_voxels());
         let s = &self.settings;
         let mut run = VoxelRun::new(
             mat,
@@ -204,6 +217,9 @@ impl VoxelSimulation {
             s.control.clone(),
             s.solve.clone(),
         );
+        if s.background_voxels {
+            run.background = Some(y0);
+        }
         run.track_totals();
         let mut snapshots = Vec::new();
         run_schedule(&mut run, &self.seeds, &s.snapshots, s.t_end, |r| {
@@ -213,6 +229,13 @@ impl VoxelSimulation {
             });
             Ok(())
         })?;
+        if run.voxel_steps > 0 {
+            log::info!(
+                "background voxels: {:.1}% of {} voxel half-steps",
+                100.0 * run.background_voxel_steps as f64 / run.voxel_steps as f64,
+                run.voxel_steps
+            );
+        }
         Ok(VoxelOutput {
             species,
             totals: run.totals.take().unwrap_or_default(),
@@ -225,5 +248,28 @@ impl VoxelSimulation {
             n_steps: run.steps.len(),
             n_rejected: run.rejected,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn background_voxels_setting() {
+        let t: toml::Table = toml::from_str("t_end = 1e-9").unwrap();
+        assert!(RunSettings::from_table(&t).unwrap().background_voxels);
+        let t: toml::Table = toml::from_str(
+            "t_end = 1e-9
+background_voxels = false",
+        )
+        .unwrap();
+        assert!(!RunSettings::from_table(&t).unwrap().background_voxels);
+        let t: toml::Table = toml::from_str(
+            "t_end = 1e-9
+background_voxels = 1",
+        )
+        .unwrap();
+        assert!(RunSettings::from_table(&t).is_err());
     }
 }
