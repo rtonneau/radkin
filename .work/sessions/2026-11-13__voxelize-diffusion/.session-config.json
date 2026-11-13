@@ -183,9 +183,33 @@
         "ticket": "05-geant4-seed-import",
         "commit": "70af9ec"
       }
+    },
+    {
+      "at": "2026-11-13T21:31:58.029Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-voxel-output-cli-docs.md",
+        "03-implement/06-voxel-output-cli-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-voxel-output-cli-docs"
+      }
+    },
+    {
+      "at": "2026-11-13T21:36:54.688Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/06-voxel-output-cli-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-voxel-output-cli-docs",
+        "commit": "ede169b"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/voxel-diffusion",
     "base_branch": "main",
