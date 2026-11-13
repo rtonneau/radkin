@@ -1,0 +1,28 @@
+[package]
+name = "radkin"
+version = "0.1.0"
+edition = "2024"
+license = "LGPL-3.0-or-later"
+description = "Rust port of radiopyo: homogeneous water radiolysis kinetics solved with LSODA (rsoda)"
+repository = "https://github.com/rtonneau/radkin"
+
+[dependencies]
+rsoda = { git = "https://github.com/rtonneau/rsoda", rev = "ae76eee" }
+toml = { version = "0.8", features = ["preserve_order"] }
+indexmap = { version = "2", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+log = "0.4"
+env_logger = "0.11"
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+approx = "0.5"
+
+[[bin]]
+name = "radkin"
+path = "src/bin/radkin.rs"
+
+[profile.test]
+opt-level = 2

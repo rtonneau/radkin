@@ -1,0 +1,323 @@
+# ==================================================================================
+# CONFIG_PAPER_01.toml: the configuration of the original runs of
+# Tonneau et al. 2025 (Phys. Med. Biol. 70 235021).
+#
+# Copied verbatim (below this header) from the author's original simulation
+# folder, CONFIG/CONFIG_PAPER_01.toml, included by pH/CONFIG3.toml of the runs
+# that produced the values quoted in the paper's text (sim_GVal_Dr_pH3.h5,
+# 2025-02-28; LET 0.56 keV/um, GF(DR) fit shipped by radiopyo). Used by the
+# "original" scenario of paper_runs.py. CONFIG3.toml also set
+# variable_GValues = true (set in code by paper_runs) and the legacy
+# force_positive = false flag (gone from radiopyo, the current default).
+#
+# Rate constants that differ from radiopyo/data/advanced_water_radiolysis.toml:
+#   e_aq + O2 -> O2_minus             2.29e10 (bundled 1.9e10)
+#   H_r + O2 -> HO2                   4.2e10  (bundled 1.31e10)
+#   H_r + HO2 -> H2O2                 1.8e10  (bundled 1.14e10)
+#   O2_minus + O_minus -> 2 OH_minus + O2    written without H2O
+# ==================================================================================
+
+[parameters]
+pH = 7
+force_cst_pH = false
+
+[concentrations.initial]
+O2 = 52e-6
+
+# ----------------------------------------------------------------------------------
+#                             DEFINE RADIOLYTIC REACTIONS                            
+# ----------------------------------------------------------------------------------
+[reactions.radiolytic] # Unit is [radical / 100eV / incident particle]
+e_aq = 2.6     # 2.8
+OH_r = 2.7     # 2.8
+H_r = 0.6      # 0.62
+H2 = 0.45      # 0.47
+H2O2 = 0.7     # 0.73
+H3O_plus = 2.6 # 2.8 #3.24
+
+
+# ----------------------------------------------------------------------------------
+#                                    DEFINE REACTIONS                            
+# ----------------------------------------------------------------------------------
+######################################## Acid-Base Reactions
+[[reactions.acid_base]]
+reaction = "H2O2 <-> H3O_plus + HO2_minus"
+pKa = 11.65
+k_forward = 9.43e-2
+k_backward = 5.02e10
+
+[[reactions.acid_base]]
+reaction = "OH_r <-> O_minus + H3O_plus"
+pKa = 11.9
+k_forward = 9.43e-2
+k_backward = 5.02e10
+
+[[reactions.acid_base]]
+reaction = "HO2 <-> O2_minus + H3O_plus"
+pKa = 4.57
+k_forward = 7.73e5
+k_backward = 5.02e10
+
+[[reactions.equilibrium]]
+reaction = "HO2 + OH_minus <-> O2_minus + H2O"
+k_forward = 1.33e10
+k_backward = 1.55e-1
+
+
+[[reactions.equilibrium]]
+reaction = "H2O <-> H3O_plus + OH_minus"
+pKa = 13.999
+k_forward = 2.12e-5
+k_backward = 1.18e11
+
+[[reactions.equilibrium]]
+reaction = "H2O2 + OH_minus <-> HO2_minus + H2O"
+k_forward = 1.33e10
+k_backward = 1.27e6
+
+[[reactions.equilibrium]]
+reaction = "e_aq + H2O <-> H_r + OH_minus"
+k_forward = 15.75
+k_backward = 2.44e7
+
+[[reactions.equilibrium]]
+reaction = "H_r <-> e_aq + H3O_plus"
+k_forward = 5.83
+k_backward = 2.09e10
+
+[[reactions.equilibrium]]
+reaction = "OH_r + OH_minus <-> O_minus + H2O"
+k_forward = 1.33e10
+k_backward = 1.27e6
+
+
+######################################## Chemical Reactions
+[[reactions.k_reaction]]
+reaction = "e_aq + H2O -> H_r + OH_minus"
+k_value = 19
+
+[[reactions.k_reaction]]
+reaction = "e_aq + OH_r -> OH_minus"
+k_value = 3.55e10
+
+[[reactions.k_reaction]]
+reaction = "e_aq + H2O2 -> OH_r + OH_minus"
+k_value = 1.10e10                           # 1.36e10
+
+[[reactions.k_reaction]]
+reaction = "e_aq + O2_minus + H2O -> HO2_minus + OH_minus"
+k_value = 1.30e10
+
+#[[reactions.k_reaction]]
+#reaction = "e_aq + O2_minus + H2O -> 2 OH_minus + H2O2"
+#k_value = 1.30e10
+
+[[reactions.k_reaction]]
+reaction = "e_aq + HO2 -> HO2_minus"
+k_value = 1.30e10
+
+[[reactions.k_reaction]]
+reaction = "e_aq + O2 -> O2_minus"
+k_value = 2.29e10                  #Rudi: 1.9e10 
+
+[[reactions.k_reaction]]
+reaction = "2 e_aq -> H2 + 2 OH_minus"
+k_value = 1.1e10 # 4.26e9 
+
+[[reactions.k_reaction]]
+#reaction = "e_aq + H_r + H2O -> H2 + OH_minus"
+reaction = "e_aq + H_r -> H2 + OH_minus"
+k_value = 2.76e10 
+
+[[reactions.k_reaction]]
+reaction = "e_aq + HO2_minus -> O_minus + OH_minus"
+k_value = 3.50e9
+
+[[reactions.k_reaction]]
+reaction = "e_aq + O_minus + H2O -> 2 OH_minus"
+k_value = 2.20e10
+
+[[reactions.k_reaction]]
+reaction = "e_aq + O3_minus + H2O ->  2 OH_minus + O2"
+k_value = 1.60e10
+
+[[reactions.k_reaction]]
+reaction = "e_aq + O3 -> O3_minus"
+k_value = 3.60e10
+
+[[reactions.k_reaction]]
+reaction = "H_r + H2O -> H2 + OH_r"
+k_value = 10 #4.58e5
+
+[[reactions.k_reaction]]
+reaction = "H_r + O_minus -> OH_minus"
+k_value = 1.00e10
+
+[[reactions.k_reaction]]
+reaction = "H_r + HO2_minus -> OH_r + OH_minus"
+k_value = 9.00e7
+
+[[reactions.k_reaction]]
+reaction = "H_r + O3_minus ->  OH_minus + O2"
+k_value = 1.00e10
+
+[[reactions.k_reaction]]
+reaction = "H_r + H_r-> H2"
+k_value = 5.14e9 
+
+[[reactions.k_reaction]]
+reaction = "H_r + OH_r -> H2O"
+k_value = 1.09e10
+
+[[reactions.k_reaction]]
+reaction = "H_r + H2O2 -> OH_r + H2O"
+k_value = 9.0e7                     # 3.65e7
+
+[[reactions.k_reaction]]
+reaction = "H_r + O2 -> HO2"
+k_value = 4.2e10           #1.31e10 #####################
+
+[[reactions.k_reaction]]
+reaction = "H_r + HO2 -> H2O2"
+k_value = 1.8e10             # 1.14e10
+
+[[reactions.k_reaction]]
+reaction = "H_r + O2_minus -> HO2_minus"
+k_value = 1.14e10
+
+[[reactions.k_reaction]]
+reaction = "H_r + O3 -> HO3"
+k_value = 3.80e10
+
+[[reactions.k_reaction]]
+reaction = "OH_r + OH_r -> H2O2"
+k_value = 1.1e10                 # = From Rudi else: 4.81e9
+
+[[reactions.k_reaction]]
+reaction = "OH_r + HO2 -> H2O + O2"
+k_value = 8.84e9               #
+
+[[reactions.k_reaction]]
+reaction = "OH_r + O2_minus -> OH_minus + O2"
+k_value = 8.0e9                          #1.1e10 ######################################### ??
+
+[[reactions.k_reaction]]
+reaction = "OH_r + H2 -> H_r + H2O"
+k_value = 3.95e7
+
+[[reactions.k_reaction]]
+reaction = "OH_r + H2O2 -> HO2 + H2O"
+k_value = 2.92e7                      #########################################
+
+[[reactions.k_reaction]]
+reaction = "OH_r + O_minus -> HO2_minus"
+k_value = 2.50e10
+
+[[reactions.k_reaction]]
+reaction = "OH_r + HO2_minus -> HO2 + OH_minus"
+k_value = 7.50e9
+
+[[reactions.k_reaction]]
+reaction = "OH_r + O3_minus -> O3 + OH_minus"
+k_value = 2.60e9
+
+[[reactions.k_reaction]]
+reaction = "OH_r + O3_minus -> 2 O2_minus + H3O_plus "
+k_value = 6.00e9
+
+[[reactions.k_reaction]]
+reaction = "OH_r + O3 -> HO2 + O2"
+k_value = 1.10e8
+
+[[reactions.k_reaction]]
+reaction = "HO2 + O2_minus -> HO2_minus + O2"
+k_value = 8.00e7                         #
+
+[[reactions.k_reaction]]
+reaction = "HO2 + HO2 -> H2O2 + O2"
+k_value = 8.40e5               #
+
+[[reactions.k_reaction]]
+reaction = "HO2 + O_minus -> O2 + OH_minus"
+k_value = 6.00e9
+
+[[reactions.k_reaction]]
+reaction = "HO2 + H2O2 -> OH_r + O2 + H2O"
+k_value = 0.5
+
+[[reactions.k_reaction]]
+reaction = "HO2 + HO2_minus -> OH_r + OH_minus + O2"
+k_value = 0.5
+
+[[reactions.k_reaction]]
+reaction = "HO2 + O3_minus -> OH_minus + 2O2"
+k_value = 6.00e9
+
+[[reactions.k_reaction]]
+reaction = "HO2 + O3 -> HO3 + O2"
+k_value = 5.00e8
+
+[[reactions.k_reaction]]
+reaction = "2 O2_minus +  2 H2O -> H2O2 + 2OH_minus + O2"
+k_value = 0.3                                        #initial = 0.3 ###########################################
+
+[[reactions.k_reaction]]
+#reaction = "O2_minus + O_minus + H2O -> 2OH_minus  + O2"
+reaction = "O2_minus + O_minus -> 2OH_minus  + O2"
+k_value = 6.00e8
+
+[[reactions.k_reaction]]
+reaction = "O2_minus + H2O2 -> OH_r + OH_minus + O2"
+k_value = 0.13
+
+[[reactions.k_reaction]]
+reaction = "O2_minus + HO2_minus -> O_minus + OH_minus + O2"
+k_value = 0.13
+
+[[reactions.k_reaction]]
+reaction = "O2_minus + O3_minus + H2O -> 2O2 + 2OH_minus"
+k_value = 1.00e4
+
+[[reactions.k_reaction]]
+reaction = "O2_minus + O3 -> O3_minus + O2"
+k_value = 1.50e9
+
+[[reactions.k_reaction]]
+reaction = "2 O_minus + H2O -> HO2_minus + OH_minus"
+k_value = 1.00e9
+
+[[reactions.k_reaction]]
+reaction = "O_minus + O2 -> O3_minus"
+k_value = 3.75e9
+
+[[reactions.k_reaction]]
+reaction = "O_minus + H2 -> H_r+ OH_minus"
+k_value = 1.28e8
+
+[[reactions.k_reaction]]
+reaction = "O_minus + H2O2 -> O2_minus + H2O"
+k_value = 5.00e8
+
+[[reactions.k_reaction]]
+reaction = "O_minus + HO2_minus -> O2_minus + OH_minus"
+k_value = 7.86e8
+
+[[reactions.k_reaction]]
+reaction = "O_minus + O3_minus -> 2 O2_minus"
+k_value = 7.00e8
+
+[[reactions.k_reaction]]
+reaction = "O_minus + O3 -> O2_minus + O2"
+k_value = 5.00e9
+
+[[reactions.k_reaction]]
+reaction = "O3_minus -> O_minus + O2"
+k_value = 2.62e3
+
+[[reactions.k_reaction]]
+reaction = "O3_minus + H3O_plus -> OH_r + O2"
+k_value = 9.00e10
+
+[[reactions.k_reaction]]
+reaction = "HO3 -> OH_r + O2"
+k_value = 1.10e5
