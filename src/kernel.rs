@@ -11,6 +11,8 @@
 //!   continued linearly from `c = 0⁺` (overshoot relaxation, ADR 0007).
 
 use crate::consts::DEPLETION_LIMIT;
+use rsoda::SparsityPattern;
+
 use crate::matrices::{EzOvershootEntry, KOvershootEntry, SimMatrices};
 
 const EPS: f64 = DEPLETION_LIMIT;
@@ -415,6 +417,246 @@ pub fn jacobian(y: &[f64], mat: &SimMatrices, ws: &mut Workspace, pd: &mut [f64]
                 pd[j + s * n] += yj * ws.grad[s];
             }
             pd[j + j * n] += slope;
+        }
+    }
+}
+
+/// Where one reaction writes into the sparse Jacobian: its candidate
+/// columns (the dynamic species its rate depends on) and, for each of them,
+/// the value positions of its stoichiometry rows,
+/// `pos[c * rows + r]` for column `cols[c]` and row `stoichiometry[r]`.
+#[derive(Debug, Clone, PartialEq)]
+struct Slots {
+    cols: Vec<usize>,
+    pos: Vec<usize>,
+}
+
+impl Slots {
+    fn new(rows: &[usize], cols: Vec<usize>, pattern: &SparsityPattern) -> Self {
+        let mut pos = Vec::with_capacity(cols.len() * rows.len());
+        for &c in &cols {
+            for &r in rows {
+                pos.push(pattern.find(r, c).expect("entry in the Jacobian pattern"));
+            }
+        }
+        Self { cols, pos }
+    }
+}
+
+/// Sorted dynamic species of `ids` (below `n`), without duplicates.
+fn dyn_columns(ids: impl IntoIterator<Item = usize>, n: usize) -> Vec<usize> {
+    let mut v: Vec<usize> = ids.into_iter().filter(|&s| s < n).collect();
+    v.sort_unstable();
+    v.dedup();
+    v
+}
+
+/// Sparsity pattern of the Jacobian of [`derive`] and the value positions
+/// [`jacobian_sparse`] writes to, built once per [`SimMatrices`].
+///
+/// The pattern is the union of: for each reaction, its stoichiometry rows
+/// times the dynamic species its rate depends on (reactants or enzyme and
+/// substrate, plus the "negative" products of the depletion switch); for
+/// each dynamic species `j`, the columns its overshoot relaxation depends on
+/// (row `j`); and the diagonal.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SparseJacobian {
+    pattern: SparsityPattern,
+    k: Vec<Slots>,
+    ez: Vec<Slots>,
+    overshoot: Vec<Slots>,
+}
+
+impl SparseJacobian {
+    /// # Panics
+    ///
+    /// If `mat` has no dynamic species.
+    pub fn new(mat: &SimMatrices) -> Self {
+        let n = mat.n_dyn;
+        let (k, ez) = (&mat.k, &mat.enzymatic);
+        let rows = |col: &[(usize, f64)]| col.iter().map(|&(i, _)| i).collect::<Vec<_>>();
+        let k_cols: Vec<Vec<usize>> = (0..k.k_values.len())
+            .map(|r| {
+                dyn_columns(
+                    k.reactant_index[r]
+                        .iter()
+                        .chain(&k.negative_index[r])
+                        .copied(),
+                    n,
+                )
+            })
+            .collect();
+        let ez_cols: Vec<Vec<usize>> = (0..ez.k_values.len())
+            .map(|r| {
+                let es = [ez.enzyme_index[r], ez.substrate_index[r]];
+                dyn_columns(
+                    es.into_iter().chain(ez.negative_index[r].iter().copied()),
+                    n,
+                )
+            })
+            .collect();
+        let over_cols: Vec<Vec<usize>> = (0..n)
+            .map(|j| {
+                let mut ids = Vec::new();
+                for e in &mat.overshoot.k[j] {
+                    ids.extend(
+                        e.slots
+                            .iter()
+                            .chain(&e.slots_dj)
+                            .chain(&e.negative_without_j),
+                    );
+                }
+                for e in &mat.overshoot.ez[j] {
+                    ids.extend([e.enzyme, e.substrate]);
+                    ids.extend(&e.negative_without_j);
+                }
+                dyn_columns(ids, n)
+            })
+            .collect();
+        let mut entries = Vec::new();
+        for (cols, st) in k_cols
+            .iter()
+            .zip(&k.stoichiometry)
+            .chain(ez_cols.iter().zip(&ez.stoichiometry))
+        {
+            for &c in cols {
+                entries.extend(st.iter().map(|&(i, _)| (i, c)));
+            }
+        }
+        for (j, cols) in over_cols.iter().enumerate() {
+            entries.extend(cols.iter().map(|&c| (j, c)));
+        }
+        let pattern = SparsityPattern::from_entries(n, entries)
+            .expect("Jacobian pattern of the dynamic species");
+        let k_slots = k_cols
+            .into_iter()
+            .zip(&k.stoichiometry)
+            .map(|(c, st)| Slots::new(&rows(st), c, &pattern))
+            .collect();
+        let ez_slots = ez_cols
+            .into_iter()
+            .zip(&ez.stoichiometry)
+            .map(|(c, st)| Slots::new(&rows(st), c, &pattern))
+            .collect();
+        let over_slots = over_cols
+            .into_iter()
+            .enumerate()
+            .map(|(j, c)| Slots::new(&[j], c, &pattern))
+            .collect();
+        Self {
+            pattern,
+            k: k_slots,
+            ez: ez_slots,
+            overshoot: over_slots,
+        }
+    }
+
+    /// The pattern (CSC, diagonal included) the values of
+    /// [`jacobian_sparse`] refer to.
+    pub fn pattern(&self) -> &SparsityPattern {
+        &self.pattern
+    }
+}
+
+/// [`jacobian`] on the entries of `sj.pattern()`: `values[k] = ∂f_i/∂y_j`
+/// for the `k`-th stored entry `(i, j)` (rsoda's
+/// [`rsoda::OdeSystem::jac_sparse`] layout). Same arithmetic as the dense
+/// Jacobian, no allocation.
+pub fn jacobian_sparse(
+    y: &[f64],
+    mat: &SimMatrices,
+    sj: &SparseJacobian,
+    ws: &mut Workspace,
+    values: &mut [f64],
+) {
+    let n = mat.n_dyn;
+    to_full_molar(y, mat, &mut ws.y_full);
+    ws.p.fill(&ws.y_full);
+    values.fill(0.0);
+    let k = &mat.k;
+    for r in 0..k.k_values.len() {
+        let col = &k.stoichiometry[r];
+        if col.is_empty() {
+            continue;
+        }
+        let neg = &k.negative_index[r];
+        let law = mass_action(&ws.p.clip, k.k_values[r], &k.reactant_index[r]);
+        let sw = switch(&ws.p.sw, neg);
+        ws.deriv.clear();
+        mass_action_derivatives(
+            &ws.p,
+            k.k_values[r],
+            &k.reactant_index[r],
+            &mut ws.deriv,
+            sw,
+        );
+        switch_derivatives(&ws.p, neg, &mut ws.deriv, law);
+        scatter_sparse(col, &ws.deriv, n, &sj.k[r], values);
+    }
+    let ez = &mat.enzymatic;
+    for r in 0..ez.k_values.len() {
+        let col = &ez.stoichiometry[r];
+        if col.is_empty() {
+            continue;
+        }
+        let (ei, si) = (ez.enzyme_index[r], ez.substrate_index[r]);
+        let (kv, km) = (ez.k_values[r], ez.k_michaelis[r]);
+        let (en, su) = (ws.p.clip[ei], ws.p.clip[si]);
+        let den = km + su;
+        let d_enzyme = if ws.p.raw[ei] < 0.0 {
+            0.0
+        } else {
+            kv * su / den
+        };
+        let d_substrate = if ws.p.raw[si] < 0.0 {
+            0.0
+        } else {
+            kv * en * km / (den * den)
+        };
+        let neg = &ez.negative_index[r];
+        let law = kv * en * su / den;
+        let sw = switch(&ws.p.sw, neg);
+        ws.deriv.clear();
+        ws.deriv.push((ei, d_enzyme * sw));
+        ws.deriv.push((si, d_substrate * sw));
+        switch_derivatives(&ws.p, neg, &mut ws.deriv, law);
+        scatter_sparse(col, &ws.deriv, n, &sj.ez[r], values);
+    }
+    let diag = sj.pattern.diag();
+    for j in 0..n {
+        if y[j] < 0.0 {
+            let slope = overshoot(j, mat, ws, true);
+            let yj = ws.y_full[j];
+            let row = &sj.overshoot[j];
+            for (&s, &k) in row.cols.iter().zip(&row.pos) {
+                values[k] += yj * ws.grad[s];
+            }
+            values[diag[j]] += slope;
+        }
+    }
+}
+
+/// [`scatter`] into the value positions of one reaction.
+fn scatter_sparse(
+    col: &[(usize, f64)],
+    deriv: &[(usize, f64)],
+    n: usize,
+    slots: &Slots,
+    values: &mut [f64],
+) {
+    let rows = col.len();
+    for &(s, d) in deriv {
+        if s >= n {
+            continue;
+        }
+        let c = slots
+            .cols
+            .iter()
+            .position(|&x| x == s)
+            .expect("derivative column in the reaction's slots");
+        let pos = &slots.pos[c * rows..(c + 1) * rows];
+        for (&(_, coef), &k) in col.iter().zip(pos) {
+            values[k] += coef * d;
         }
     }
 }

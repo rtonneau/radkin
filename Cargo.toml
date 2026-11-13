@@ -7,7 +7,7 @@ description = "Rust port of radiopyo: homogeneous water radiolysis kinetics solv
 repository = "https://github.com/rtonneau/radkin"
 
 [dependencies]
-rsoda = { git = "https://github.com/rtonneau/rsoda", rev = "312b742" }
+rsoda = { git = "https://github.com/rtonneau/rsoda", rev = "2f47645", features = ["sparse"] }
 toml = { version = "0.8", features = ["preserve_order"] }
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
