@@ -6,8 +6,12 @@ pub mod diffusion;
 pub mod driver;
 pub mod grid;
 pub mod reaction;
+pub mod seed;
 
 pub use config::{DEFAULT_DIFFUSION, VoxelConfig};
 pub use diffusion::{Diffusion, Scheme};
 pub use driver::{StepControl, StepRecord, VoxelRun};
 pub use grid::{VoxelGrid, VoxelState};
+pub use seed::{
+    DEFAULT_GEANT4_ALIASES, LoadedSeed, SeedPolicy, SeedReport, SeedSpec, load_seeds, run_schedule,
+};
