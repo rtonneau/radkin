@@ -816,8 +816,8 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rsoda"
-version = "0.2.0"
-source = "git+https://github.com/rtonneau/rsoda?rev=08a2abf#08a2abfe207935703154cdfbb31e9c5b71991e2f"
+version = "0.2.1"
+source = "git+https://github.com/rtonneau/rsoda?rev=f5d1312#f5d131289b9a5469e8291caea8fe0b65ff92b5dc"
 dependencies = [
  "faer",
 ]

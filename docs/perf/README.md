@@ -187,3 +187,65 @@ Dropped:
   -8% on run-mode cases. A flat buffer that still copies each step gives 0%
   to -7.6% (most cases -1% to -3.6%). It would also change the public
   `OdeResult::y()` layout. Not worth it.
+
+## Final
+
+radkin pinned to rsoda `f5d1312` (0.2.1: `timing` feature and the step-loop
+slices, rsoda PR #4). Baseline (radkin `6dc10f5`, rsoda `08a2abf`) against
+final, same A/B protocol (6 rounds x 10 repeats, plain builds):
+
+| case | jac | old [ms] | new [ms] | change | nfev old/new | nst old/new |
+|---|---|---|---|---|---|---|
+| labarbe run 1e-7..10 s | dense | 7.849 | 5.930 | -24.4% | 4298/4298 | 2567/2567 |
+| labarbe run 1e-7..10 s | sparse | 8.378 | 6.337 | -24.4% | 4316/4316 | 2573/2573 |
+| labarbe run, 200 t_eval | dense | 7.202 | 5.374 | -25.4% | 4298/4298 | 2567/2567 |
+| labarbe run, 200 t_eval | sparse | 7.668 | 5.747 | -25.0% | 4316/4316 | 2573/2573 |
+| water constant run 0..1 s | dense | 3.957 | 3.261 | -17.6% | 2568/2568 | 1771/1771 |
+| water constant run 0..1 s | sparse | 5.335 | 4.449 | -16.6% | 2706/2706 | 1810/1810 |
+| water single pulse chunked | dense | 4.161 | 3.241 | -22.1% | 3085/3085 | 2028/2028 |
+| water single pulse chunked | sparse | 5.437 | 4.538 | -16.5% | 3293/3293 | 2140/2140 |
+| water pulsed 100 Hz chunked 0..1 s | dense | 143.722 | 112.992 | -21.4% | 122551/122551 | 75379/75379 |
+| water pulsed 100 Hz chunked 0..1 s | sparse | 175.615 | 141.626 | -19.4% | 122421/122421 | 75285/75285 |
+| water macro-pulsed chunked 0..0.1 s | dense | 8.206 | 6.436 | -21.6% | 6519/6519 | 4443/4443 |
+| water macro-pulsed chunked 0..0.1 s | sparse | 10.829 | 8.690 | -19.8% | 6647/6647 | 4489/4489 |
+| labarbe pulsed run 0..0.015 s | dense | 37.325 | 28.595 | -23.4% | 18815/18815 | 17041/17041 |
+| labarbe pulsed run 0..0.015 s | sparse | 40.579 | 31.650 | -22.0% | 18977/18977 | 17102/17102 |
+| paper single pulse 0..1 s | dense | 4.903 | 3.863 | -21.2% | 4078/4078 | 2326/2326 |
+| paper single pulse 0..1 s | sparse | 5.696 | 4.541 | -20.3% | 4096/4096 | 2331/2331 |
+| paper pulsed chunked 0..0.1 s | dense | 14.318 | 11.334 | -20.8% | 12158/12158 | 7126/7126 |
+| paper pulsed chunked 0..0.1 s | sparse | 17.521 | 14.022 | -20.0% | 12642/12642 | 7271/7271 |
+
+Every case is 16.5% to 25.4% faster (dense about -22%, sparse about -20%),
+with the same nfev and nst, so the step sequence is unchanged. All changes
+kept are bit-identical to the code they replace.
+
+Final breakdown (`tools/breakdown.py --repeat 10`):
+
+| case | jac | solve [ms] | nfev | nst | njev | per-RHS [us] | rhs | jac | factor | lin | rest | timer |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| labarbe run 1e-7..10 s | dense | 5.808 | 4298 | 2567 | 158 | 1.35 | 36% | 6% | 9% | 18% | 31% | x1.04 |
+| labarbe run 1e-7..10 s | sparse | 6.193 | 4316 | 2573 | 138 | 1.43 | 33% | 5% | 14% | 18% | 30% | x1.10 |
+| labarbe run, 200 t_eval | dense | 5.617 | 4298 | 2567 | 158 | 1.31 | 38% | 6% | 9% | 19% | 28% | x1.05 |
+| labarbe run, 200 t_eval | sparse | 5.794 | 4316 | 2573 | 138 | 1.34 | 35% | 5% | 15% | 19% | 27% | x1.10 |
+| water constant run 0..1 s | dense | 3.301 | 2568 | 1771 | 200 | 1.29 | 30% | 10% | 9% | 18% | 33% | x1.07 |
+| water constant run 0..1 s | sparse | 4.574 | 2706 | 1810 | 217 | 1.69 | 23% | 9% | 23% | 19% | 26% | x1.07 |
+| water single pulse chunked | dense | 3.458 | 3085 | 2028 | 120 | 1.12 | 34% | 6% | 5% | 17% | 38% | x1.04 |
+| water single pulse chunked | sparse | 4.689 | 3293 | 2140 | 150 | 1.42 | 27% | 6% | 16% | 18% | 33% | x1.08 |
+| water pulsed 100 Hz chunked 0..1 s | dense | 118.299 | 122551 | 75379 | 3899 | 0.97 | 39% | 5% | 5% | 16% | 35% | x1.07 |
+| water pulsed 100 Hz chunked 0..1 s | sparse | 148.499 | 122421 | 75285 | 3853 | 1.21 | 32% | 5% | 13% | 18% | 33% | x1.08 |
+| water macro-pulsed chunked 0..0.1 s | dense | 6.764 | 6519 | 4443 | 224 | 1.04 | 37% | 6% | 5% | 14% | 38% | x1.07 |
+| water macro-pulsed chunked 0..0.1 s | sparse | 9.061 | 6647 | 4489 | 233 | 1.36 | 28% | 5% | 13% | 15% | 39% | x1.09 |
+| labarbe pulsed run 0..0.015 s | dense | 29.976 | 18815 | 17041 | 916 | 1.59 | 31% | 6% | 10% | 20% | 33% | x1.04 |
+| labarbe pulsed run 0..0.015 s | sparse | 33.901 | 18977 | 17102 | 904 | 1.79 | 28% | 6% | 16% | 20% | 29% | x1.05 |
+| paper single pulse 0..1 s | dense | 3.873 | 4078 | 2326 | 113 | 0.95 | 40% | 5% | 4% | 11% | 40% | x1.10 |
+| paper single pulse 0..1 s | sparse | 4.643 | 4096 | 2331 | 109 | 1.13 | 35% | 5% | 12% | 13% | 35% | x1.06 |
+| paper pulsed chunked 0..0.1 s | dense | 11.734 | 12158 | 7126 | 363 | 0.97 | 39% | 5% | 5% | 14% | 37% | x1.12 |
+| paper pulsed chunked 0..0.1 s | sparse | 14.518 | 12642 | 7271 | 343 | 1.15 | 33% | 5% | 12% | 16% | 34% | x1.07 |
+
+What is left: the kernel RHS (23-40%) and rsoda's step loop (rest, 26-40%)
+are still the two largest shares, followed by the linear solves (11-20%).
+None of the remaining candidates passed the 5% rule: dense LU slice loops
+(about -3%), a 4-lane `vmnorm` (about -2.5%), flat output storage (about
+-2%). Faster solves would need changes that are not bit-identical
+(reordered sums in the kernel, reciprocal pivots in `dgesl`) or a different
+algorithm (e.g. the Phase-2 per-voxel structure).
