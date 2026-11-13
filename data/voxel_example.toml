@@ -5,6 +5,56 @@
 [includes]
 toml = ["radkin/CONFIG_PAPER_01.toml"]
 
+# ---------------------------------------------------------------------------
+# O(3P) chemistry of Geant4-DNA 11.4.3 option3 (G4EmDNAChemistry_option3.cc).
+# Geant4 tracks the oxygen atom ("Oxy", radkin label O_atom) and 10 reactions of
+# it; CONFIG_PAPER_01 has none, so they are appended here. Units: M-1 s-1.
+# ---------------------------------------------------------------------------
+[[reactions.k_reaction]]
+reaction = "H_r + O_atom -> OH_r"
+k_value = 2.02e10
+
+[[reactions.k_reaction]]
+reaction = "OH_r + O_atom -> HO2"
+k_value = 2.02e10
+
+[[reactions.k_reaction]]
+reaction = "HO2 + O_atom -> O2 + OH_r"
+k_value = 2.02e10
+
+[[reactions.k_reaction]]
+reaction = "2 O_atom -> O2"      # Geant4: O + O -> O2
+k_value = 2.20e10
+
+[[reactions.k_reaction]]
+reaction = "H2O2 + O_atom -> HO2 + OH_r"
+k_value = 1.60e9
+
+[[reactions.k_reaction]]
+reaction = "H2 + O_atom -> H_r + OH_r"
+k_value = 4.77e3
+
+[[reactions.k_reaction]]
+reaction = "OH_minus + O_atom -> HO2_minus"
+k_value = 4.20e8
+
+[[reactions.k_reaction]]
+reaction = "O2 + O_atom -> O3"
+k_value = 4.00e9
+
+[[reactions.k_reaction]]
+reaction = "HO2_minus + O_atom -> O2_minus + OH_r"
+k_value = 5.30e9
+
+# O(3P) + H2O -> 2 OH is pseudo-first-order in Geant4: 1.9e3 s-1 (the comment of
+# G4EmDNAChemistry_option3.cc says 1.90e3; the code sets 1.00e3). In radkin H2O is a
+# constant species ([H2O] = 55.93 mol/L at 25 degC, from the H2O polynomial, same as
+# radiopyo) that is multiplied into the rate, so k_value is second order:
+#   k_value = 1.9e3 s-1 / 55.93 M = 33.97 M-1 s-1  (effective rate 1.9e3 s-1).
+[[reactions.k_reaction]]
+reaction = "O_atom + H2O -> 2 OH_r"
+k_value = 33.97
+
 [voxel]
 clip = false
 
