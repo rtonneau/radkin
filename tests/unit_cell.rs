@@ -136,3 +136,13 @@ fn no_beam_is_an_error() {
         .unwrap_err();
     assert!(matches!(err, RadkinError::NoBeamDefined), "{err}");
 }
+
+#[test]
+fn from_config_with_gvalues_matches_from_config() {
+    let cfg = radkin::config::Config::load("data/config_Labarbe.toml").unwrap();
+    let gv = radkin::gvalues::GValuesBoscolo::load(&radkin::consts::data_dir()).unwrap();
+    let a = UnitCell::from_config(&cfg).unwrap();
+    let b = UnitCell::from_config_with_gvalues(&cfg, gv).unwrap();
+    assert_eq!(a.env, b.env);
+    assert_eq!(a.mat, b.mat);
+}

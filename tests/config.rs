@@ -94,3 +94,14 @@ fn missing_include_names_the_path() {
         .to_string();
     assert!(err.contains("does_not_exist.toml"), "{err}");
 }
+
+#[test]
+fn from_table_matches_from_toml_str() {
+    let text = std::fs::read_to_string(format!("{F}/base.toml")).unwrap();
+    let base = std::path::Path::new(F);
+    let table: toml::Table = toml::from_str(&text).unwrap();
+    assert_eq!(
+        Config::from_table(table, Some(base)).unwrap(),
+        Config::from_toml_str(&text, Some(base)).unwrap()
+    );
+}
