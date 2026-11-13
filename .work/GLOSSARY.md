@@ -47,6 +47,10 @@ _Avoid_: mesh, lattice, cell (cell means the Phase-1 unit cell)
 A set of Geant4-DNA molecules (CSV: species, x, y, z) binned into voxel concentrations and injected into the grid at a given time.
 _Avoid_: track input, initial condition (a seed may arrive later than t0)
 
+**Seed alias**:
+The mapping from a Geant4-DNA molecule name (`GetName()` form like `HO_2°^0`, or the user tag like `HO2°`) to a radkin species label; built-in for every Geant4-DNA chemistry option3 solute, extendable by `[voxel.geant4.aliases]`.
+_Avoid_: species map, translation
+
 **Splitting step**:
 One Strang step reaction(dt/2) → diffusion(dt) → reaction(dt/2) over the whole grid; its dt is adapted by step-doubling.
 _Avoid_: time step (ambiguous with rsoda's internal steps)

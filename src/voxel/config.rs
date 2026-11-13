@@ -19,18 +19,28 @@ use crate::voxel::grid::VoxelGrid;
 use crate::voxel::seed::{SeedPolicy, SeedSpec};
 
 /// Default diffusion coefficients [m^2/s] of the radkin water species,
-/// copied from Geant4-DNA 11.4.3 (`G4Electron_aq.cc`, `G4OH.cc`, `G4H3O.cc`,
-/// `G4Hydrogen.cc`, `G4H2.cc`, `G4H2O2.cc`; `OHm` from
-/// `G4ChemDissociationChannels.cc`). Species absent here and from
+/// from Geant4-DNA 11.4.3 option3: the configuration-level values set in
+/// `G4ChemDissociationChannels_option1::ConstructMolecule` where it sets one
+/// (`H3Op`, `°OH`, `OHm`, `H2`, `H2O2`, `HO2m`, `O2m`, `Om`, `O3m`), otherwise
+/// the molecule definition's (`G4Electron_aq.cc`, `G4Hydrogen.cc`, `G4HO2.cc`,
+/// `G4O2.cc`, `G4O3.cc`, `G4Oxygen.cc`). Species absent here and from
 /// `[voxel.diffusion]` do not diffuse.
-pub const DEFAULT_DIFFUSION: [(&str, f64); 7] = [
+pub const DEFAULT_DIFFUSION: [(&str, f64); 15] = [
     ("e_aq", 4.9e-9),
-    ("OH_r", 2.8e-9),
-    ("H3O_plus", 9.0e-9),
+    ("OH_r", 2.2e-9),
+    ("H3O_plus", 9.46e-9),
     ("H_r", 7.0e-9),
-    ("H2", 5.0e-9),
-    ("H2O2", 1.4e-9),
-    ("OH_minus", 5.0e-9),
+    ("H2", 4.8e-9),
+    ("H2O2", 2.3e-9),
+    ("OH_minus", 5.3e-9),
+    ("HO2", 2.3e-9),
+    ("HO2_minus", 1.4e-9),
+    ("O2", 2.4e-9),
+    ("O2_minus", 1.75e-9),
+    ("O3", 2.0e-9),
+    ("O3_minus", 2.0e-9),
+    ("O_minus", 2.0e-9),
+    ("O_atom", 2.0e-9),
 ];
 
 const NM: f64 = 1e-9;
@@ -272,7 +282,7 @@ mod tests {
         assert!(close(c.grid.origin, [-4e-9, -5e-9, -6e-9]));
         assert_eq!(c.diffusion_of("O2"), 2.4e-9);
         assert_eq!(c.diffusion_of("e_aq"), 5e-9);
-        assert_eq!(c.diffusion_of("OH_r"), 2.8e-9);
+        assert_eq!(c.diffusion_of("OH_r"), 2.2e-9);
         assert_eq!(c.diffusion_of("H2O"), 0.0);
     }
 

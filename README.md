@@ -125,11 +125,11 @@ dims = [8, 8, 12]
 spacing_nm = 6.0             # or [dx, dy, dz]
 origin_nm = [-24, -24, -36]
 
-[voxel.diffusion]            # m^2/s; defaults are Geant4-DNA's for e_aq, OH_r, H3O_plus,
-O2 = 2.4e-9                  # H_r, H2, H2O2, OH_minus; other species do not diffuse
+[voxel.diffusion]            # m^2/s; defaults are Geant4-DNA option3's for the 15 water species
+O2 = 2.4e-9                  # (e_aq, OH_r, ..., O_atom); other species do not diffuse
 
 [voxel.geant4]
-aliases = { "O2^0" = "O2" }  # Geant4 name -> radkin label (standard water species built in)
+aliases = { "O2(B)" = "O2" } # Geant4 name -> radkin label (option3 species built in)
 ignore = ["H2O^0"]
 
 [[voxel.seed]]               # one entry per injection

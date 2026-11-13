@@ -23,11 +23,11 @@ use crate::error::{RadkinError, Result};
 use crate::voxel::driver::VoxelRun;
 use crate::voxel::grid::{VoxelGrid, VoxelState};
 
-/// Geant4-DNA 11.4.3 molecule names -> radkin labels. Both the
+/// Geant4-DNA 11.4.3 molecule names -> radkin labels (option3 /
+/// `G4ChemDissociationChannels_option1::ConstructMolecule`). Both the
 /// `G4MolecularConfiguration::GetName()` form (`<definition>^<charge>`) and
-/// the user identifiers of `G4ChemDissociationChannels::ConstructMolecule`
-/// are listed.
-pub const DEFAULT_GEANT4_ALIASES: [(&str, &str); 14] = [
+/// the configuration tags created there are listed.
+pub const DEFAULT_GEANT4_ALIASES: [(&str, &str); 30] = [
     ("e_aq^-1", "e_aq"),
     ("°OH^0", "OH_r"),
     ("H3O^1", "H3O_plus"),
@@ -35,6 +35,14 @@ pub const DEFAULT_GEANT4_ALIASES: [(&str, &str); 14] = [
     ("H_2^0", "H2"),
     ("H2O2^0", "H2O2"),
     ("OH^-1", "OH_minus"),
+    ("HO_2°^0", "HO2"),
+    ("HO_2^-1", "HO2_minus"),
+    ("O_2^0", "O2"),
+    ("O_2^-1", "O2_minus"),
+    ("O_3^0", "O3"),
+    ("O_3^-1", "O3_minus"),
+    ("O^-1", "O_minus"),
+    ("°O^0", "O_atom"),
     ("e_aq", "e_aq"),
     ("°OH", "OH_r"),
     ("H3Op", "H3O_plus"),
@@ -42,6 +50,14 @@ pub const DEFAULT_GEANT4_ALIASES: [(&str, &str); 14] = [
     ("H2", "H2"),
     ("H2O2", "H2O2"),
     ("OHm", "OH_minus"),
+    ("HO2°", "HO2"),
+    ("HO2m", "HO2_minus"),
+    ("O2", "O2"),
+    ("O2m", "O2_minus"),
+    ("O3", "O3"),
+    ("O3m", "O3_minus"),
+    ("Om", "O_minus"),
+    ("Oxy", "O_atom"),
 ];
 
 /// One molecule of a seed file.
@@ -308,6 +324,47 @@ pub fn run_schedule(
 
 #[cfg(test)]
 mod tests {
+    /// Every option3 configuration (GetName and tag forms) is either aliased
+    /// to a radkin label or a documented non-solute.
+    #[test]
+    fn option3_names_all_covered() {
+        // (GetName, tag) of G4ChemDissociationChannels_option1::ConstructMolecule.
+        const SOLUTES: [(&str, &str); 15] = [
+            ("H3O^1", "H3Op"),
+            ("°OH^0", "°OH"),
+            ("OH^-1", "OHm"),
+            ("e_aq^-1", "e_aq"),
+            ("H^0", "H"),
+            ("H_2^0", "H2"),
+            ("H2O2^0", "H2O2"),
+            ("HO_2°^0", "HO2°"),
+            ("HO_2^-1", "HO2m"),
+            ("°O^0", "Oxy"),
+            ("O^-1", "Om"),
+            ("O_2^0", "O2"),
+            ("O_2^-1", "O2m"),
+            ("O_3^0", "O3"),
+            ("O_3^-1", "O3m"),
+        ];
+        // Water and bulk configurations, not solutes: no alias on purpose.
+        const NON_SOLUTE: [&str; 5] = ["H2O^0", "H2O(B)", "H3Op(B)", "OHm(B)", "NoneM"];
+        let table: std::collections::HashMap<_, _> =
+            DEFAULT_GEANT4_ALIASES.iter().copied().collect();
+        for (name, tag) in SOLUTES {
+            let a = table
+                .get(name)
+                .unwrap_or_else(|| panic!("no alias for {name}"));
+            let b = table
+                .get(tag)
+                .unwrap_or_else(|| panic!("no alias for {tag}"));
+            assert_eq!(a, b, "{name} vs {tag}");
+        }
+        for n in NON_SOLUTE {
+            assert!(!table.contains_key(n), "{n} must not be aliased");
+        }
+        assert_eq!(SOLUTES.len() + NON_SOLUTE.len(), 20);
+    }
+
     use super::*;
     use crate::chemistry::env::SimEnv;
     use crate::matrices::SimMatrices;
