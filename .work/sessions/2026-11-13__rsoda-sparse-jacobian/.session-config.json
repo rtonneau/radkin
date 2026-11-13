@@ -87,6 +87,30 @@
         "ticket": "01-rsoda-linear-solver-trait",
         "commit": "c9d0010"
       }
+    },
+    {
+      "at": "2026-11-13T07:50:06.352Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-rsoda-sparsity-pattern-coloring.md",
+        "03-implement/02-rsoda-sparsity-pattern-coloring/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-rsoda-sparsity-pattern-coloring"
+      }
+    },
+    {
+      "at": "2026-11-13T07:52:57.540Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-rsoda-sparsity-pattern-coloring/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-rsoda-sparsity-pattern-coloring",
+        "commit": "54b5605"
+      }
     }
   ],
   "current_phase": "ship",
