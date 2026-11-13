@@ -3,9 +3,11 @@
 
 pub mod config;
 pub mod diffusion;
+pub mod driver;
 pub mod grid;
 pub mod reaction;
 
 pub use config::{DEFAULT_DIFFUSION, VoxelConfig};
 pub use diffusion::{Diffusion, Scheme};
+pub use driver::{StepControl, StepRecord, VoxelRun};
 pub use grid::{VoxelGrid, VoxelState};
