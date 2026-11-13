@@ -59,6 +59,14 @@ _Avoid_: time step (ambiguous with rsoda's internal steps)
 The full 3D concentration field of every species at a requested output time.
 _Avoid_: frame, dump
 
+**Background voxel**:
+A voxel whose state still matches the shared background vector (the config's initial solution, no seed species) within a tolerance far below the solver atol; it is advanced by copying one shared background integration instead of its own rsoda run.
+_Avoid_: empty voxel (it holds O2, H3O+, OH- in aerated runs), inactive voxel
+
+**Track segment run**:
+A Geant4-DNA run where only a small water region (2x2x10 um at the track entrance) holds the track, so its deposited energy, its molecules and its IRT G(t) all refer to that region; the fine-voxel radkin reference case.
+_Avoid_: cropped track (cutting a cube from a whole-track run is a different, inexact thing)
+
 ### Performance
 
 **Time breakdown**:
