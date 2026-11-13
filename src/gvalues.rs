@@ -142,6 +142,11 @@ impl GValuesBoscolo {
     pub fn load(data_dir: &Path) -> Result<Self> {
         let path = data_dir.join(BOSCOLO_FILE);
         let text = std::fs::read_to_string(&path).map_err(|e| RadkinError::io(&path, e))?;
+        Self::from_csv_str(&text, &path.display().to_string())
+    }
+
+    /// Parse the text of a Boscolo CSV (`source` names it in errors).
+    pub fn from_csv_str(text: &str, source: &str) -> Result<Self> {
         let mut lines = text.lines().filter(|l| !l.trim().is_empty());
         let header: Vec<String> = lines
             .next()
@@ -157,7 +162,7 @@ impl GValuesBoscolo {
                 .split(',')
                 .map(|s| s.trim().parse::<f64>())
                 .collect::<std::result::Result<_, _>>()
-                .map_err(|e| RadkinError::GValue(format!("{}: {e}", path.display())))?;
+                .map_err(|e| RadkinError::GValue(format!("{source}: {e}")))?;
             x.push(vals[0]);
             for (c, v) in cols.iter_mut().zip(&vals[1..]) {
                 c.push(*v);

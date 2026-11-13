@@ -113,7 +113,7 @@ fn t_eval_before_the_burst_is_dropped() {
 #[test]
 fn last_pulse_cut_by_max_dose_is_a_short_on_span() {
     let mut cell = pure_water();
-    let beam = Beam::pulsed(1e6, 0.01, 2e-6, Some(4.5), None).unwrap();
+    let beam = Beam::pulsed(1e6, 0.01, 2e-6, Some(4.3), None).unwrap();
     cell.set_beam(beam, "default", Some(0.201)).unwrap();
     let res = cell
         .chunked_run((0.0, 0.03), &ChunkOptions::default())
@@ -121,7 +121,7 @@ fn last_pulse_cut_by_max_dose_is_a_short_on_span() {
     assert_eq!(res.short_on_spans.len(), 1);
     let s = &res.short_on_spans[0];
     assert!(
-        (s.start - 0.02).abs() < 1e-12 && (s.stop - s.start - 5e-7).abs() < 1e-12,
+        (s.start - 0.02).abs() < 1e-12 && (s.stop - s.start - 3e-7).abs() < 1e-12,
         "{s:?}"
     );
     assert_eq!(res.burst_dose_rates.as_deref(), Some(&[1e6, 1e6][..]));
@@ -135,4 +135,14 @@ fn no_beam_is_an_error() {
         .run((0.0, 1.0), &RunOptions::default(), None)
         .unwrap_err();
     assert!(matches!(err, RadkinError::NoBeamDefined), "{err}");
+}
+
+#[test]
+fn from_config_with_gvalues_matches_from_config() {
+    let cfg = radkin::config::Config::load("data/config_Labarbe.toml").unwrap();
+    let gv = radkin::gvalues::GValuesBoscolo::load(&radkin::consts::data_dir()).unwrap();
+    let a = UnitCell::from_config(&cfg).unwrap();
+    let b = UnitCell::from_config_with_gvalues(&cfg, gv).unwrap();
+    assert_eq!(a.env, b.env);
+    assert_eq!(a.mat, b.mat);
 }

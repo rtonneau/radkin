@@ -43,6 +43,9 @@ Python with `-I`.
   the 27-case acceptance matrix.
 - `python -I tools/benchmark.py --repeat 5`: compares runtimes. The radkin side is
   `examples/bench.rs`.
+- `python -I tools/breakdown.py --repeat 10`: the time breakdown of radkin's solves
+  (kernel, rsoda linear solver, rest) on the same cases, no radiopyo needed. It uses the
+  `timing` cargo feature. Results and the keep rule for optimizations are in `docs/perf/`.
 
 ## Layout
 

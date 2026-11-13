@@ -9,9 +9,15 @@
 //! one; `--jacobian both` times both and adds a `"sparse"` object (its
 //! `solve_s`, `nfev`, `nst`) to the dense line.
 //!
+//! `--breakdown` (needs the `timing` feature) adds a `"breakdown"` object to
+//! each line: per repeat, the time in kernel RHS and Jacobian calls and in
+//! rsoda's linear-solver `prepare` and `solve` calls, with their counts (see
+//! `radkin::solver::timing`).
+//!
 //! ```text
 //! cargo run --release --example bench -- CONFIG --t-span 0 1 --mode chunked --repeat 5
 //! cargo run --release --example bench -- CONFIG --t-span 0 1 --jacobian both
+//! cargo run --release --features timing --example bench -- CONFIG --t-span 0 1 --breakdown
 //! ```
 
 use std::path::PathBuf;
@@ -66,12 +72,33 @@ struct Args {
     repeat: usize,
     #[arg(long, value_enum, default_value = "dense")]
     jacobian: Jacobian,
+    /// Report the time breakdown of each solve (needs the `timing` feature).
+    #[arg(long)]
+    breakdown: bool,
 }
 
 struct Timings {
     load_s: Vec<f64>,
     solve_s: Vec<f64>,
+    breakdown: Vec<serde_json::Value>,
     last: Option<OdeResult>,
+}
+
+/// The breakdown of the solves since the last call, as JSON (seconds).
+#[cfg(feature = "timing")]
+fn take_breakdown() -> serde_json::Value {
+    let b = radkin::solver::timing::take();
+    serde_json::json!({
+        "n_rhs": b.n_rhs, "t_rhs": b.t_rhs.as_secs_f64(),
+        "n_jac": b.n_jac, "t_jac": b.t_jac.as_secs_f64(),
+        "n_prepare": b.n_prepare, "t_prepare": b.t_prepare.as_secs_f64(),
+        "n_solve": b.n_solve, "t_solve": b.t_solve.as_secs_f64(),
+    })
+}
+
+#[cfg(not(feature = "timing"))]
+fn take_breakdown() -> serde_json::Value {
+    serde_json::Value::Null
 }
 
 fn time_runs(
@@ -83,6 +110,7 @@ fn time_runs(
     let mut t = Timings {
         load_s: Vec::new(),
         solve_s: Vec::new(),
+        breakdown: Vec::new(),
         last: None,
     };
     for _ in 0..a.repeat {
@@ -91,6 +119,7 @@ fn time_runs(
         if let Some(l) = a.let_ {
             cell.change_let(l)?;
         }
+        take_breakdown();
         let t1 = Instant::now();
         let res = match a.mode {
             Mode::Run => cell.run(t_span, run_opts, None)?,
@@ -100,6 +129,9 @@ fn time_runs(
         let t2 = Instant::now();
         t.load_s.push((t1 - t0).as_secs_f64());
         t.solve_s.push((t2 - t1).as_secs_f64());
+        if a.breakdown {
+            t.breakdown.push(take_breakdown());
+        }
         t.last = Some(res);
     }
     Ok(t)
@@ -107,6 +139,11 @@ fn time_runs(
 
 fn main() -> radkin::Result<()> {
     let a = Args::parse();
+    if a.breakdown && cfg!(not(feature = "timing")) {
+        return Err(radkin::RadkinError::Value(
+            "--breakdown needs the `timing` feature (cargo run --features timing ...)".into(),
+        ));
+    }
     let t_span = (a.t_span[0], a.t_span[1]);
     let t_eval = match &a.t_eval {
         Some(p) => Some(
@@ -165,11 +202,17 @@ fn main() -> radkin::Result<()> {
         "n_points": n_points,
         "n_chunks": n_chunks,
     });
+    if a.breakdown {
+        line["breakdown"] = main.breakdown.into();
+    }
     if a.jacobian == Jacobian::Both {
         let (ro, co) = options(JacobianMode::Sparse);
         let sparse = time_runs(&a, t_span, &ro, &co)?;
         let (nfev, nst, _, _) = counts(&sparse.last);
         line["sparse"] = serde_json::json!({ "solve_s": sparse.solve_s, "nfev": nfev, "nst": nst });
+        if a.breakdown {
+            line["sparse"]["breakdown"] = sparse.breakdown.into();
+        }
     }
     println!("{line}");
     Ok(())

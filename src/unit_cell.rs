@@ -200,9 +200,14 @@ impl UnitCell {
     /// Cell from a resolved configuration; the config's current beam is set
     /// with its LET (an error if it has none, as radiopyo).
     pub fn from_config(cfg: &Config) -> Result<Self> {
+        Self::from_config_with_gvalues(cfg, GValuesBoscolo::load(&data_dir())?)
+    }
+
+    /// [`UnitCell::from_config`] with G-value data given by the caller
+    /// (no file read: used by the Python binding, which ships its own CSV).
+    pub fn from_config_with_gvalues(cfg: &Config, gvalues: GValuesBoscolo) -> Result<Self> {
         let env = SimEnv::from_config(cfg)?;
         let mat = SimMatrices::build(&env)?;
-        let gvalues = GValuesBoscolo::load(&data_dir())?;
         let beams = BeamCollection::from_config(&cfg.beam)?;
         let mut cell = Self {
             env,

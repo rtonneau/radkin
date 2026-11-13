@@ -156,6 +156,12 @@ impl Config {
     pub fn from_toml_str(text: &str, base: Option<&Path>) -> Result<Self> {
         let root: toml::Table =
             toml::from_str(text).map_err(|e| RadkinError::Config(e.to_string()))?;
+        Self::from_table(root, base)
+    }
+
+    /// Configuration from an already parsed TOML table (e.g. a radiopyo
+    /// `ConfigDict` built in Python); relative includes are anchored to `base`.
+    pub fn from_table(root: toml::Table, base: Option<&Path>) -> Result<Self> {
         let mut out = Self::default();
         let base = std::path::absolute(base.unwrap_or(Path::new("."))).unwrap_or_default();
         for (ext, entries) in sub_table(&root, "includes", "includes")? {
