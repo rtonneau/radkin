@@ -183,9 +183,33 @@
         "ticket": "05-step-bookkeeping-and-output",
         "commit": "c51ac6a"
       }
+    },
+    {
+      "at": "2026-11-13T09:13:12.507Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-pin-rsoda-and-final-report.md",
+        "03-implement/06-pin-rsoda-and-final-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-pin-rsoda-and-final-report"
+      }
+    },
+    {
+      "at": "2026-11-13T09:16:01.150Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/06-pin-rsoda-and-final-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-pin-rsoda-and-final-report",
+        "commit": "d04e725"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "perf/rsoda-per-step-overhead",
     "base_branch": "main",
