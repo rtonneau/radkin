@@ -60,6 +60,30 @@
       "detail": {
         "tickets": 2
       }
+    },
+    {
+      "at": "2026-11-13T22:28:47.300Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-option3-aliases-diffusion.md",
+        "03-implement/01-option3-aliases-diffusion/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-option3-aliases-diffusion"
+      }
+    },
+    {
+      "at": "2026-11-13T22:31:20.450Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-option3-aliases-diffusion/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-option3-aliases-diffusion",
+        "commit": "5574842"
+      }
     }
   ],
   "current_phase": "ship",
@@ -68,5 +92,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-13T22:28:42.278Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "delegate"
 }
