@@ -107,3 +107,14 @@ fn nk_convention_and_arrhenius() {
     assert!(close(k[1], 3.13e6, 1e-2), "{}", k[1]);
     assert_eq!(env.reaction_strings()[0], "2OH_r -> H2O2");
 }
+
+#[test]
+fn boscolo_from_csv_str_matches_load() {
+    let dir = radkin::consts::data_dir();
+    let text = std::fs::read_to_string(dir.join("gvalues_from_Boscolo_2020.csv")).unwrap();
+    assert_eq!(
+        GValuesBoscolo::from_csv_str(&text, "csv").unwrap(),
+        GValuesBoscolo::load(&dir).unwrap()
+    );
+    assert!(GValuesBoscolo::from_csv_str(",e_aq\n0.1,x\n", "bad").is_err());
+}
