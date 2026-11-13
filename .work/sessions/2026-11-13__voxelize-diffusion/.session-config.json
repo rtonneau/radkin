@@ -135,6 +135,30 @@
         "ticket": "03-voxel-reaction-step",
         "commit": "9847303"
       }
+    },
+    {
+      "at": "2026-11-13T21:27:35.010Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-strang-adaptive-driver.md",
+        "03-implement/04-strang-adaptive-driver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-strang-adaptive-driver"
+      }
+    },
+    {
+      "at": "2026-11-13T21:28:59.659Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-strang-adaptive-driver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-strang-adaptive-driver",
+        "commit": "5b1db69"
+      }
     }
   ],
   "current_phase": "ship",
