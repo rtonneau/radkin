@@ -75,5 +75,60 @@ Reading:
 
 ## Optimizations
 
-_Filled by the optimization tickets: each attempt, kept or dropped, with its
-before/after plain medians._
+Each attempt, kept or dropped, with its before/after plain medians. A/B
+numbers come from the two bench binaries run in alternation on the same
+machine (6 rounds x 10 repeats per case, medians).
+
+### Kernel right-hand side (ticket 03), kept
+
+`derive` spent about 250 ns in the rates and 250 ns in the species balance
+(Labarbe: 85 reactions, 1-4 reactant slots, 1-5 stoichiometry entries).
+Microbenchmarks of `derive` alone (Labarbe state, best of 3):
+
+| variant | derive [ns] | result |
+|---|---|---|
+| baseline | ~520 | |
+| skip `sw`/`sl` when unused | ~515 | -1%, kept as part of the final change |
+| flat CSR arrays for slots and stoichiometry, fused rate + scatter | ~547 | slower, dropped |
+| species-major gather (transposed stoichiometry) | ~600 | slower (long add chains on frequently hit species), dropped |
+| fixed-width packed reactions (3 slots, 4 rows, ordered tail) | ~485 | kept |
+| packed + unchecked indexing | ~470 | bounds checks are only ~3%; `unsafe` not worth it, dropped |
+| packed + skip `sw`/`sl` (final) | ~440 | -15% |
+
+The final change, bit-identical to the old `derive` (unit tests compare the
+bits, also with synthetic negative products): reactions are packed with
+fixed-width reactant slots (padded with the factor-1 species) and fixed-width
+stoichiometry rows (padded with a dummy accumulator row of coefficient 0), so
+the inner loops have a fixed trip count. Longer rows continue in a tail, in
+order. The depletion switches `sw` are computed only when a reaction has a
+negative product or a species is below 0, and their slopes `sl` only for
+Jacobians. The reordered sums (gather, split accumulators) were not pursued:
+the balances cancel heavily, and the RHS golden check is at 1e-12.
+
+Solve times (plain build), nfev and nst unchanged on every case:
+
+| case | jac | old [ms] | new [ms] | change | nfev old/new | nst old/new |
+|---|---|---|---|---|---|---|
+| labarbe run 1e-7..10 s | dense | 7.679 | 7.106 | -7.5% | 4298/4298 | 2567/2567 |
+| labarbe run 1e-7..10 s | sparse | 8.126 | 7.529 | -7.3% | 4316/4316 | 2573/2573 |
+| labarbe run, 200 t_eval | dense | 7.211 | 6.677 | -7.4% | 4298/4298 | 2567/2567 |
+| labarbe run, 200 t_eval | sparse | 7.687 | 7.068 | -8.1% | 4316/4316 | 2573/2573 |
+| water constant run 0..1 s | dense | 4.176 | 3.788 | -9.3% | 2568/2568 | 1771/1771 |
+| water constant run 0..1 s | sparse | 5.567 | 5.110 | -8.2% | 2706/2706 | 1810/1810 |
+| water single pulse chunked | dense | 4.214 | 3.915 | -7.1% | 3085/3085 | 2028/2028 |
+| water single pulse chunked | sparse | 5.561 | 5.174 | -7.0% | 3293/3293 | 2140/2140 |
+| water pulsed 100 Hz chunked 0..1 s | dense | 148.053 | 133.663 | -9.7% | 122551/122551 | 75379/75379 |
+| water pulsed 100 Hz chunked 0..1 s | sparse | 176.795 | 165.301 | -6.5% | 122421/122421 | 75285/75285 |
+| water macro-pulsed chunked 0..0.1 s | dense | 8.158 | 7.621 | -6.6% | 6519/6519 | 4443/4443 |
+| water macro-pulsed chunked 0..0.1 s | sparse | 10.767 | 9.889 | -8.2% | 6647/6647 | 4489/4489 |
+| labarbe pulsed run 0..0.015 s | dense | 37.477 | 35.940 | -4.1% | 18815/18815 | 17041/17041 |
+| labarbe pulsed run 0..0.015 s | sparse | 41.148 | 38.759 | -5.8% | 18977/18977 | 17102/17102 |
+| paper single pulse 0..1 s | dense | 4.941 | 4.531 | -8.3% | 4078/4078 | 2326/2326 |
+| paper single pulse 0..1 s | sparse | 5.720 | 5.240 | -8.4% | 4096/4096 | 2331/2331 |
+| paper pulsed chunked 0..0.1 s | dense | 14.559 | 13.246 | -9.0% | 12158/12158 | 7126/7126 |
+| paper pulsed chunked 0..0.1 s | sparse | 17.581 | 16.015 | -8.9% | 12642/12642 | 7271/7271 |
+
+All cases are faster (-4.1% to -9.7%, median about -8%).
+
+The dense and sparse kernel Jacobians are 4-8% of the solve. They were left
+as they are.
