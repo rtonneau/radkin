@@ -109,6 +109,30 @@
         "ticket": "02-geant4-reference",
         "commit": "dd8051d"
       }
+    },
+    {
+      "at": "2026-11-13T23:49:37.103Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-study-setup.md",
+        "03-implement/03-study-setup/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-study-setup"
+      }
+    },
+    {
+      "at": "2026-11-13T23:49:37.540Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-study-setup/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-study-setup",
+        "commit": "802e52b"
+      }
     }
   ],
   "current_phase": "ship",
