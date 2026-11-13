@@ -108,9 +108,33 @@
         "ticket": "02-scipy-dense-output-port",
         "commit": "a9aebb6"
       }
+    },
+    {
+      "at": "2026-11-13T07:20:19.717Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-solver-uses-dense-output.md",
+        "03-implement/03-solver-uses-dense-output/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-solver-uses-dense-output"
+      }
+    },
+    {
+      "at": "2026-11-13T07:25:39.409Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-solver-uses-dense-output/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-solver-uses-dense-output",
+        "commit": "744b1de"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/scipy-dense-output",
     "base_branch": "main",
