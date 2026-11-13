@@ -11,6 +11,8 @@ pub mod matrices;
 pub mod physics;
 pub mod poly;
 pub mod pyfloat;
+pub mod result;
 pub mod solver;
+pub mod unit_cell;
 
 pub use error::{RadkinError, Result};
