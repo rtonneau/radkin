@@ -1,0 +1,154 @@
+{
+  "session_id": "2026-11-13__port-tonneau-2025-chemistry",
+  "feature_name": "port-tonneau-2025-chemistry",
+  "scratch_dir": ".scratch/tests/2026-11-13__port-tonneau-2025-chemistry",
+  "created_at": "2026-11-13T22:41:04.748Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-13T22:41:04.748Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T22:46:23.856Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish",
+        "shipMode": "inline"
+      }
+    },
+    {
+      "at": "2026-11-13T22:46:40.038Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T22:46:44.222Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T22:46:57.146Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/tonneau-2025-config",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-13T22:46:57.160Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-tonneau-config.md",
+        "02-plan/tickets/02-ho3-diffusion.md"
+      ],
+      "detail": {
+        "tickets": 2
+      }
+    },
+    {
+      "at": "2026-11-13T22:47:03.722Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-tonneau-config.md",
+        "03-implement/01-tonneau-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-tonneau-config"
+      }
+    },
+    {
+      "at": "2026-11-13T22:49:07.855Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-tonneau-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-tonneau-config",
+        "commit": "5bf74ee"
+      }
+    },
+    {
+      "at": "2026-11-13T22:49:08.272Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-ho3-diffusion.md",
+        "03-implement/02-ho3-diffusion/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-ho3-diffusion"
+      }
+    },
+    {
+      "at": "2026-11-13T22:49:55.755Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/02-ho3-diffusion/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-ho3-diffusion",
+        "commit": "b023167"
+      }
+    },
+    {
+      "at": "2026-11-13T22:50:04.163Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-11-13T22:50:09.331Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/8"
+      }
+    },
+    {
+      "at": "2026-11-13T22:50:04.430Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/tonneau-2025-config",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-13T22:46:57.146Z",
+    "pr_url": "https://github.com/rtonneau/radkin/pull/8"
+  },
+  "ship_mode": "inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 2,
+    "path": ".work/changelog/2026-11-13__port-tonneau-2025-chemistry.md",
+    "written_at": "2026-11-13T22:50:04.158Z"
+  },
+  "finished_at": "2026-11-13T22:50:04.430Z"
+}

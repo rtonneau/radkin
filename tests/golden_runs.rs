@@ -220,16 +220,48 @@ fn chunked_pulsed_run(g: &Value, jacobian: JacobianMode, use_jac: bool, mode: &s
 
 #[test]
 fn paper_points_match_golden() {
+    paper_points(None);
+}
+
+/// `data/tonneau_2025.toml` carries the inputs paper_runs sets in code for the
+/// "original" scenario (variable G-values, LET 0.56): only the O2 and the beam's
+/// dose rate are set here, and the LET comes from the config beam.
+#[test]
+fn tonneau_2025_config_matches_original_paper_points() {
+    let cell = UnitCell::from_toml("data/tonneau_2025.toml").unwrap();
+    assert!(cell.env.variable_gvalues);
+    let (beam, let_) = cell.beams.get("default").unwrap();
+    assert_eq!((beam.dose_rate_peak, *let_), (1e7, Some(0.56)));
+    paper_points(Some("data/tonneau_2025.toml"));
+}
+
+/// Re-run the paper points of tests/golden/paper_points.json: every point with
+/// its own config, or with `config` only the "original" points, without setting
+/// the G-value mode or the LET in code.
+fn paper_points(config: Option<&str>) {
     let golden: Value =
         serde_json::from_str(&std::fs::read_to_string("tests/golden/paper_points.json").unwrap())
             .unwrap();
     let rtol = golden["rtol"].as_f64().unwrap();
     let mut failures = Vec::new();
+    let points: Vec<&Value> = golden["points"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|p| config.is_none() || p["scenario"] == "original")
+        .collect();
+    assert!(!points.is_empty());
     for (jacobian, use_jac, mode) in MODES {
-        for p in golden["points"].as_array().unwrap() {
-            let config = format!("data/{}", p["config"].as_str().unwrap());
-            let mut cell = UnitCell::from_toml(&config).unwrap();
-            cell.env.variable_gvalues = true;
+        for p in &points {
+            let mut cell = match config {
+                Some(c) => UnitCell::from_toml(c).unwrap(),
+                None => {
+                    let c = format!("data/{}", p["config"].as_str().unwrap());
+                    let mut cell = UnitCell::from_toml(&c).unwrap();
+                    cell.env.variable_gvalues = true;
+                    cell
+                }
+            };
             cell.env
                 .set_initial_cc("O2", p["o2_initial_um"].as_f64().unwrap() * 1e-6)
                 .unwrap();
@@ -240,7 +272,11 @@ fn paper_points_match_golden() {
             cell.set_beam(
                 Beam::single_pulse(dr, dose, None).unwrap(),
                 "default",
-                p["let"].as_f64(),
+                if config.is_some() {
+                    None
+                } else {
+                    p["let"].as_f64()
+                },
             )
             .unwrap();
             let opts = ChunkOptions {

@@ -26,6 +26,7 @@ Rust 2024 edition (stable toolchain). No C dependency.
 
 ```bash
 radkin run data/config_Labarbe.toml --t-span 1e-7 10 --out out/labarbe
+radkin run data/tonneau_2025.toml --mode single-pulse --t-span 0 500 --out out/tonneau
 radkin run my_pulsed.toml --mode chunked --t-span 0 1 \
     --max-step-on 1e-7 --max-step-off 1e-3 --points-on 10 --points-off 50 \
     --production H2O2,O2 --consumption O2 --out out/pulsed
@@ -50,7 +51,10 @@ tolerances. For the single cell (15 to 22 species) it is not faster; it is
 meant for larger systems. `cargo run --release --example bench -- CONFIG
 --t-span 0 1 --jacobian both` times both.
 
-The beam comes from the config (`[[beam.<type>]]`, with its `LET`). Logging: `RUST_LOG=info`.
+The beam comes from the config (`[[beam.<type>]]`, with its `LET`).
+`data/tonneau_2025.toml` is the chemistry of Tonneau et al. 2025 (PMB 70 235021) with the
+inputs of the paper's original runs (variable G-values, LET 0.56 keV/µm, 30 Gy single
+pulse at 1e7 Gy/s). Logging: `RUST_LOG=info`.
 
 ## Output files
 
@@ -125,7 +129,7 @@ dims = [8, 8, 12]
 spacing_nm = 6.0             # or [dx, dy, dz]
 origin_nm = [-24, -24, -36]
 
-[voxel.diffusion]            # m^2/s; defaults are Geant4-DNA option3's for the 15 water species
+[voxel.diffusion]            # m^2/s; defaults are Geant4-DNA option3's (HO3: O3's)
 O2 = 2.4e-9                  # (e_aq, OH_r, ..., O_atom); other species do not diffuse
 
 [voxel.geant4]
