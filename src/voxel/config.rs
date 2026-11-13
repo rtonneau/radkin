@@ -23,9 +23,10 @@ use crate::voxel::seed::{SeedPolicy, SeedSpec};
 /// `G4ChemDissociationChannels_option1::ConstructMolecule` where it sets one
 /// (`H3Op`, `°OH`, `OHm`, `H2`, `H2O2`, `HO2m`, `O2m`, `Om`, `O3m`), otherwise
 /// the molecule definition's (`G4Electron_aq.cc`, `G4Hydrogen.cc`, `G4HO2.cc`,
-/// `G4O2.cc`, `G4O3.cc`, `G4Oxygen.cc`). Species absent here and from
-/// `[voxel.diffusion]` do not diffuse.
-pub const DEFAULT_DIFFUSION: [(&str, f64); 15] = [
+/// `G4O2.cc`, `G4O3.cc`, `G4Oxygen.cc`). Geant4-DNA has no HO3 (a species of the
+/// Tonneau 2025 chemistry): it takes O3's 2.0e-9, an assumption. Species absent here
+/// and from `[voxel.diffusion]` do not diffuse.
+pub const DEFAULT_DIFFUSION: [(&str, f64); 16] = [
     ("e_aq", 4.9e-9),
     ("OH_r", 2.2e-9),
     ("H3O_plus", 9.46e-9),
@@ -41,6 +42,7 @@ pub const DEFAULT_DIFFUSION: [(&str, f64); 15] = [
     ("O3_minus", 2.0e-9),
     ("O_minus", 2.0e-9),
     ("O_atom", 2.0e-9),
+    ("HO3", 2.0e-9), // not in Geant4-DNA: O3's value
 ];
 
 const NM: f64 = 1e-9;
@@ -283,6 +285,7 @@ mod tests {
         assert_eq!(c.diffusion_of("O2"), 2.4e-9);
         assert_eq!(c.diffusion_of("e_aq"), 5e-9);
         assert_eq!(c.diffusion_of("OH_r"), 2.2e-9);
+        assert_eq!(c.diffusion_of("HO3"), 2.0e-9);
         assert_eq!(c.diffusion_of("H2O"), 0.0);
     }
 

@@ -129,7 +129,7 @@ dims = [8, 8, 12]
 spacing_nm = 6.0             # or [dx, dy, dz]
 origin_nm = [-24, -24, -36]
 
-[voxel.diffusion]            # m^2/s; defaults are Geant4-DNA option3's for the 15 water species
+[voxel.diffusion]            # m^2/s; defaults are Geant4-DNA option3's (HO3: O3's)
 O2 = 2.4e-9                  # (e_aq, OH_r, ..., O_atom); other species do not diffuse
 
 [voxel.geant4]
