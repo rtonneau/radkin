@@ -4,6 +4,7 @@
 pub mod chemistry;
 pub mod consts;
 pub mod error;
+pub mod physics;
 pub mod poly;
 pub mod pyfloat;
 
