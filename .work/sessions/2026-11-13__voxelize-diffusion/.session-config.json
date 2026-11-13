@@ -87,6 +87,30 @@
         "ticket": "01-voxel-grid-config",
         "commit": "83758df"
       }
+    },
+    {
+      "at": "2026-11-13T21:25:05.211Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-adi-diffusion.md",
+        "03-implement/02-adi-diffusion/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-adi-diffusion"
+      }
+    },
+    {
+      "at": "2026-11-13T21:25:05.678Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-adi-diffusion/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-adi-diffusion",
+        "commit": "212f4c1"
+      }
     }
   ],
   "current_phase": "ship",
