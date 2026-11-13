@@ -63,6 +63,30 @@
       "detail": {
         "tickets": 6
       }
+    },
+    {
+      "at": "2026-11-13T07:39:04.245Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-rsoda-linear-solver-trait.md",
+        "03-implement/01-rsoda-linear-solver-trait/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-rsoda-linear-solver-trait"
+      }
+    },
+    {
+      "at": "2026-11-13T07:49:45.684Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-rsoda-linear-solver-trait/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-rsoda-linear-solver-trait",
+        "commit": "c9d0010"
+      }
     }
   ],
   "current_phase": "ship",
@@ -71,5 +95,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-13T07:38:54.472Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "inline"
 }
