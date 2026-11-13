@@ -14,7 +14,7 @@ use crate::gvalues::GValuesBoscolo;
 use crate::matrices::SimMatrices;
 use crate::physics::{Beam, BeamCollection};
 use crate::result::{OdeResult, ShortOnSpan};
-use crate::solver::{DoseRateSource, Solution, SolveOptions, solve};
+use crate::solver::{DoseRateSource, JacobianMode, Solution, SolveOptions, solve};
 
 /// Solver options of a run (radiopyo `RunOptions`).
 #[derive(Debug, Clone, PartialEq)]
@@ -25,6 +25,8 @@ pub struct RunOptions {
     pub first_step: Option<f64>,
     pub use_beam: bool,
     pub use_jac: bool,
+    /// Dense (default, as radiopyo) or sparse Jacobian.
+    pub jacobian: JacobianMode,
     pub t_eval: Option<Vec<f64>>,
 }
 
@@ -37,6 +39,7 @@ impl Default for RunOptions {
             first_step: None,
             use_beam: true,
             use_jac: true,
+            jacobian: JacobianMode::Dense,
             t_eval: None,
         }
     }
@@ -45,7 +48,7 @@ impl Default for RunOptions {
 /// Options of chunked and single-pulse runs.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ChunkOptions {
-    /// `atol`, `rtol`, `first_step`, `use_beam`, `use_jac` (max_step and t_eval are per chunk).
+    /// `atol`, `rtol`, `first_step`, `use_beam`, `use_jac`, `jacobian` (max_step and t_eval are per chunk).
     pub run: RunOptions,
     pub max_step_size_on: Option<f64>,
     pub max_step_size_off: Option<f64>,
@@ -307,6 +310,7 @@ impl UnitCell {
             first_step,
             max_step: o.max_step,
             use_jac: o.use_jac,
+            jacobian: o.jacobian,
             t_eval: o.t_eval.clone(),
         }
     }

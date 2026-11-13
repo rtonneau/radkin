@@ -38,9 +38,17 @@ radkin run my_pulsed.toml --mode chunked --t-span 0 1 \
 | `--mode single-pulse` | `prepare_single_pulse(...).run()` |
 | `--t-eval FILE` | `t_eval=` (times separated by blanks; `run` mode) |
 | `--rtol --atol --max-step --first-step --no-jac` | `rtol`, `atol`, `max_step`, `first_step`, `use_jac=False` |
+| `--sparse-jacobian` | none: sparse Jacobian and sparse LU (rsoda feature `sparse`) instead of dense |
 | `--max-step-on/off/trans/final`, `--trans-time` | `max_step_size_on/off/trans/final`, `trans_time` |
 | `--points-on/--points-off N` | `points_per_chunk_on/off` |
 | `--beam LABEL`, `--let X`, `--temperature C` | `set_beam(label, LET=)`, `change_LET`, `set_temperature` |
+
+`--sparse-jacobian` (library: `RunOptions::jacobian = JacobianMode::Sparse`)
+builds the Jacobian's sparsity pattern from the reaction tables and solves the
+stiff steps with a sparse LU. Results match the dense run within the golden
+tolerances. For the single cell (15 to 22 species) it is not faster; it is
+meant for larger systems. `cargo run --release --example bench -- CONFIG
+--t-span 0 1 --jacobian both` times both.
 
 The beam comes from the config (`[[beam.<type>]]`, with its `LET`). Logging: `RUST_LOG=info`.
 

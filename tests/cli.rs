@@ -75,3 +75,49 @@ fn labarbe_run_writes_every_file() {
         "RadiolyticReaction('e_aq')"
     );
 }
+
+/// Last row of `concentrations.csv` of a Labarbe run with extra `flags`.
+fn labarbe_final_row(tag: &str, flags: &[&str]) -> Vec<f64> {
+    let dir = std::env::temp_dir().join(format!("radkin_cli_{tag}_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let out = radkin()
+        .args([
+            "run",
+            "data/config_Labarbe.toml",
+            "--t-span",
+            "1e-7",
+            "1e-3",
+        ])
+        .args(flags)
+        .arg("--out")
+        .arg(&dir)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let conc = std::fs::read_to_string(dir.join("concentrations.csv")).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    conc.lines()
+        .last()
+        .unwrap()
+        .split(',')
+        .map(|v| v.parse().unwrap())
+        .collect()
+}
+
+#[test]
+fn sparse_jacobian_flag_matches_dense_run() {
+    let dense = labarbe_final_row("dense", &[]);
+    let sparse = labarbe_final_row("sparse", &["--sparse-jacobian"]);
+    assert_eq!(dense.len(), sparse.len());
+    let peak = dense.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+    for (i, (s, d)) in sparse.iter().zip(&dense).enumerate() {
+        assert!(
+            (s - d).abs() <= 1e-6 * d.abs() + 1e-10 * peak,
+            "column {i}: {s} vs {d}"
+        );
+    }
+}

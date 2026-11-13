@@ -6,6 +6,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand, ValueEnum};
 use radkin::RadkinError;
 use radkin::output::{RunMeta, write_run_dir};
+use radkin::solver::JacobianMode;
 use radkin::unit_cell::{ChunkOptions, RunOptions, UnitCell};
 
 #[derive(Parser)]
@@ -80,6 +81,9 @@ struct RunArgs {
     /// Finite-difference Jacobian instead of the analytic one.
     #[arg(long)]
     no_jac: bool,
+    /// Sparse Jacobian and sparse LU instead of dense ones.
+    #[arg(long)]
+    sparse_jacobian: bool,
     /// Species whose gross production is written (comma separated).
     #[arg(long, value_delimiter = ',')]
     production: Vec<String>,
@@ -123,6 +127,11 @@ fn run(a: &RunArgs) -> radkin::Result<()> {
         max_step: a.max_step,
         first_step: a.first_step,
         use_jac: !a.no_jac,
+        jacobian: if a.sparse_jacobian {
+            JacobianMode::Sparse
+        } else {
+            JacobianMode::Dense
+        },
         t_eval,
         ..Default::default()
     };
