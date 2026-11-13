@@ -84,6 +84,30 @@
         "ticket": "01-rsoda-dky-nordsieck",
         "commit": "3f225bb"
       }
+    },
+    {
+      "at": "2026-11-13T07:18:13.541Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-scipy-dense-output-port.md",
+        "03-implement/02-scipy-dense-output-port/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-scipy-dense-output-port"
+      }
+    },
+    {
+      "at": "2026-11-13T07:20:15.046Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-scipy-dense-output-port/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-scipy-dense-output-port",
+        "commit": "a9aebb6"
+      }
     }
   ],
   "current_phase": "ship",
