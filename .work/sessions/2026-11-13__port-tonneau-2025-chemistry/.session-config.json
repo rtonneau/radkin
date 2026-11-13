@@ -84,9 +84,33 @@
         "ticket": "01-tonneau-config",
         "commit": "5bf74ee"
       }
+    },
+    {
+      "at": "2026-11-13T22:49:08.272Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-ho3-diffusion.md",
+        "03-implement/02-ho3-diffusion/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-ho3-diffusion"
+      }
+    },
+    {
+      "at": "2026-11-13T22:49:55.755Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/02-ho3-diffusion/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-ho3-diffusion",
+        "commit": "b023167"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/tonneau-2025-config",
     "base_branch": "main",
