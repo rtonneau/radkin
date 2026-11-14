@@ -1,9 +1,9 @@
 ---
-status: grilled
+status: promoted
 scope: project
 created: 2026-11-14
 reviews: 0
-promoted_to: null
+promoted_to: radkin:2026-11-14__rsoda-lsoda-restart
 ---
 
 ## Problem
@@ -37,3 +37,4 @@ Each per-voxel reaction solve in radkin's voxel step builds a new rsoda `Lsoda`.
 
 - 2026-11-14 — capture — from ticket 02 review (radkin @ perf/voxel-reaction-cost)
 - 2026-11-14 — grill
+- 2026-11-14 — promote
