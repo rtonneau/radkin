@@ -272,10 +272,12 @@ impl VoxelSimulation {
         self.run_with(&RunControl::default())
     }
 
-    /// Configuration summary stored in checkpoints: run settings, a hash of
-    /// the chemistry (beam included) and the seeds.
+    /// Configuration summary stored in checkpoints: run settings, the
+    /// coarsening settings, a hash of the chemistry (beam included) and the seeds.
     fn config_summary(&self) -> serde_json::Value {
         let mut v = self.settings.summary();
+        v["max_coarsen_levels"] = self.voxel.max_coarsen_levels.into();
+        v["coarsen_tol_factor"] = self.voxel.coarsen_tol_factor.into();
         v["chemistry_hash"] = format!("{:016x}", fnv(format!("{:?}", self.env).as_bytes())).into();
         v["seeds"] = self
             .seeds
@@ -366,12 +368,24 @@ impl VoxelSimulation {
             s.control.clone(),
             s.solve.clone(),
         );
+        // Only an injection at the checkpoint time leaves the damping pending.
+        let resume_pending = ctl
+            .resume
+            .as_ref()
+            .is_some_and(|ckpt| ckpt.seeds.iter().any(|s| s.time == ckpt.t));
         if let Some(ckpt) = &ctl.resume {
             run.set_dt(ckpt.dt);
+            run.set_rannacher_pending(resume_pending);
         }
         run.background = background;
         run.skip_background = s.background_voxels;
         run.set_coarsening(self.voxel.max_coarsen_levels, self.voxel.coarsen_tol_factor)?;
+        if ctl.resume.is_some() && !resume_pending {
+            // The checkpoint holds the fine-grid state: find the level it fits.
+            // Right after an injection the uninterrupted run is at level 0 until
+            // its damped step is accepted, so the resumed run stays there too.
+            run.coarsen_to_fit();
+        }
         run.track_totals();
 
         // Seeds at or before the current time have been injected (injection

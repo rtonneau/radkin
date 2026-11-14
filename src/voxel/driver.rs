@@ -169,6 +169,12 @@ impl VoxelRun {
         self.dt = dt;
     }
 
+    /// Whether the next diffusion step is damped (Rannacher start). A new run
+    /// starts damped; a resumed one only if it stopped right at an injection.
+    pub fn set_rannacher_pending(&mut self, pending: bool) {
+        self.rannacher_pending = pending;
+    }
+
     /// Allow up to `max_levels` coarsening levels, tested with the factor
     /// `tol_factor` (`[voxel] max_coarsen_levels` and `coarsen_tol_factor`; 0
     /// levels turns coarsening off). Every fine grid dimension must be
@@ -259,16 +265,26 @@ impl VoxelRun {
 
     /// Drop one level if the maximum allows it and the state passes
     /// [`can_coarsen`] with the control tolerances.
-    fn try_coarsen(&mut self) {
+    fn try_coarsen(&mut self) -> bool {
         if self.level >= self.max_coarsen_levels {
-            return;
+            return false;
         }
         let grid = &self.grids[self.level as usize];
         let c = &self.control;
         if can_coarsen(grid, &self.state, c.atol, c.rtol, self.coarsen_tol_factor) {
             let st = restricted(grid, &self.state);
             self.switch_level(self.level + 1, st);
+            true
+        } else {
+            false
         }
+    }
+
+    /// Find the level of a state that has just been loaded on the fine grid
+    /// (a resumed checkpoint): coarsen repeatedly while the state passes
+    /// [`can_coarsen`], up to the maximum of [`Self::set_coarsening`].
+    pub fn coarsen_to_fit(&mut self) {
+        while self.try_coarsen() {}
     }
 
     /// Fine voxels per voxel of the current level (`8^level`, the volume ratio).
@@ -907,6 +923,43 @@ mod tests {
         assert_eq!(run.level(), 0);
         let levels: Vec<u32> = run.level_history.iter().map(|(_, l)| *l).collect();
         assert_eq!(levels, [1, 2, 1, 0]);
+    }
+
+    #[test]
+    fn coarsen_to_fit_finds_the_level_of_a_fine_state() {
+        let env = ab_env();
+        let [ia, _, _] = abc(&env);
+        let n = env.species.n_dyn();
+        let n_voxels: usize = AB_DIMS.iter().product();
+        // A uniform field fits the maximum; the fine state is the loaded one.
+        let uniform = VoxelState::uniform(&vec![50.0; n], n_voxels);
+        let mut run = ab_voxel_run(uniform.clone(), 2);
+        assert_eq!(run.level(), 0);
+        run.coarsen_to_fit();
+        assert_eq!(run.level(), 2);
+        assert_eq!(run.state.n_voxels, 2);
+        assert_eq!(run.fine_state().into_owned(), uniform);
+        // Calling it again changes nothing.
+        let history = run.level_history.clone();
+        run.coarsen_to_fit();
+        assert_eq!(run.level_history, history);
+
+        // The maximum caps it.
+        let mut run = ab_voxel_run(uniform.clone(), 1);
+        run.coarsen_to_fit();
+        assert_eq!(run.level(), 1);
+
+        // A spike in one voxel stops it at level 0; off, nothing happens.
+        let mut spike = uniform.clone();
+        spike.field_mut(ia)[0] = 1e4;
+        let mut run = ab_voxel_run(spike.clone(), 2);
+        run.coarsen_to_fit();
+        assert_eq!(run.level(), 0);
+        assert!(run.level_history.is_empty());
+        let mut run = ab_voxel_run(uniform, 0);
+        run.coarsen_to_fit();
+        assert_eq!(run.level(), 0);
+        assert_eq!(run.fine_state().into_owned(), run.state);
     }
 
     #[test]
