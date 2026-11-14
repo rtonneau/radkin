@@ -1,9 +1,9 @@
 ---
-status: planned
+status: promoted
 scope: project
 created: 2026-11-14
 reviews: 0
-promoted_to: null
+promoted_to: radkin:2026-11-14__gillespie-solver
 ---
 
 ## Problem
@@ -48,3 +48,4 @@ radkin solves only the deterministic mean-field rate equations (LSODA via rsoda)
 
 - 2026-11-14 — grill
 - 2026-11-14 — plan
+- 2026-11-14 — promote
