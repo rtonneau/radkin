@@ -209,6 +209,30 @@
         "ticket": "06-voxel-rdme-exact",
         "commit": "3f1be8e"
       }
+    },
+    {
+      "at": "2026-11-14T20:45:40.021Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/07-rdme-coarsening.md",
+        "03-implement/07-rdme-coarsening/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "07-rdme-coarsening"
+      }
+    },
+    {
+      "at": "2026-11-14T20:49:44.217Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/07-rdme-coarsening/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "07-rdme-coarsening",
+        "commit": "cdceb9c"
+      }
     }
   ],
   "current_phase": "ship",
