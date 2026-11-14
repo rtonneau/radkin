@@ -89,6 +89,30 @@
         "ticket": "01-unit-cell-exact-ssa",
         "commit": "dca3a07"
       }
+    },
+    {
+      "at": "2026-11-14T20:17:37.930Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-beam-sources.md",
+        "03-implement/02-beam-sources/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-beam-sources"
+      }
+    },
+    {
+      "at": "2026-11-14T20:19:35.793Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-beam-sources/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-beam-sources",
+        "commit": "f61b2a0"
+      }
     }
   ],
   "current_phase": "ship",
