@@ -199,6 +199,9 @@ pub struct VoxelOutput {
     pub seed_energies: Vec<(f64, f64)>,
     pub n_steps: usize,
     pub n_rejected: usize,
+    /// `(t, level)` after every change of coarsening level (empty when
+    /// coarsening is off).
+    pub level_history: Vec<(f64, u32)>,
 }
 
 /// A configured voxel simulation.
@@ -368,6 +371,7 @@ impl VoxelSimulation {
         }
         run.background = background;
         run.skip_background = s.background_voxels;
+        run.set_coarsening(self.voxel.max_coarsen_levels, self.voxel.coarsen_tol_factor)?;
         run.track_totals();
 
         // Seeds at or before the current time have been injected (injection
@@ -394,7 +398,7 @@ impl VoxelSimulation {
                 dt: r.dt(),
                 grid: grid.clone(),
                 species: species.clone(),
-                state: r.state.clone(),
+                state: r.fine_state().into_owned(),
                 background: r.background.clone(),
                 seeds: injected.to_vec(),
                 config: summary.clone(),
@@ -413,7 +417,7 @@ impl VoxelSimulation {
         run_schedule(&mut run, &seeds, &s.snapshots, s.t_end, |r| {
             snapshots.push(Snapshot {
                 t: r.t,
-                state: r.state.clone(),
+                state: r.fine_state().into_owned(),
             });
             n_outputs += 1;
             if s.checkpoint_every
@@ -433,6 +437,13 @@ impl VoxelSimulation {
                 run.voxel_steps
             );
         }
+        if !run.level_history.is_empty() {
+            log::info!(
+                "coarsening: {} level changes, final level {}",
+                run.level_history.len(),
+                run.level()
+            );
+        }
         Ok(VoxelOutput {
             species,
             totals: run.totals.take().unwrap_or_default(),
@@ -445,6 +456,7 @@ impl VoxelSimulation {
                 .collect(),
             n_steps: run.steps.len(),
             n_rejected: run.rejected,
+            level_history: std::mem::take(&mut run.level_history),
         })
     }
 }

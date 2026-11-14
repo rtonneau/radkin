@@ -180,6 +180,7 @@ mod tests {
             seed_energies: vec![(1e-12, 100.0)],
             n_steps: 2,
             n_rejected: 0,
+            level_history: Vec::new(),
         };
         let csv = yields_csv(&out, &grid);
         let lines: Vec<&str> = csv.lines().collect();
@@ -208,6 +209,7 @@ mod tests {
             seed_energies: vec![(1e-12, 100.0)],
             n_steps: 2,
             n_rejected: 0,
+            level_history: Vec::new(),
         };
         let csv = yields_csv(&out, &grid);
         let g = |l: &str| l.rsplit(',').next().unwrap().parse::<f64>().unwrap();
