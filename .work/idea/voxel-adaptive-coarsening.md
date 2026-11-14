@@ -1,9 +1,9 @@
 ---
-status: planned
+status: promoted
 scope: project
 created: 2026-11-14
 reviews: 0
-promoted_to: null
+promoted_to: radkin:2026-11-14__voxel-adaptive-coarsening
 ---
 
 ## Problem
@@ -48,3 +48,4 @@ Voxel mode spends reaction and diffusion work on every fine voxel even after con
 - 2026-11-14 — capture — from the reduce-computational-burden grill (radkin @ main)
 - 2026-11-14 — grill
 - 2026-11-14 — plan
+- 2026-11-14 — promote
