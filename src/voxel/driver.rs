@@ -121,6 +121,16 @@ impl VoxelRun {
         }
     }
 
+    /// Splitting step size proposed for the next attempt [s].
+    pub fn dt(&self) -> f64 {
+        self.dt
+    }
+
+    /// Set the next splitting step size [s] (e.g. when resuming a checkpoint).
+    pub fn set_dt(&mut self, dt: f64) {
+        self.dt = dt;
+    }
+
     /// Add `amount` [µmol/L, same layout as the state] and damp the next
     /// diffusion step (Rannacher). dt restarts from `dt_initial`.
     pub fn inject(&mut self, amount: &VoxelState) {

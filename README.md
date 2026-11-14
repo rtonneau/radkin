@@ -156,6 +156,7 @@ snapshots = [1e-12, 1e-9, 1e-7]
 rtol = 1e-2                  # splitting error control (atol in µmol/L)
 atol = 1e-3
 # background_voxels = true   # share one integration for untouched voxels
+# checkpoint_every = 2       # checkpoint every 2 snapshot times (default: end only)
 ```
 
 The background species come from the chemistry's initial concentrations, uniform over the
@@ -170,6 +171,25 @@ Outputs:
 | `yields.csv` | `t`, `N_<sp>` (molecules in the domain) at every accepted step; with `energy_ev`, `G_<sp>` = (N - N(t_start)) / (E / 100 eV) |
 | `snapshots/t<k>_<sp>.npy` | concentration field [mol/L], C order, shape `(nz, ny, nx)` |
 | `snapshots.json` | grid, species, snapshot times and files, step counts |
+
+**Checkpoints.** Every voxel run writes `DIR/checkpoint.npz` at `t_end`, and every
+`checkpoint_every` snapshot times if set (each write replaces the file atomically).
+`radkin voxel CONFIG --resume OLD/checkpoint.npz --out NEW` starts from it instead of
+`t_start`, for three uses:
+
+- recovery: rerun the same configuration after a crash or a kill;
+- extension: raise `t_end` and continue a finished run;
+- new conditions: change the beam, solver settings or seeds. Seeds already injected are
+  skipped; new seeds must come at or after the checkpoint time.
+
+The grid (dims, spacing, origin) and the species order must match the checkpoint. Other
+differences are logged as warnings. The resumed run restarts its step control from the
+saved dt, so it agrees with an uninterrupted run within the splitting tolerance, not bit
+for bit. It writes only the part after the checkpoint into `NEW` (`N(t_start)` of its
+G-values is taken at the checkpoint time); joining the outputs is left to the user. The
+checkpoint is a NumPy archive: `np.load("checkpoint.npz")` gives `state` (µmol/L, shape
+`(n_species, nz, ny, nx)`), `time` (`[t, dt]`), `grid`, `seeds`, `background` and
+`meta.json` (species, dims, settings summary).
 
 `python -I tools/compare_geant4.py DIR [--geant4 g4.csv]` plots G(t), optionally against
 Geant4-DNA chemistry yields (a CSV with columns `t,species,G`).

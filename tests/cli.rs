@@ -123,6 +123,82 @@ fn sparse_jacobian_flag_matches_dense_run() {
 }
 
 #[test]
+fn voxel_resume_from_checkpoint() {
+    let dir = std::env::temp_dir().join(format!("radkin_cli_resume_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let first = dir.join("first");
+    let out = radkin()
+        .args(["voxel", "data/voxel_example.toml", "--out"])
+        .arg(&first)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let ckpt = first.join("checkpoint.npz");
+    assert!(ckpt.exists());
+    // Same directory for the resumed run is refused.
+    let out = radkin()
+        .args(["voxel", "data/voxel_example.toml", "--resume"])
+        .arg(&ckpt)
+        .arg("--out")
+        .arg(&first)
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    // The checkpoint is at t_end: resuming the same config has nothing to do.
+    let second = dir.join("second");
+    let out = radkin()
+        .args(["voxel", "data/voxel_example.toml", "--resume"])
+        .arg(&ckpt)
+        .arg("--out")
+        .arg(&second)
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("t_end"));
+    // Extension to a later t_end.
+    std::fs::copy(
+        "data/voxel_example_molecules.csv",
+        dir.join("voxel_example_molecules.csv"),
+    )
+    .unwrap();
+    let text = std::fs::read_to_string("data/voxel_example.toml")
+        .unwrap()
+        .replace("t_end = 1e-7", "t_end = 2e-7");
+    std::fs::write(dir.join("longer.toml"), text).unwrap();
+    let out = radkin()
+        .arg("voxel")
+        .arg(dir.join("longer.toml"))
+        .arg("--resume")
+        .arg(&ckpt)
+        .arg("--out")
+        .arg(&second)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(second.join("checkpoint.npz").exists());
+    let yields = std::fs::read_to_string(second.join("yields.csv")).unwrap();
+    let last_t: f64 = yields
+        .lines()
+        .last()
+        .unwrap()
+        .split(',')
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!((last_t - 2e-7).abs() < 1e-18, "{last_t}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn voxel_example_writes_yields_and_snapshots() {
     let dir = std::env::temp_dir().join(format!("radkin_cli_voxel_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);

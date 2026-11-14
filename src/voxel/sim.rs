@@ -13,9 +13,15 @@
 //! rannacher_steps = 4
 //! solver_rtol = 1e-8        # per-voxel rsoda
 //! solver_atol = 1e-10       # µmol/L
+//! checkpoint_every = 2      # checkpoint every 2 snapshot times (optional)
 //! ```
+//!
+//! With a checkpoint path ([`RunControl::checkpoint`]) a checkpoint is
+//! written every `checkpoint_every` snapshot times and always at `t_end`.
+//! [`RunControl::resume`] starts a run from a checkpoint instead of
+//! `t_start`: the grid and species must match, any other setting may differ.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::chemistry::env::SimEnv;
 use crate::config::Config;
@@ -23,6 +29,7 @@ use crate::consts::{DEFAULT_ATOL, DEFAULT_RTOL, FIRST_STEP};
 use crate::error::{RadkinError, Result};
 use crate::matrices::SimMatrices;
 use crate::solver::{JacobianMode, SolveOptions};
+use crate::voxel::checkpoint::{Checkpoint, SeedRecord};
 use crate::voxel::config::VoxelConfig;
 use crate::voxel::diffusion::Diffusion;
 use crate::voxel::driver::{StepControl, VoxelRun};
@@ -39,6 +46,9 @@ pub struct RunSettings {
     pub solve: SolveOptions,
     /// Advance background voxels with one shared integration (default true).
     pub background_voxels: bool,
+    /// Write a checkpoint every this many snapshot times (with a checkpoint
+    /// path; the final checkpoint is always written).
+    pub checkpoint_every: Option<usize>,
 }
 
 fn opt_num(t: &toml::Table, key: &str) -> Result<Option<f64>> {
@@ -84,6 +94,15 @@ impl RunSettings {
                 ));
             }
         };
+        let checkpoint_every = match t.get("checkpoint_every") {
+            None => None,
+            Some(toml::Value::Integer(i)) if *i >= 1 => Some(*i as usize),
+            Some(_) => {
+                return Err(RadkinError::Config(
+                    "voxel.run.checkpoint_every must be an integer >= 1".into(),
+                ));
+            }
+        };
         let d = StepControl::default();
         let control = StepControl {
             rtol: opt_num(t, "rtol")?.unwrap_or(d.rtol),
@@ -112,8 +131,50 @@ impl RunSettings {
             control,
             solve,
             background_voxels,
+            checkpoint_every,
         })
     }
+
+    /// Settings summary stored in checkpoints and compared on resume.
+    fn summary(&self) -> serde_json::Value {
+        let c = &self.control;
+        let dt_max = if c.dt_max.is_finite() {
+            serde_json::json!(c.dt_max)
+        } else {
+            serde_json::Value::Null
+        };
+        serde_json::json!({
+            "t_start": self.t_start,
+            "t_end": self.t_end,
+            "snapshots": self.snapshots,
+            "rtol": c.rtol,
+            "atol": c.atol,
+            "dt_initial": c.dt_initial,
+            "dt_min": c.dt_min,
+            "dt_max": dt_max,
+            "rannacher_steps": c.rannacher_steps,
+            "solver_rtol": self.solve.rtol,
+            "solver_atol": self.solve.atol,
+            "background_voxels": self.background_voxels,
+            "checkpoint_every": self.checkpoint_every,
+        })
+    }
+}
+
+/// Checkpoint options of [`VoxelSimulation::run_with`].
+#[derive(Debug, Clone, Default)]
+pub struct RunControl {
+    /// Where checkpoints are written (overwritten each time).
+    pub checkpoint: Option<PathBuf>,
+    /// Start from this checkpoint instead of `t_start`.
+    pub resume: Option<Checkpoint>,
+}
+
+/// FNV-1a hash of `bytes`.
+fn fnv(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+        (h ^ u64::from(*b)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
 }
 
 /// One snapshot: the full state at `t`.
@@ -205,32 +266,166 @@ impl VoxelSimulation {
     }
 
     pub fn run(&self) -> Result<VoxelOutput> {
+        self.run_with(&RunControl::default())
+    }
+
+    /// Configuration summary stored in checkpoints: run settings, a hash of
+    /// the chemistry (beam included) and the seeds.
+    fn config_summary(&self) -> serde_json::Value {
+        let mut v = self.settings.summary();
+        v["chemistry_hash"] = format!("{:016x}", fnv(format!("{:?}", self.env).as_bytes())).into();
+        v["seeds"] = self
+            .seeds
+            .iter()
+            .map(|s| {
+                serde_json::json!({"file": s.spec.file.display().to_string(), "time": s.spec.time})
+            })
+            .collect();
+        v
+    }
+
+    /// Seeds still to inject when resuming `ckpt`, and the records of those
+    /// already injected.
+    fn seeds_after(&self, ckpt: &Checkpoint) -> Result<(Vec<LoadedSeed>, Vec<SeedRecord>)> {
+        let mut todo = Vec::new();
+        let mut matched = vec![false; ckpt.seeds.len()];
+        for s in &self.seeds {
+            let rec = SeedRecord {
+                time: s.spec.time,
+                fingerprint: SeedRecord::fingerprint_of(&s.amount),
+            };
+            if let Some(i) = (0..ckpt.seeds.len()).find(|i| !matched[*i] && ckpt.seeds[*i] == rec) {
+                matched[i] = true;
+            } else if s.spec.time < ckpt.t {
+                return Err(RadkinError::Checkpoint(format!(
+                    "seed {} at {:e} s is before the checkpoint time {:e} s and was not injected",
+                    s.spec.file.display(),
+                    s.spec.time,
+                    ckpt.t
+                )));
+            } else {
+                todo.push(s.clone());
+            }
+        }
+        let n_unmatched = matched.iter().filter(|m| !**m).count();
+        if n_unmatched > 0 {
+            log::warn!(
+                "resume: {n_unmatched} seed(s) injected before the checkpoint are not in the configuration"
+            );
+        }
+        Ok((todo, ckpt.seeds.clone()))
+    }
+
+    /// Run with checkpoint writing and/or resuming.
+    pub fn run_with(&self, ctl: &RunControl) -> Result<VoxelOutput> {
         let species = self.species();
         let mat = SimMatrices::build(&self.env)?;
         let coeffs: Vec<f64> = species.iter().map(|s| self.voxel.diffusion_of(s)).collect();
         let grid = self.voxel.grid.clone();
-        let y0 = self.env.initial_values();
-        let state = VoxelState::uniform(&y0, grid.n_voxels());
         let s = &self.settings;
+        let summary = self.config_summary();
+        let (state, t0, background, seeds, mut injected) = match &ctl.resume {
+            None => {
+                let y0 = self.env.initial_values();
+                let state = VoxelState::uniform(&y0, grid.n_voxels());
+                (state, s.t_start, Some(y0), self.seeds.clone(), Vec::new())
+            }
+            Some(ckpt) => {
+                ckpt.check_compatible(&grid, &species)?;
+                if s.t_end <= ckpt.t {
+                    return Err(RadkinError::Checkpoint(format!(
+                        "t_end ({:e} s) must be after the checkpoint time ({:e} s)",
+                        s.t_end, ckpt.t
+                    )));
+                }
+                warn_differences(&ckpt.config, &summary);
+                let (todo, done) = self.seeds_after(ckpt)?;
+                log::info!(
+                    "resuming at t = {:e} s: {} seed(s) already injected, {} to inject",
+                    ckpt.t,
+                    done.len(),
+                    todo.len()
+                );
+                (
+                    ckpt.state.clone(),
+                    ckpt.t,
+                    ckpt.background.clone(),
+                    todo,
+                    done,
+                )
+            }
+        };
         let mut run = VoxelRun::new(
             mat,
-            Diffusion::new(grid, coeffs),
+            Diffusion::new(grid.clone(), coeffs),
             state,
-            s.t_start,
+            t0,
             s.control.clone(),
             s.solve.clone(),
         );
-        run.background = Some(y0);
+        if let Some(ckpt) = &ctl.resume {
+            run.set_dt(ckpt.dt);
+        }
+        run.background = background;
         run.skip_background = s.background_voxels;
         run.track_totals();
+
+        // Seeds at or before the current time have been injected (injection
+        // comes before the output callback at the same time).
+        let mut sorted: Vec<&LoadedSeed> = seeds.iter().collect();
+        sorted.sort_by(|a, b| a.spec.time.total_cmp(&b.spec.time));
+        let mut n_recorded = 0;
+        let mut record_injected = |r: &VoxelRun, injected: &mut Vec<SeedRecord>| {
+            while n_recorded < sorted.len() && sorted[n_recorded].spec.time <= r.t {
+                let seed = sorted[n_recorded];
+                injected.push(SeedRecord {
+                    time: seed.spec.time,
+                    fingerprint: SeedRecord::fingerprint_of(&seed.amount),
+                });
+                n_recorded += 1;
+            }
+        };
+        let write_ckpt = |r: &VoxelRun, injected: &[SeedRecord]| -> Result<()> {
+            let Some(path) = &ctl.checkpoint else {
+                return Ok(());
+            };
+            Checkpoint {
+                t: r.t,
+                dt: r.dt(),
+                grid: grid.clone(),
+                species: species.clone(),
+                state: r.state.clone(),
+                background: r.background.clone(),
+                seeds: injected.to_vec(),
+                config: summary.clone(),
+            }
+            .write(path)?;
+            log::info!(
+                "checkpoint at t = {:e} s written to {}",
+                r.t,
+                path.display()
+            );
+            Ok(())
+        };
+
         let mut snapshots = Vec::new();
-        run_schedule(&mut run, &self.seeds, &s.snapshots, s.t_end, |r| {
+        let mut n_outputs = 0usize;
+        run_schedule(&mut run, &seeds, &s.snapshots, s.t_end, |r| {
             snapshots.push(Snapshot {
                 t: r.t,
                 state: r.state.clone(),
             });
+            n_outputs += 1;
+            if s.checkpoint_every
+                .is_some_and(|n| n_outputs.is_multiple_of(n))
+            {
+                record_injected(r, &mut injected);
+                write_ckpt(r, &injected)?;
+            }
             Ok(())
         })?;
+        record_injected(&run, &mut injected);
+        write_ckpt(&run, &injected)?;
         if run.voxel_steps > 0 {
             log::info!(
                 "background voxels: {:.1}% of {} voxel half-steps",
@@ -254,9 +449,54 @@ impl VoxelSimulation {
     }
 }
 
+/// Log every setting that differs between a checkpoint and this run.
+fn warn_differences(old: &serde_json::Value, new: &serde_json::Value) {
+    let (Some(old), Some(new)) = (old.as_object(), new.as_object()) else {
+        return;
+    };
+    for (k, v) in new {
+        match old.get(k) {
+            Some(o) if o == v => {}
+            o => log::warn!(
+                "resume: '{k}' differs from the checkpoint ({} -> {v})",
+                o.map_or("absent".to_string(), |o| o.to_string())
+            ),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checkpoint_every_setting() {
+        let parse = |s: &str| RunSettings::from_table(&toml::from_str(s).unwrap());
+        assert_eq!(parse("t_end = 1e-9").unwrap().checkpoint_every, None);
+        assert_eq!(
+            parse(
+                "t_end = 1e-9
+checkpoint_every = 3"
+            )
+            .unwrap()
+            .checkpoint_every,
+            Some(3)
+        );
+        assert!(
+            parse(
+                "t_end = 1e-9
+checkpoint_every = 0"
+            )
+            .is_err()
+        );
+        assert!(
+            parse(
+                "t_end = 1e-9
+checkpoint_every = 1.5"
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn background_voxels_setting() {
