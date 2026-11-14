@@ -84,6 +84,30 @@
         "ticket": "01-checkpoint-format",
         "commit": "a645a3f"
       }
+    },
+    {
+      "at": "2026-11-14T11:36:52.364Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-sim-checkpoint-resume.md",
+        "03-implement/02-sim-checkpoint-resume/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-sim-checkpoint-resume"
+      }
+    },
+    {
+      "at": "2026-11-14T11:43:19.593Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-sim-checkpoint-resume/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-sim-checkpoint-resume",
+        "commit": "9979269"
+      }
     }
   ],
   "current_phase": "ship",
