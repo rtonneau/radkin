@@ -208,14 +208,47 @@
         "ticket": "06-acceptance",
         "commit": "722428f"
       }
+    },
+    {
+      "at": "2026-11-14T16:08:48.807Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-11-14T16:08:54.277Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/13"
+      }
+    },
+    {
+      "at": "2026-11-14T16:08:49.073Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
     }
   ],
-  "current_phase": "finish-pending",
+  "current_phase": "finished",
   "git": {
     "branch": "feat/voxel-global-coarsening",
     "base_branch": "main",
     "branch_created_at": "2026-11-14T15:18:35.626Z",
-    "pr_url": null
+    "pr_url": "https://github.com/rtonneau/radkin/pull/13"
   },
-  "ship_mode": "delegate"
+  "ship_mode": "delegate",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 4,
+    "path": ".work/changelog/2026-11-14__voxel-adaptive-coarsening.md",
+    "written_at": "2026-11-14T16:08:48.801Z"
+  },
+  "finished_at": "2026-11-14T16:08:49.073Z"
 }
