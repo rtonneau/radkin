@@ -187,13 +187,43 @@ impl VoxelRun {
         damped: bool,
     ) -> Result<()> {
         self.half_reaction(state, bg, carry, t, dt / 2.0)?;
+        self.diffuse_shifted(state, bg, dt, damped);
+        self.half_reaction(state, bg, carry, t + dt / 2.0, dt / 2.0)
+    }
+
+    /// Two consecutive Strang steps of `dt / 2` each, starting at `t`, with the
+    /// reaction half-steps at their junction fused into one solve over `dt / 2`
+    /// (5 reaction solves instead of 6). `damped` applies to the first diffusion only.
+    fn strang_pair(
+        &mut self,
+        state: &mut VoxelState,
+        bg: &mut Option<Vec<f64>>,
+        carry: &mut CarriedSteps,
+        t: f64,
+        dt: f64,
+        damped: bool,
+    ) -> Result<()> {
+        let q = dt / 4.0;
+        self.half_reaction(state, bg, carry, t, q)?;
+        self.diffuse_shifted(state, bg, dt / 2.0, damped);
+        self.half_reaction(state, bg, carry, t + q, 2.0 * q)?;
+        self.diffuse_shifted(state, bg, dt / 2.0, false);
+        self.half_reaction(state, bg, carry, t + 3.0 * q, q)
+    }
+
+    fn diffuse_shifted(
+        &mut self,
+        state: &mut VoxelState,
+        bg: &Option<Vec<f64>>,
+        dt: f64,
+        damped: bool,
+    ) {
         let shift = if self.skip_background {
             bg.as_deref()
         } else {
             None
         };
         self.diffuse(state, shift, dt, damped);
-        self.half_reaction(state, bg, carry, t + dt / 2.0, dt / 2.0)
     }
 
     /// Diffusion over `dt`. With a background, the deviation from it is
@@ -269,8 +299,7 @@ impl VoxelRun {
             let mut small_bg = self.background.clone();
             let mut small_carry = self.carry.clone();
             let (sb, sc) = (&mut small_bg, &mut small_carry);
-            self.strang(&mut small, sb, sc, self.t, dt / 2.0, damped)?;
-            self.strang(&mut small, sb, sc, self.t + dt / 2.0, dt / 2.0, false)?;
+            self.strang_pair(&mut small, sb, sc, self.t, dt, damped)?;
             let err = self.error_norm(&big, &small);
             let c = &self.control;
             let factor = if err == 0.0 {

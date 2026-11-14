@@ -136,3 +136,33 @@ and measured, in a separate A/B session where the ticket-01 build ran at
 3.14 s, 0.495 s at 16 threads (about -7% on top of this lever) and 2.94 s at
 1 thread (no gain there). Left as a follow-up idea
 (`.work/idea/rsoda-lsoda-restart.md`).
+
+## Lever 2: fused junction half-reactions (ticket 03) - kept
+
+In the dt/2 path of `VoxelRun::advance_to`, the two half-step Strang steps are
+run by `strang_pair`: reaction dt/4, diffusion dt/2 (Rannacher-damped only when
+the attempt is), reaction dt/2 (the second half-reaction of the first sub-step
+and the first of the second, fused), diffusion dt/2 (never damped), reaction
+dt/4. That is 5 voxel reaction solves per attempted step instead of 6. The
+background integration and the per-voxel carried steps follow the same calls
+(the carry is committed only on accepted steps, as before). Diffusion is
+unchanged; the fused reaction replaces two consecutive solves with no operator
+in between, so the splitting error does not grow (the gate is unchanged).
+
+A/B, alternating the ticket-02 build and this one (16 threads: 4 runs of
+`--repeat 5`; 1 thread: 3 runs of `--repeat 3`), medians of per-run medians:
+
+| threads | before [s] | after [s] | change |
+|---|---|---|---|
+| 16 | 0.512 | 0.434 | -15.1% |
+| 1 | 2.890 | 2.518 | -12.9% |
+
+| quantity | before | after |
+|---|---|---|
+| voxel half-steps (background) | 211968 (29039) | 176640 (24360) |
+| rsoda solves | 183205 | 152510 |
+| nfev | 4219543 | 3693056 |
+| nst | 2174060 | 1896047 |
+| splitting steps accepted / rejected | 46 / 0 | 46 / 0 |
+| max per-voxel scaled error | 0.193 | 0.193 |
+| max domain-total relative error | 1.4963e-3 (HO3) | 1.4963e-3 (HO3) |
