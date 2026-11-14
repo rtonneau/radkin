@@ -1,5 +1,5 @@
 ---
-status: grilled
+status: planned
 scope: project
 created: 2026-11-14
 reviews: 0
@@ -28,6 +28,15 @@ radkin solves only the deterministic mean-field rate equations (LSODA via rsoda)
 - Which RNG crate and seeding scheme to use.
 - How RDME interacts with voxel coarsening (ADR 0002 / `voxel-adaptive-coarsening`) and with the Geant4 seeds. Hop rates D/h² and the minimum voxel size at which RDME is still valid.
 
+## Plan
+
+1. Unit-cell exact SSA: propensities from SimEnv (A + A convention settled against radiopyo); a seeded single trajectory on a reaction-only case.
+2. Beam sources: G-value × dose rate as time-dependent zero-order propensities; pulsed and continuous beams.
+3. Ensemble and output: N seeded trajectories (rayon), CSV with mean and std columns, `solver` config key and CLI flag, volume key.
+4. LSODA validation: large-volume ensemble mean within k·SEM on chosen acceptance cases; fixed-seed CI test that is not flaky.
+5. Opt-in tau-leaping: handles the stiff fast equilibria, matches exact SSA statistically, speed-up measured.
+6. Voxel RDME: hop events at D/h², Geant4 seeds, coarsening interaction decided; checked against Strang-split LSODA on a large-count grid.
+
 ## Risks
 
 - Fast equilibria (e.g. H+ + OH−) can make exact SSA spend almost all its events on them, making runs impractically slow.
@@ -38,3 +47,4 @@ radkin solves only the deterministic mean-field rate equations (LSODA via rsoda)
 ## Changelog
 
 - 2026-11-14 — grill
+- 2026-11-14 — plan
