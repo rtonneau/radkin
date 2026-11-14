@@ -58,7 +58,7 @@ fn compare(name: &str, cell: &UnitCell, lsoda: &OdeResult, y0: Option<Vec<f64>>,
         volume: Some(VOLUME),
         trajectories: TRAJECTORIES,
         seed: SEED,
-        tau_leap: false,
+        ..Default::default()
     };
     let options = EnsembleOptions {
         t_eval: Some(t_eval.clone()),

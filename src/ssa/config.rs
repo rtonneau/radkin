@@ -8,6 +8,7 @@
 //! trajectories = 100    # ensemble size
 //! seed = 0              # trajectory i draws from stream i of this seed
 //! tau_leap = false      # opt-in tau-leaping
+//! tau_epsilon = 0.03    # accuracy of a leap (smaller: closer to the exact SSA)
 //! ```
 //!
 //! Both are read from the run file itself, not from its includes.
@@ -49,6 +50,10 @@ impl SolverKind {
 /// Default ensemble size.
 pub const DEFAULT_TRAJECTORIES: usize = 100;
 
+/// Default bound on the relative change of a propensity over a leap
+/// (Cao, Gillespie and Petzold 2006).
+pub const DEFAULT_TAU_EPSILON: f64 = 0.03;
+
 /// `[ssa]` table.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SsaConfig {
@@ -60,6 +65,9 @@ pub struct SsaConfig {
     pub seed: u64,
     /// Tau-leaping instead of the exact SSA.
     pub tau_leap: bool,
+    /// Bound on the relative change of a propensity over a leap, in (0, 1).
+    /// The error of tau-leaping on the mean is proportional to it.
+    pub tau_epsilon: f64,
 }
 
 impl Default for SsaConfig {
@@ -69,6 +77,7 @@ impl Default for SsaConfig {
             trajectories: DEFAULT_TRAJECTORIES,
             seed: 0,
             tau_leap: false,
+            tau_epsilon: DEFAULT_TAU_EPSILON,
         }
     }
 }
@@ -115,9 +124,17 @@ impl SsaConfig {
                         )));
                     }
                 },
+                "tau_epsilon" => match value.as_float() {
+                    Some(e) if e > 0.0 && e < 1.0 => out.tau_epsilon = e,
+                    _ => {
+                        return Err(RadkinError::Config(format!(
+                            "ssa.tau_epsilon must be a number in (0, 1), got {value}"
+                        )));
+                    }
+                },
                 other => {
                     return Err(RadkinError::Config(format!(
-                        "unknown key ssa.{other} (known: volume, trajectories, seed, tau_leap)"
+                        "unknown key ssa.{other} (known: volume, trajectories, seed, tau_leap, tau_epsilon)"
                     )));
                 }
             }
@@ -190,7 +207,8 @@ mod tests {
     #[test]
     fn parses_solver_and_ssa_table() {
         let c = SolverConfig::from_toml_str(
-            "solver = \"ssa\"\n[ssa]\nvolume = 2e-15\ntrajectories = 8\nseed = 42\ntau_leap = true",
+            "solver = \"ssa\"\n[ssa]\nvolume = 2e-15\ntrajectories = 8\nseed = 42\ntau_leap = true
+tau_epsilon = 0.01",
         )
         .unwrap();
         assert_eq!(c.solver, SolverKind::Ssa);
@@ -200,7 +218,8 @@ mod tests {
                 volume: Some(2e-15),
                 trajectories: 8,
                 seed: 42,
-                tau_leap: true
+                tau_leap: true,
+                tau_epsilon: 0.01,
             }
         );
         assert_eq!(c.ssa.require_volume().unwrap(), 2e-15);

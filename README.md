@@ -87,7 +87,8 @@ solver = "ssa"        # "lsoda" (default) or "ssa"; put it before any [table]
 volume = 1e-15        # L: volume of the unit cell (required)
 trajectories = 100    # ensemble size (default 100)
 seed = 0              # default 0
-tau_leap = false      # default false
+tau_leap = false      # default false: exact SSA
+tau_epsilon = 0.03    # accuracy of a leap when tau_leap = true
 ```
 
 ```bash
@@ -114,6 +115,14 @@ run file itself, not from its includes.
   (`--mode chunked|single-pulse`, tolerances, step sizes, `--production`,
   `--consumption`) are rejected.
 - A configuration without beam runs the reactions only.
+
+`tau_leap = true` switches to tau-leaping (Cao, Gillespie and Petzold 2006), which
+fires many reactions per step. It is an approximation: the ensemble mean has an error
+proportional to `tau_epsilon` (about 0.4 % of a species' peak at the default 0.03).
+It is hundreds of times faster than the exact SSA on large counts without fast
+equilibria, and brings nothing on the water chemistry, where the acid-base equilibria
+force exact steps. Measurements and the validation are in `docs/ssa.md`;
+`cargo run --release --example ssa_bench -- radicals 1e-12 32` compares the two.
 
 One molecule in the volume is `1 / (N_A V)` mol/L: 1.66 nmol/L for 1e-15 L (1 µm³).
 The cost grows with the number of reaction events, so with the volume, the dose and

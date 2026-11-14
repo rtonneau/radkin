@@ -92,9 +92,60 @@ volume is chosen so that this difference stays below half a SEM. In the reaction
 case no such difference is seen (largest deviation 3.0 SEM over 180 checks at 4000
 trajectories).
 
+## Tau-leaping
+
+`tau_leap = true` (`src/ssa/tau.rs`) replaces the exact steps by leaps in which every
+reaction fires a Poisson number of times. It is the explicit tau-leaping of Cao,
+Gillespie and Petzold:
+
+- The leap bounds the relative change of every propensity by `tau_epsilon` (default
+  0.03), from the mean and variance of the change of each reactant species (J. Chem.
+  Phys. 124, 044109, 2006).
+- A reaction with fewer than 10 firings left before it exhausts a species is critical:
+  it fires one at a time, as in the exact SSA (J. Chem. Phys. 123, 054104, 2005).
+- When a leap would fire fewer than 10 events, 100 exact steps are taken instead.
+- A leap that would make a count negative is rejected and redone with half the step.
+- A leap never crosses a beam transition or an output time.
+
+Tau-leaping is an approximation. The reactions of a leap fire with the propensities of
+its start, so the ensemble mean has a systematic error proportional to `tau_epsilon`, on
+top of the sampling noise. Measured on the `radicals` case of
+`examples/ssa_bench.rs` (three reactions, 1e-12 L, 600 000 to 1 800 000 molecules, 32
+trajectories), as the largest difference of the two ensemble means:
+
+| `tau_epsilon` | Difference [combined SEM] | Speed-up over exact |
+|---|---|---|
+| 0.03 | 32 | 330x to 650x |
+| 0.01 | 11 | 220x |
+| 0.003 | 3.7 | 80x |
+| 0.001 | 2.4 | 25x |
+
+At `tau_epsilon = 0.03` the difference is 0.36 % of the peak concentration of the
+species. `tests/ssa_tau.rs` checks both parts with a fixed seed (1e-13 L, 64
+trajectories): with `tau_epsilon = 0.001` the two ensembles agree within 4 combined SEM
+(measured 2.4), and with 0.03 within 4 combined SEM plus 3 % of the species peak. The
+standard deviations agree within their sampling error in both.
+
+Speed-up on one core (`RAYON_NUM_THREADS=1`, `tau_epsilon = 0.03`):
+
+| Case | Volume | Events per trajectory | Exact | Tau-leap | Speed-up |
+|---|---|---|---|---|---|
+| `radicals` | 1e-12 L | 2.0e6 | 0.142 s | 0.0002 s | 650x |
+| `radicals` | 1e-13 L | 2.0e5 | 0.0138 s | 0.00025 s | 55x |
+| `radicals` | 1e-14 L | 2.0e4 | 0.0014 s | 0.0003 s | 4.5x |
+| `water-const` | 1e-13 L | 1.1e6 | 0.22 s | 0.25 s | 0.9x |
+| `water-pulsed` | 1e-13 L | 1.6e6 | 0.32 s | 0.28 s | 1.1x |
+
+(times per trajectory.) The speed-up grows with the molecule counts when no fast
+equilibrium is present. On the water chemistry it is absent: the acid-base equilibria
+keep a few species at very low counts with a very high turnover (at 1e-13 L, 2
+molecules of HO2− react 1.4e8 times per second with water). The reactions that consume
+them are critical and fire one at a time, which leaves about 17 events per leap. This
+limit of explicit tau-leaping does not go away at larger volumes (1.1x at 1e-11 L).
+
 ## Cost
 
-The cost is proportional to the number of events. On the validation cases the exact
-SSA runs about 50 million events per second on one core (64 trajectories of 100 000
-events in 0.2 s on 16 threads). The fast acid-base equilibria fire continuously, so the
+The cost is proportional to the number of events. On one core the exact SSA fires about
+5 million events per second on the pure-water chemistry (73 reactions and 6 sources) and 15 million
+on a three-reaction chemistry. The fast acid-base equilibria fire continuously, so the
 event count grows with the simulated time even when the slow chemistry is over.

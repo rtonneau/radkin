@@ -15,6 +15,7 @@ use crate::ssa::exact::{Exact, Stepper, Trajectory, initial_counts, run_trajecto
 use crate::ssa::model::SsaModel;
 use crate::ssa::rng::SsaRng;
 use crate::ssa::schedule::beam_segments;
+use crate::ssa::tau::TauLeap;
 use crate::unit_cell::{UnitCell, thinned_times};
 
 /// Number of log-spaced output times when none is given.
@@ -152,13 +153,12 @@ pub struct EnsembleOptions {
 }
 
 /// Stepper of one trajectory for the `[ssa]` settings.
-pub(crate) fn make_stepper(cfg: &SsaConfig) -> Result<Box<dyn Stepper>> {
+pub(crate) fn make_stepper(cfg: &SsaConfig, model: &SsaModel) -> Box<dyn Stepper> {
     if cfg.tau_leap {
-        return Err(RadkinError::Config(
-            "ssa.tau_leap = true is not available".into(),
-        ));
+        Box::new(TauLeap::with_epsilon(model, cfg.tau_epsilon))
+    } else {
+        Box::new(Exact)
     }
-    Ok(Box::new(Exact))
 }
 
 /// Run the ensemble of `cell` over `t_span`.
@@ -196,12 +196,10 @@ pub fn run_ensemble(
         }
         None => cell.env.initial_values(),
     };
-    make_stepper(cfg)?;
-
     let one = |i: usize| -> Result<Trajectory> {
         let mut rng = SsaRng::new(cfg.seed, i as u64);
         let counts = initial_counts(&model, &y0, &mut rng);
-        let mut stepper = make_stepper(cfg)?;
+        let mut stepper = make_stepper(cfg, &model);
         run_trajectory(
             &model,
             &segments,
