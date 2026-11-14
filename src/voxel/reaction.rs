@@ -242,12 +242,12 @@ pub fn reaction_step_background(
     let mut active = Vec::new();
     let mut aos = Vec::new();
     let mut steps = Vec::new();
-    for v in 0..state.n_voxels {
+    for (v, &step) in carry.voxels.iter().enumerate().take(state.n_voxels) {
         state.gather(v, &mut y);
         if !is_background(&y, bg, atol) {
             active.push(v);
             aos.extend_from_slice(&y);
-            steps.push(carry.voxels[v]);
+            steps.push(step);
         }
     }
     let n_background = state.n_voxels - active.len();
