@@ -158,14 +158,47 @@
         "ticket": "04-embedded-error-estimate",
         "commit": "fc39c67"
       }
+    },
+    {
+      "at": "2026-11-14T14:18:28.262Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "patch"
+      }
+    },
+    {
+      "at": "2026-11-14T14:18:33.693Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/12"
+      }
+    },
+    {
+      "at": "2026-11-14T14:18:28.526Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
     }
   ],
-  "current_phase": "finish-pending",
+  "current_phase": "finished",
   "git": {
     "branch": "perf/voxel-reaction-cost",
     "base_branch": "main",
     "branch_created_at": "2026-11-14T13:16:06.515Z",
-    "pr_url": null
+    "pr_url": "https://github.com/rtonneau/radkin/pull/12"
   },
-  "ship_mode": "delegate"
+  "ship_mode": "delegate",
+  "changelog": {
+    "bump": "patch",
+    "floor": "patch",
+    "reason": null,
+    "bullets": 2,
+    "path": ".work/changelog/2026-11-14__reduce-computational-burden.md",
+    "written_at": "2026-11-14T14:18:28.255Z"
+  },
+  "finished_at": "2026-11-14T14:18:28.526Z"
 }
