@@ -113,6 +113,30 @@
         "ticket": "02-beam-sources",
         "commit": "f61b2a0"
       }
+    },
+    {
+      "at": "2026-11-14T20:19:36.214Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-ensemble-output-cli.md",
+        "03-implement/03-ensemble-output-cli/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-ensemble-output-cli"
+      }
+    },
+    {
+      "at": "2026-11-14T20:23:41.261Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-ensemble-output-cli/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-ensemble-output-cli",
+        "commit": "7282381"
+      }
     }
   ],
   "current_phase": "ship",
