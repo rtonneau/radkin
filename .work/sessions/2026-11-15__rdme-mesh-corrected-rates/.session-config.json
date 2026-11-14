@@ -1,0 +1,72 @@
+{
+  "session_id": "2026-11-15__rdme-mesh-corrected-rates",
+  "feature_name": "rdme-mesh-corrected-rates",
+  "scratch_dir": ".scratch/tests/2026-11-15__rdme-mesh-corrected-rates",
+  "created_at": "2026-11-14T23:22:41.194Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-14T23:22:41.194Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T23:26:52.855Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-14T23:27:19.254Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T23:27:19.364Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T23:27:58.193Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/rdme-mesh-correction",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-14T23:27:58.209Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-rate-correction-config.md",
+        "02-plan/tickets/02-rdme-mesh-correction.md",
+        "02-plan/tickets/03-association-validation-and-docs.md"
+      ],
+      "detail": {
+        "tickets": 3
+      }
+    }
+  ],
+  "current_phase": "ship",
+  "git": {
+    "branch": "feat/rdme-mesh-correction",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-14T23:27:58.193Z",
+    "pr_url": null
+  }
+}
