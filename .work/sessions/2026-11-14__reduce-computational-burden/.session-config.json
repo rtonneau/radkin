@@ -86,6 +86,30 @@
         "ticket": "01-voxel-bench-and-gate",
         "commit": "ea03246"
       }
+    },
+    {
+      "at": "2026-11-14T13:20:18.294Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-lean-voxel-solve.md",
+        "03-implement/02-lean-voxel-solve/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-lean-voxel-solve"
+      }
+    },
+    {
+      "at": "2026-11-14T13:55:10.645Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-lean-voxel-solve/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-lean-voxel-solve",
+        "commit": "3fed416"
+      }
     }
   ],
   "current_phase": "ship",
