@@ -232,6 +232,10 @@ pub struct Rdme<'a> {
     pub level_history: Vec<(f64, u32)>,
     /// Events fired since the last coarsening test.
     events_since_test: u64,
+    /// Tau-leaping state; `None`: exact.
+    pub(crate) tau: Option<Box<crate::ssa::rdme_tau::RdmeTau>>,
+    /// The event queue does not match the counts (set by a leap).
+    pub(crate) queue_stale: bool,
 }
 
 /// Stride of every axis in the flat voxel index.
@@ -274,6 +278,8 @@ impl<'a> Rdme<'a> {
             z_max: None,
             level_history: Vec::new(),
             events_since_test: 0,
+            tau: None,
+            queue_stale: false,
         };
         r.rebuild();
         r
@@ -323,6 +329,7 @@ impl<'a> Rdme<'a> {
             self.dsum.push(dsum);
         }
         self.queue = EventQueue::build(keys);
+        self.queue_stale = false;
     }
 
     /// Set every count to a Poisson draw of mean `c N_A V` for the uniform
@@ -573,8 +580,13 @@ impl<'a> Rdme<'a> {
         }
     }
 
-    /// Advance to `t_stop` (exact).
+    /// Advance to `t_stop`: exact events, or tau-leaping where it pays
+    /// when it is switched on.
     pub fn advance_to(&mut self, t_stop: f64) {
+        if self.tau.is_some() {
+            self.advance_tau(t_stop);
+            return;
+        }
         while self.step(t_stop) {
             self.count_events(1);
         }

@@ -439,3 +439,116 @@ fn ssa_rdme_coarsening_matches_the_fine_grid() {
     assert!(coarse.n_hops * 2 < fine.n_hops, "coarsening saves hops");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Large counts and no fast equilibrium: 3000 OH per voxel everywhere, and
+/// 60 000 e_aq and 60 000 H seeded in two corners of a 4x4x4 grid of 1 µm
+/// voxels.
+fn large_count_case(dir: &Path) -> PathBuf {
+    let mut csv = molecules(&["e_aq"], 60_000, 10.0, 990.0);
+    let other = molecules(&["H_r"], 60_000, 3010.0, 3990.0);
+    csv.push_str(other.split_once('\n').unwrap().1);
+    std::fs::write(dir.join("track.csv"), csv).unwrap();
+    let path = dir.join("run.toml");
+    std::fs::write(
+        &path,
+        r#"
+        [concentrations.initial]
+        OH_r = 5e-6
+
+        [[reactions.k_reaction]]
+        reaction = "H_r -> H2"
+        k_value = 3.0e3
+
+        [[reactions.k_reaction]]
+        reaction = "2 OH_r -> H2O2"
+        k_value = 5.5e9
+
+        [[reactions.k_reaction]]
+        reaction = "e_aq + OH_r -> OH_minus"
+        k_value = 3.0e10
+
+        [voxel.grid]
+        dims = [4, 4, 4]
+        spacing_nm = 1000.0
+
+        [[voxel.seed]]
+        file = "track.csv"
+        time = 0.0
+
+        [voxel.run]
+        t_end = 1e-3
+        snapshots = [1e-4, 1e-3]
+        "#,
+    )
+    .unwrap();
+    path
+}
+
+#[test]
+fn ssa_rdme_tau_leaping_matches_the_exact_rdme() {
+    let dir = scratch("tau");
+    let sim = VoxelSimulation::from_toml(large_count_case(&dir)).unwrap();
+    let n = 16;
+    let exact = run_rdme(&sim, &ssa(n)).unwrap();
+    let epsilon = 0.03;
+    let tau = run_rdme(
+        &sim,
+        &SsaConfig {
+            tau_leap: true,
+            tau_epsilon: epsilon,
+            ..ssa(n)
+        },
+    )
+    .unwrap();
+    assert!(tau.tau_leap && !exact.tau_leap);
+    let n_species = exact.species.len();
+    let peak: Vec<f64> = (0..n_species)
+        .map(|s| exact.totals_mean.iter().map(|r| r[s]).fold(0.0, f64::max))
+        .collect();
+    let mut worst = 0.0f64;
+    for (r, t) in exact.record_times.iter().enumerate() {
+        for (s, label) in exact.species.iter().enumerate() {
+            let (me, mt) = (exact.totals_mean[r][s], tau.totals_mean[r][s]);
+            let var = (exact.totals_std[r][s].powi(2) + tau.totals_std[r][s].powi(2)) / n as f64;
+            let sem = var.max(me.max(1.0) / n as f64).sqrt();
+            // The systematic error of a leap is proportional to epsilon.
+            assert!(
+                (me - mt).abs() <= K * sem + epsilon * peak[s] + 1.0,
+                "t = {t:e} s, {label}: tau {mt:.1} vs exact {me:.1} molecules (SEM {sem:.1})"
+            );
+            worst = worst.max((me - mt).abs() / peak[s].max(1.0));
+        }
+    }
+    // The mean fields agree too: every voxel of the last snapshot, for the
+    // species that fills the grid.
+    let oh = exact.species.iter().position(|s| s == "OH_r").unwrap();
+    let unit = per_umol(&sim);
+    let last = exact.snapshot_times.len() - 1;
+    for v in 0..sim.voxel.grid.n_voxels() {
+        let (me, mt) = (
+            exact.mean[last].field(oh)[v] * unit,
+            tau.mean[last].field(oh)[v] * unit,
+        );
+        let sem = ((exact.std[last].field(oh)[v].powi(2) + tau.std[last].field(oh)[v].powi(2))
+            / n as f64)
+            .sqrt()
+            * unit;
+        assert!(
+            (me - mt).abs() <= K * sem.max((me / n as f64).sqrt()) + epsilon * me + 1.0,
+            "voxel {v}: tau {mt:.1} vs exact {me:.1} OH (SEM {sem:.1})"
+        );
+    }
+    let events = |o: &RdmeOutput| (o.n_reactions + o.n_hops) as f64 / n as f64;
+    println!(
+        "voxel tau-leaping: worst total difference {:.3} % of the species peak; events per \
+         trajectory {:.0} exact, {:.0} tau; wall time {:.2} s exact, {:.2} s tau ({:.1}x)",
+        100.0 * worst,
+        events(&exact),
+        events(&tau),
+        exact.exec_time,
+        tau.exec_time,
+        exact.exec_time / tau.exec_time
+    );
+    assert!((events(&tau) / events(&exact) - 1.0).abs() < 0.05);
+    let _ = std::fs::remove_dir_all(&dir);
+}

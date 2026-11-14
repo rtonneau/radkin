@@ -224,6 +224,44 @@ underestimated (more OH survives). The default 0.1 is kept. `tests/ssa_rdme.rs` 
 the default against the fine grid with a fixed seed (two seeds, so that the refinement is
 exercised: 1.4 combined SEM, 5 times fewer hops).
 
+### Tau-leaping on the grid
+
+`tau_leap = true` also applies to voxel runs (`src/ssa/rdme_tau.rs`). The channels of a
+leap are the reactions of every voxel and the hops of every species through every face
+(`X(v) -> X(w)`, a first-order channel of propensity `n D / h²`).
+
+- A channel is critical when the population it consumes is below 10. Critical channels
+  fire one at a time.
+- The leap is the Cao–Gillespie–Petzold bound over every (voxel, species) population,
+  with the hops in and out counted in its mean and variance.
+- Non-critical channels fire a Poisson number of times. A leap that would make a count
+  negative is rejected and halved, so counts stay non-negative and hops conserve the
+  molecules.
+- A leap reads every voxel, so it is only taken when it replaces more than
+  `10 + 4 × voxels` non-critical events. Otherwise the run takes exact next-subvolume
+  events, in batches that double (from 8 to 512 events per voxel) while leaping keeps
+  being refused.
+- A leap never crosses a seed or snapshot time. The coarsening test counts the leaped
+  events.
+
+Measured against the exact RDME (three-reaction chemistry without fast equilibrium,
+4x4x4 grid, 1 ms, 16 trajectories, `tau_epsilon = 0.03`):
+
+| Case | Events per trajectory | Exact | Tau-leap | Speed-up | Difference of the totals |
+|---|---|---|---|---|---|
+| 1 µm voxels, 3000 OH per voxel, 60 000 e_aq and 60 000 H seeded in two corners | 4.1e6 | 2.08 s | 1.28 s | 1.6x | 0.12 % of the species peak |
+| 1 µm voxels, 3000 molecules per voxel of three species, uniform | 1.0e7 | 5.70 s | 1.12 s | 5.1x | 0.31 % |
+| 3 µm voxels, 81 000 molecules per voxel of three species, uniform | 3.9e7 | 19.96 s | 0.53 s | 38x | 0.25 % |
+
+(wall time of the ensemble on 16 threads.) The first case is the fixed-seed test of
+`tests/ssa_rdme.rs`: the totals agree within 4 combined SEM plus `tau_epsilon` times the
+species peak, and the mean field of every voxel likewise. Leaping pays on smooth,
+well-populated grids. A sharp front limits it: an empty voxel next to a full one may
+only gain about one molecule per leap. On a radiolysis track at nm voxels every channel
+is critical, no leap is taken, and the output is identical to the exact run; the leap
+decisions then cost about 20 % more time (`data/voxel_example.toml`: 1.0 s exact, 1.2 s
+with `tau_leap = true`, 2000 trajectories).
+
 ### Small voxels
 
 At small voxels the two do not agree, and are not expected to. On

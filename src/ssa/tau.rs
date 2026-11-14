@@ -29,7 +29,7 @@ use crate::ssa::rng::SsaRng;
 /// How a species enters the highest-order reactions it is a reactant of
 /// (the `g_i` of Cao, Gillespie and Petzold).
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum Order {
+pub(crate) enum Order {
     /// Not a reactant: its count bounds no propensity.
     None,
     First,
@@ -72,7 +72,7 @@ impl Order {
     }
 
     /// `g_i` for a count `x`.
-    fn g(&self, x: i64) -> f64 {
+    pub(crate) fn g(&self, x: i64) -> f64 {
         let x = x as f64;
         match self {
             Order::None | Order::First => 1.0,
@@ -90,7 +90,7 @@ impl Order {
 }
 
 /// Highest-order role of every species of `model`.
-fn species_orders(model: &SsaModel) -> Vec<Order> {
+pub(crate) fn species_orders(model: &SsaModel) -> Vec<Order> {
     let mut orders = vec![Order::None; model.n_dyn];
     let mut raise = |s: usize, o: Order| {
         if o.rank() > orders[s].rank() {

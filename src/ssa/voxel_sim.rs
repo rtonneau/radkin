@@ -170,11 +170,6 @@ fn seed_molecules(sim: &VoxelSimulation) -> Result<Vec<Vec<(usize, usize, i64)>>
 /// Run the RDME ensemble of `sim`.
 pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let started = Instant::now();
-    if cfg.tau_leap {
-        return Err(RadkinError::Config(
-            "ssa.tau_leap = true is not available for voxel runs".into(),
-        ));
-    }
     let species = sim.species();
     let mat = SimMatrices::build(&sim.env)?;
     let coeffs: Vec<f64> = species.iter().map(|s| sim.voxel.diffusion_of(s)).collect();
@@ -208,6 +203,7 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let one = |i: usize| -> TrajectoryOutput {
         let mut rdme = Rdme::new(&setup, t_start, SsaRng::new(cfg.seed, i as u64));
         rdme.set_coarsening(z_max);
+        rdme.set_tau_leaping(cfg.tau_leap.then_some(cfg.tau_epsilon));
         rdme.fill_poisson(&y0);
         let baseline = rdme.totals();
         let mut out = TrajectoryOutput {

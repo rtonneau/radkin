@@ -10,6 +10,7 @@ pub mod model;
 pub mod output;
 pub mod rdme;
 pub mod rdme_coarsen;
+pub mod rdme_tau;
 pub mod rng;
 pub mod schedule;
 pub mod tau;

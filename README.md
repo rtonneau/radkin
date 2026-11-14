@@ -143,6 +143,9 @@ reaction-diffusion master equation, in place of the Strang splitting).
   (`coarsen_tol_factor` sets the threshold; the default 0.1 gave 7 times fewer hops on a
   homogenising case with no measurable change of the results). It refines back to the
   fine grid before each seed.
+- `tau_leap = true` leaps reactions and hops together. It pays on smooth grids with
+  thousands of molecules per voxel (5x to 38x measured); on a track at nm voxels no
+  leap is taken and the run stays exact.
 - At a few nm per voxel the result differs from the deterministic run (more surviving
   radicals, less H2O2 and H2): the rate equations stop being valid at about one molecule
   per voxel. A warning is logged when the spacing is too small for a reaction to be
