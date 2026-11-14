@@ -108,9 +108,33 @@
         "ticket": "02-rdme-mesh-correction",
         "commit": "7e05026"
       }
+    },
+    {
+      "at": "2026-11-14T23:34:19.081Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-association-validation-and-docs.md",
+        "03-implement/03-association-validation-and-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-association-validation-and-docs"
+      }
+    },
+    {
+      "at": "2026-11-14T23:38:29.966Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-association-validation-and-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-association-validation-and-docs",
+        "commit": "0a6d17f"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/rdme-mesh-correction",
     "base_branch": "main",
