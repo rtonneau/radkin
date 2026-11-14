@@ -2,6 +2,7 @@
 //! per-cell chemistry by Strang splitting (ADR 0002).
 
 pub mod checkpoint;
+pub mod coarsen;
 pub mod config;
 pub mod diffusion;
 pub mod driver;
