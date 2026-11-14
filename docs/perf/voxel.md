@@ -135,7 +135,8 @@ and measured, in a separate A/B session where the ticket-01 build ran at
 0.564 s (16 threads) / 3.71 s (1 thread) and this lever at about 0.53 s /
 3.14 s, 0.495 s at 16 threads (about -7% on top of this lever) and 2.94 s at
 1 thread (no gain there). Left as a follow-up idea
-(`.work/idea/rsoda-lsoda-restart.md`).
+(`.work/idea/rsoda-lsoda-restart.md`), done later: see
+[Solver restart](#solver-restart-session-2026-11-14__rsoda-lsoda-restart---kept).
 
 ## Lever 2: fused junction half-reactions (ticket 03) - kept
 
@@ -433,3 +434,61 @@ grid, so a bigger domain around one track would make the local gain larger. Back
 Observation for the level counts: a step that lands on a seed time may coarsen and then refine
 immediately in the injection (here the two pre-seed changes at 1e-13 and 3e-13, refined at 1e-12);
 this costs one restriction and one prolongation of a uniform state and no solves.
+
+## Solver restart (session `2026-11-14__rsoda-lsoda-restart`) - kept
+
+rsoda `2255091` adds `Lsoda::restart(t0, y0, h0)`: a full reset in place, equal to
+`Lsoda::new` with the same system and options, that keeps the `State` arrays and the
+linear solver (the dense `n x n` matrix never used here). In `reaction_step_background`
+each rayon pool thread now builds one `solver::Integrator` (kernel scratch plus one
+`Lsoda`, options as `integrate_to` builds them) on its first voxel and restarts it for
+each of its voxels; the background integration runs on one of these solvers. The first
+step is unchanged (`CARRY_FACTOR` times the carried step, through `restart`'s `h0`).
+The chunked and single-pulse drivers and `integrate_one` keep `Lsoda::new`.
+
+Results are bit-identical: unit test (`Integrator` against `integrate_to` and `solve`,
+dense and sparse, reused over several states) and all 67 output files of `radkin voxel
+data/voxel_example.toml` at 16 and 1 threads equal to the pre-session build. The work
+counts and accuracy are unchanged (46 / 0 steps, 152510 solves, nfev 3693056, nst
+1896047, max total error 1.4963e-3, max scaled error 0.193).
+
+A/B with four builds run in alternation: **oldrev** (radkin `a91c033`, rsoda
+`f5d1312`), **before** (the rsoda rev bump alone), **after** (this change) and, in the
+third session, **afternew**, a control with the final code but `Lsoda::new` in place of
+`restart` (not committed). Medians of the per-run medians (16 threads: 10, 10 and 8 runs
+of `--repeat 5`; 1 thread: 3 sessions of 4 runs of `--repeat 3`):
+
+| threads | session | oldrev [s] | before [s] | afternew [s] | after [s] | after vs before | after vs afternew | after vs oldrev |
+|---|---|---|---|---|---|---|---|---|
+| 16 | 1 | 0.464 | 0.474 | - | 0.464 | -2.1% | - | +0.1% |
+| 16 | 2 (reversed order) | 0.463 | 0.484 | - | 0.473 | -2.4% | - | +2.2% |
+| 16 | 3 | 0.457 | 0.483 | 0.483 | 0.460 | -4.7% | -4.8% | +0.6% |
+| 1 | 1 | 2.694 | 2.890 | - | 2.716 | -6.0% | - | +0.8% |
+| 1 | 2 (reversed order) | 2.828 | 3.110 | - | 2.860 | -8.0% | - | +1.1% |
+| 1 | 3 | 2.634 | 2.971 | 2.912 | 2.683 | -9.7% | -7.9% | +1.9% |
+
+Reading:
+
+- The restart itself: **after** against **before** and against the same-code control
+  **afternew** is -6% to -10% on one thread and -2% to -5% on 16 threads. A microbenchmark
+  (n = 16, one thread) gives `Lsoda::new` plus drop 0.75 us and `restart` 0.11 us; in the
+  run the saving is about 1.5 us per solve on one thread, more than the microbenchmark,
+  probably because the reused buffers stay in cache.
+- **before** is 2-6% (16 threads) and 7-13% (1 thread) slower than **oldrev**, although
+  rsoda `2255091` only changes the solver setup (`Lsoda::new` plus drop is about 0.07-0.1 us slower).
+  A run-mode control (`examples/bench.rs`, Labarbe 1e-7..10 s, one solve, 4 runs of
+  `--repeat 20`) is 5.6% faster with the new rsoda (6.175 -> 5.830 ms, same nfev and nst),
+  so there is no step-loop regression: this is a build-to-build (code layout) difference,
+  the kind of noise floor already seen between two builds (README, ticket 04 of the
+  per-step-overhead session: +1% to +8%).
+- So against the pre-session build the voxel step is unchanged (+0% to +2%), and against
+  the rev bump alone (the state a revert would leave) it is faster.
+
+Keep rule (docs/perf/README.md), measured against the rev bump alone: one thread gains
+6.0-9.7% in every session (7.9% against the same-code control), above 5%; 16 threads gains
+2.1-4.8%, below 5% but never slower; results are bit-identical and the golden tests pass at
+unchanged tolerances. Kept provisionally: the one-thread margin rests on one same-code control session and is close to the build-to-build noise above, 16 threads alone would fail the rule, and there is no net gain against the pre-session build. The final keep or revert is decided with repeated sessions together with the warm start (next section). The gain at 16 threads is smaller than the earlier prototype's
+-7% (Lever 1), and the expected allocator-contention gain did not show beyond the one-thread
+saving divided over the threads.
+
+Evidence (not committed): `.scratch/tests/2026-11-14__rsoda-lsoda-restart/evidence/03-*`.

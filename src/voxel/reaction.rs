@@ -3,20 +3,24 @@
 //! seeds).
 //!
 //! Each voxel is integrated straight to the end of the half-step
-//! ([`integrate_to`]: no stored output, kernel buffers reused per thread),
-//! starting with the step size its previous half-step ended with
-//! ([`CarriedSteps`]) instead of the configured first step.
+//! ([`Integrator::integrate_to`]: no stored output, one rsoda solver per thread
+//! and half-step, restarted for every voxel), starting with the step size its
+//! previous half-step ended with ([`CarriedSteps`]) instead of the configured
+//! first step.
 //!
 //! With the `parallel` feature (default) the voxels are spread over rayon
 //! threads. Each voxel's integration is deterministic and depends only on its
 //! own state and carried step, so the result is bit-identical to the serial
 //! path.
 
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::error::Result;
 use crate::matrices::SimMatrices;
-use crate::solver::{DoseRateSource, Integration, SolveOptions, SolveScratch, integrate_to};
+use crate::solver::{
+    DoseRateSource, Integration, Integrator, SolveOptions, SolveScratch, integrate_to,
+};
 use crate::voxel::grid::VoxelState;
 
 /// Absolute tolerance of the background match, as a fraction of the solver
@@ -145,30 +149,6 @@ fn first_step(carried: f64, opts: &SolveOptions, h: f64) -> f64 {
     if f >= h { h / 1e3 } else { f }
 }
 
-/// Integrate `y` over `[t, t + h]` from the step `carried`, then set `carried`
-/// to the step it ended with.
-fn integrate_carried(
-    mat: &SimMatrices,
-    y: &mut [f64],
-    carried: &mut f64,
-    t: f64,
-    h: f64,
-    opts: &SolveOptions,
-    scratch: &mut SolveScratch,
-) -> Result<Integration> {
-    let r = integrate_to(
-        mat,
-        &DoseRateSource::None,
-        (t, t + h),
-        y,
-        opts,
-        first_step(*carried, opts, h),
-        scratch,
-    )?;
-    *carried = r.h_last;
-    Ok(r)
-}
-
 /// Integrate every voxel of `state` (dynamic species, µmol/L) over
 /// `[t, t + h]`, without carried steps. `opts.t_eval` is ignored.
 pub fn reaction_step(
@@ -196,8 +176,19 @@ pub fn integrate_one(
     if h <= 0.0 {
         return Ok(());
     }
+    // One solve: a new solver (the voxels of a half-step share restarted ones).
     let mut scratch = SolveScratch::new(mat, opts.jacobian);
-    integrate_carried(mat, y, carried, t, h, opts, &mut scratch).map(|_| ())
+    let r = integrate_to(
+        mat,
+        &DoseRateSource::None,
+        (t, t + h),
+        y,
+        opts,
+        first_step(*carried, opts, h),
+        &mut scratch,
+    )?;
+    *carried = r.h_last;
+    Ok(())
 }
 
 /// [`reaction_step`] with carried steps and background voxels.
@@ -210,6 +201,9 @@ pub fn integrate_one(
 /// opts.atol`) receives that result and that step instead of its own rsoda
 /// run. The other voxels are integrated exactly as without a background.
 /// Returns the number of background voxels.
+///
+/// Each pool thread builds one [`Integrator`] on its first voxel and restarts it
+/// for each of its voxels; the background is integrated on one of these.
 pub fn reaction_step_background(
     mat: &SimMatrices,
     state: &mut VoxelState,
@@ -227,19 +221,25 @@ pub fn reaction_step_background(
         *carry = CarriedSteps::new(state.n_voxels);
     }
     VOXEL_STEPS.fetch_add(state.n_voxels as u64, Ordering::Relaxed);
-    let one = |scratch: &mut SolveScratch, y: &mut [f64], carried: &mut f64| -> Result<()> {
-        let r = integrate_carried(mat, y, carried, t, h, opts, scratch)?;
+    let source = DoseRateSource::None;
+    // Integrate `y` over `[t, t + h]` from the step `carried`, then set
+    // `carried` to the step it ended with.
+    let one = |solver: &mut Integrator, y: &mut [f64], carried: &mut f64| -> Result<()> {
+        let r = solver.integrate_to((t, t + h), y, first_step(*carried, opts, h))?;
+        *carried = r.h_last;
         count_solve(&r);
         Ok(())
     };
-    let new_scratch = || SolveScratch::new(mat, opts.jacobian);
+    let new_solver = || Integrator::new(mat, &source, opts);
+    let mut solvers: Vec<Mutex<Option<Integrator>>> =
+        (0..n_slots()).map(|_| Mutex::new(None)).collect();
     let mut y = vec![0.0; n_sp];
     let Some(bg) = background else {
         let mut aos = vec![0.0; n_sp * state.n_voxels];
         for (v, y) in aos.chunks_mut(n_sp).enumerate() {
             state.gather(v, y);
         }
-        run_voxels(&mut aos, &mut carry.voxels, n_sp, new_scratch, one)?;
+        run_voxels(&mut aos, &mut carry.voxels, n_sp, &solvers, new_solver, one)?;
         for (v, y) in aos.chunks(n_sp).enumerate() {
             state.scatter(v, y);
         }
@@ -260,9 +260,15 @@ pub fn reaction_step_background(
     }
     let n_background = state.n_voxels - active.len();
     BACKGROUND_VOXEL_STEPS.fetch_add(n_background as u64, Ordering::Relaxed);
-    run_voxels(&mut aos, &mut steps, n_sp, new_scratch, one)?;
-    // Always advanced, so it stays the background of later steps.
-    one(&mut new_scratch(), bg, &mut carry.background)?;
+    run_voxels(&mut aos, &mut steps, n_sp, &solvers, new_solver, one)?;
+    // Always advanced, so it stays the background of later steps. On a solver
+    // the voxels built if any (a restart is a full reset, so any one will do).
+    let built = solvers
+        .iter_mut()
+        .position(|m| m.get_mut().expect(POISONED).is_some())
+        .unwrap_or(0);
+    let solver = get_or_try_init(solvers[built].get_mut().expect(POISONED), new_solver)?;
+    one(solver, bg, &mut carry.background)?;
     let mut next = active.iter().zip(aos.chunks(n_sp).zip(&steps)).peekable();
     for v in 0..state.n_voxels {
         match next.peek() {
@@ -280,42 +286,76 @@ pub fn reaction_step_background(
     Ok(n_background)
 }
 
-/// Run `f` on every voxel of `aos` (with its carried step) and a scratch of
-/// the thread running it, built by `init` on the thread's first voxel.
+const POISONED: &str = "solver slot poisoned";
+
+/// The value of `slot`, built by `init` if there is none yet.
+fn get_or_try_init<T>(slot: &mut Option<T>, init: impl FnOnce() -> Result<T>) -> Result<&mut T> {
+    if slot.is_none() {
+        *slot = Some(init()?);
+    }
+    Ok(slot.as_mut().expect("built above"))
+}
+
+/// Number of solver slots of [`run_voxels`]: one per pool thread.
+#[cfg(feature = "parallel")]
+fn n_slots() -> usize {
+    rayon::current_num_threads()
+}
+
+#[cfg(not(feature = "parallel"))]
+fn n_slots() -> usize {
+    1
+}
+
+/// Run `f` on every voxel of `aos` (with its carried step) and the solver of
+/// the thread running it: slot `i` of `slots` for pool thread `i`, built by
+/// `init` on the thread's first voxel and kept there for the caller.
 ///
-/// One scratch per pool thread, not rayon's `try_for_each_init`: that builds
+/// One solver per pool thread, not rayon's `try_for_each_init`: that builds
 /// one per split job, which on the benchmark was almost one per voxel.
 #[cfg(feature = "parallel")]
-fn run_voxels<I, F>(aos: &mut [f64], steps: &mut [f64], n_sp: usize, init: I, f: F) -> Result<()>
+fn run_voxels<T, I, F>(
+    aos: &mut [f64],
+    steps: &mut [f64],
+    n_sp: usize,
+    slots: &[Mutex<Option<T>>],
+    init: I,
+    f: F,
+) -> Result<()>
 where
-    I: Fn() -> SolveScratch + Sync + Send,
-    F: Fn(&mut SolveScratch, &mut [f64], &mut f64) -> Result<()> + Sync + Send,
+    T: Send,
+    I: Fn() -> Result<T> + Sync,
+    F: Fn(&mut T, &mut [f64], &mut f64) -> Result<()> + Sync,
 {
     use rayon::prelude::*;
-    use std::sync::Mutex;
     // Slot `i` is only locked by pool thread `i`, so never contended.
-    let scratches: Vec<Mutex<Option<SolveScratch>>> = (0..rayon::current_num_threads())
-        .map(|_| Mutex::new(None))
-        .collect();
     aos.par_chunks_mut(n_sp)
         .zip(steps.par_iter_mut())
         .try_for_each(|(y, s)| {
-            let i = rayon::current_thread_index().unwrap_or(0) % scratches.len();
-            let mut slot = scratches[i].lock().expect("scratch slot poisoned");
-            f(slot.get_or_insert_with(&init), y, s)
+            let i = rayon::current_thread_index().unwrap_or(0) % slots.len();
+            let mut slot = slots[i].lock().expect(POISONED);
+            f(get_or_try_init(&mut slot, &init)?, y, s)
         })
 }
 
 #[cfg(not(feature = "parallel"))]
-fn run_voxels<I, F>(aos: &mut [f64], steps: &mut [f64], n_sp: usize, init: I, f: F) -> Result<()>
+fn run_voxels<T, I, F>(
+    aos: &mut [f64],
+    steps: &mut [f64],
+    n_sp: usize,
+    slots: &[Mutex<Option<T>>],
+    init: I,
+    f: F,
+) -> Result<()>
 where
-    I: Fn() -> SolveScratch,
-    F: Fn(&mut SolveScratch, &mut [f64], &mut f64) -> Result<()>,
+    I: Fn() -> Result<T>,
+    F: Fn(&mut T, &mut [f64], &mut f64) -> Result<()>,
 {
-    let mut scratch = init();
+    let mut slot = slots[0].lock().expect(POISONED);
+    let solver = get_or_try_init(&mut slot, &init)?;
     aos.chunks_mut(n_sp)
         .zip(steps.iter_mut())
-        .try_for_each(|(y, s)| f(&mut scratch, y, s))
+        .try_for_each(|(y, s)| f(solver, y, s))
 }
 
 #[cfg(test)]
