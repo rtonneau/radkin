@@ -134,9 +134,33 @@
         "ticket": "02-rsoda-warm-start",
         "commit": "346f8ad"
       }
+    },
+    {
+      "at": "2026-11-14T19:00:30.928Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-radkin-warm-start-option.md",
+        "03-implement/04-radkin-warm-start-option/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-radkin-warm-start-option"
+      }
+    },
+    {
+      "at": "2026-11-14T19:32:52.242Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/04-radkin-warm-start-option/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-radkin-warm-start-option",
+        "commit": "ede6e41"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "perf/rsoda-lsoda-restart",
     "base_branch": "main",
