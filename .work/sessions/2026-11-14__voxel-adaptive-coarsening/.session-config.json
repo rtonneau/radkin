@@ -184,9 +184,33 @@
         "ticket": "05-io-resume",
         "commit": "584767a"
       }
+    },
+    {
+      "at": "2026-11-14T15:58:26.961Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-acceptance.md",
+        "03-implement/06-acceptance/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-acceptance"
+      }
+    },
+    {
+      "at": "2026-11-14T16:08:38.087Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/06-acceptance/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-acceptance",
+        "commit": "722428f"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/voxel-global-coarsening",
     "base_branch": "main",
