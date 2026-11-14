@@ -5,7 +5,9 @@
 pub mod exact;
 pub mod model;
 pub mod rng;
+pub mod schedule;
 
 pub use exact::{Cell, Exact, Segment, Stepper, Trajectory, initial_counts, run_trajectory};
 pub use model::{Law, Reaction, Slot, Source, SsaModel};
 pub use rng::{SsaRng, det_ln};
+pub use schedule::{beam_segments, delivered_dose};
