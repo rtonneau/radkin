@@ -1,0 +1,204 @@
+{
+  "session_id": "2026-11-14__reduce-computational-burden",
+  "feature_name": "reduce-computational-burden",
+  "scratch_dir": ".scratch/tests/2026-11-14__reduce-computational-burden",
+  "created_at": "2026-11-14T13:04:58.948Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-14T13:04:58.948Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T13:15:12.567Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish",
+        "shipMode": "delegate"
+      }
+    },
+    {
+      "at": "2026-11-14T13:15:30.313Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T13:15:30.415Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T13:16:06.515Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "perf/voxel-reaction-cost",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-14T13:16:06.533Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-voxel-bench-and-gate.md",
+        "02-plan/tickets/02-lean-voxel-solve.md",
+        "02-plan/tickets/03-fuse-half-reactions.md",
+        "02-plan/tickets/04-embedded-error-estimate.md"
+      ],
+      "detail": {
+        "tickets": 4
+      }
+    },
+    {
+      "at": "2026-11-14T13:16:10.677Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-voxel-bench-and-gate.md",
+        "03-implement/01-voxel-bench-and-gate/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-voxel-bench-and-gate"
+      }
+    },
+    {
+      "at": "2026-11-14T13:20:17.897Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-voxel-bench-and-gate/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-voxel-bench-and-gate",
+        "commit": "ea03246"
+      }
+    },
+    {
+      "at": "2026-11-14T13:20:18.294Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-lean-voxel-solve.md",
+        "03-implement/02-lean-voxel-solve/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-lean-voxel-solve"
+      }
+    },
+    {
+      "at": "2026-11-14T13:55:10.645Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-lean-voxel-solve/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-lean-voxel-solve",
+        "commit": "3fed416"
+      }
+    },
+    {
+      "at": "2026-11-14T13:55:11.041Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-fuse-half-reactions.md",
+        "03-implement/03-fuse-half-reactions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-fuse-half-reactions"
+      }
+    },
+    {
+      "at": "2026-11-14T13:58:21.515Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-fuse-half-reactions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-fuse-half-reactions",
+        "commit": "309ffe7"
+      }
+    },
+    {
+      "at": "2026-11-14T13:58:21.918Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-embedded-error-estimate.md",
+        "03-implement/04-embedded-error-estimate/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-embedded-error-estimate"
+      }
+    },
+    {
+      "at": "2026-11-14T14:18:14.308Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/04-embedded-error-estimate/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-embedded-error-estimate",
+        "commit": "fc39c67"
+      }
+    },
+    {
+      "at": "2026-11-14T14:18:28.262Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "patch"
+      }
+    },
+    {
+      "at": "2026-11-14T14:18:33.693Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/12"
+      }
+    },
+    {
+      "at": "2026-11-14T14:18:28.526Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "perf/voxel-reaction-cost",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-14T13:16:06.515Z",
+    "pr_url": "https://github.com/rtonneau/radkin/pull/12"
+  },
+  "ship_mode": "delegate",
+  "changelog": {
+    "bump": "patch",
+    "floor": "patch",
+    "reason": null,
+    "bullets": 2,
+    "path": ".work/changelog/2026-11-14__reduce-computational-burden.md",
+    "written_at": "2026-11-14T14:18:28.255Z"
+  },
+  "finished_at": "2026-11-14T14:18:28.526Z"
+}
