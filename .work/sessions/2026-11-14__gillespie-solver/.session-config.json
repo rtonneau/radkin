@@ -233,9 +233,33 @@
         "ticket": "07-rdme-coarsening",
         "commit": "cdceb9c"
       }
+    },
+    {
+      "at": "2026-11-14T20:49:44.667Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/08-rdme-tau-leaping.md",
+        "03-implement/08-rdme-tau-leaping/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "08-rdme-tau-leaping"
+      }
+    },
+    {
+      "at": "2026-11-14T20:56:59.593Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/08-rdme-tau-leaping/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "08-rdme-tau-leaping",
+        "commit": "f8d66f7"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/gillespie-solver",
     "base_branch": "main",
