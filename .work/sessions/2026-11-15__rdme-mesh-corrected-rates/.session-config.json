@@ -60,6 +60,30 @@
       "detail": {
         "tickets": 3
       }
+    },
+    {
+      "at": "2026-11-14T23:28:03.482Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-rate-correction-config.md",
+        "03-implement/01-rate-correction-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-rate-correction-config"
+      }
+    },
+    {
+      "at": "2026-11-14T23:29:54.417Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-rate-correction-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-rate-correction-config",
+        "commit": "370aa4e"
+      }
     }
   ],
   "current_phase": "ship",
@@ -68,5 +92,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-14T23:27:58.193Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "inline"
 }
