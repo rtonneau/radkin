@@ -1,6 +1,6 @@
 # Ticket 02: rsoda-warm-start
 
-**Status:** In Progress
+**Status:** ✅ Done
 
 ## Local Test Result
 
@@ -97,8 +97,8 @@ failures, DSTODA order-1 rescues and nfe with no accuracy gain (Robertson, HIRES
 
 ## Commits
 
-Filled by ticket-complete.js.
+- 346f8ad perf: Reuse one rsoda solver per thread in the voxel reaction step (ticket 03)
 
 ## Time Spent
 
-Filled by ticket-complete.js.
+1h 26m (ticket-start.js to ticket-complete.js)

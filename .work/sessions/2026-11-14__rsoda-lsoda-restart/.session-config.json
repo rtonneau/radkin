@@ -122,6 +122,18 @@
         "ticket": "01-rsoda-restart",
         "commit": "346f8ad"
       }
+    },
+    {
+      "at": "2026-11-14T19:00:27.073Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-rsoda-warm-start/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-rsoda-warm-start",
+        "commit": "346f8ad"
+      }
     }
   ],
   "current_phase": "ship",
