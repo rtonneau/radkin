@@ -57,6 +57,12 @@ pub struct VoxelConfig {
     pub seeds: Vec<SeedSpec>,
     /// `[voxel.geant4]` aliases and ignore list, plus `voxel.clip`.
     pub policy: SeedPolicy,
+    /// `voxel.max_coarsen_levels`: halvings allowed by the coarsening (0 = off).
+    /// Every grid dimension must be divisible by `2^max_coarsen_levels`.
+    pub max_coarsen_levels: u32,
+    /// `voxel.coarsen_tol_factor`: tolerance factor of the coarsening test (> 0,
+    /// default 0.1; the choice is measured in `docs/perf/voxel.md`).
+    pub coarsen_tol_factor: f64,
 }
 
 fn num(v: &toml::Value, what: &str) -> Result<f64> {
@@ -180,6 +186,41 @@ impl VoxelConfig {
         let origin = triple(g.get("origin_nm"), Some(0.0), "voxel.grid.origin_nm")?.map(|x| x * NM);
         let grid = VoxelGrid::new(dims, spacing, origin)?;
 
+        let max_coarsen_levels = match voxel.get("max_coarsen_levels") {
+            None => 0,
+            Some(v) => v
+                .as_integer()
+                .and_then(|i| u32::try_from(i).ok())
+                .ok_or_else(|| {
+                    RadkinError::Config("voxel.max_coarsen_levels must be an integer >= 0".into())
+                })?,
+        };
+        let block = 1usize.checked_shl(max_coarsen_levels).ok_or_else(|| {
+            RadkinError::Config(format!(
+                "voxel.max_coarsen_levels = {max_coarsen_levels} is too large"
+            ))
+        })?;
+        for (axis, n) in ["x", "y", "z"].iter().zip(dims) {
+            if n % block != 0 {
+                return Err(RadkinError::Config(format!(
+                    "voxel.grid.dims along {axis} ({n}) must be divisible by \
+                     2^voxel.max_coarsen_levels = {block}"
+                )));
+            }
+        }
+        let coarsen_tol_factor = match voxel.get("coarsen_tol_factor") {
+            None => 0.1,
+            Some(v) => {
+                let f = num(v, "voxel.coarsen_tol_factor")?;
+                if !(f.is_finite() && f > 0.0) {
+                    return Err(RadkinError::Config(format!(
+                        "voxel.coarsen_tol_factor must be finite and > 0, got {f}"
+                    )));
+                }
+                f
+            }
+        };
+
         let mut diffusion: IndexMap<String, f64> = DEFAULT_DIFFUSION
             .iter()
             .map(|(k, v)| (k.to_string(), *v))
@@ -251,6 +292,8 @@ impl VoxelConfig {
             diffusion,
             seeds,
             policy,
+            max_coarsen_levels,
+            coarsen_tol_factor,
         })
     }
 
@@ -324,6 +367,64 @@ mod tests {
         assert_eq!(c.seeds[0].energy_ev, Some(1000.0));
         assert_eq!(c.seeds[1].time, 1e-6);
         assert_eq!(c.seeds[1].events, None);
+    }
+
+    #[test]
+    fn coarsening_defaults() {
+        let c =
+            VoxelConfig::from_toml_str("[voxel.grid]\ndims = [3, 3, 3]\nspacing_nm = 1").unwrap();
+        assert_eq!(c.max_coarsen_levels, 0);
+        assert_eq!(c.coarsen_tol_factor, 0.1);
+    }
+
+    #[test]
+    fn parses_coarsening_keys() {
+        let c = VoxelConfig::from_toml_str(
+            r#"
+            [voxel]
+            max_coarsen_levels = 2
+            coarsen_tol_factor = 0.25
+            [voxel.grid]
+            dims = [8, 4, 12]
+            spacing_nm = 1
+            "#,
+        )
+        .unwrap();
+        assert_eq!(c.max_coarsen_levels, 2);
+        assert_eq!(c.coarsen_tol_factor, 0.25);
+        // An integer tolerance factor is accepted as a float.
+        let c = VoxelConfig::from_toml_str(
+            "[voxel]\ncoarsen_tol_factor = 1\n[voxel.grid]\ndims = [1, 1, 1]\nspacing_nm = 1",
+        )
+        .unwrap();
+        assert_eq!(c.coarsen_tol_factor, 1.0);
+    }
+
+    #[test]
+    fn coarsening_divisibility_error_names_axis() {
+        let err = VoxelConfig::from_toml_str(
+            "[voxel]\nmax_coarsen_levels = 2\n[voxel.grid]\ndims = [8, 6, 4]\nspacing_nm = 1",
+        )
+        .unwrap_err();
+        let msg = err.to_string();
+        assert!(matches!(err, RadkinError::Config(_)), "{msg}");
+        assert!(msg.contains("along y (6)"), "{msg}");
+        assert!(!msg.contains("along x"), "{msg}");
+    }
+
+    #[test]
+    fn rejects_invalid_coarsening() {
+        for bad in [
+            "[voxel]\nmax_coarsen_levels = -1\n[voxel.grid]\ndims = [4, 4, 4]\nspacing_nm = 1",
+            "[voxel]\nmax_coarsen_levels = 1.5\n[voxel.grid]\ndims = [4, 4, 4]\nspacing_nm = 1",
+            "[voxel]\nmax_coarsen_levels = \"2\"\n[voxel.grid]\ndims = [4, 4, 4]\nspacing_nm = 1",
+            "[voxel]\nmax_coarsen_levels = 99\n[voxel.grid]\ndims = [4, 4, 4]\nspacing_nm = 1",
+            "[voxel]\ncoarsen_tol_factor = 0\n[voxel.grid]\ndims = [1, 1, 1]\nspacing_nm = 1",
+            "[voxel]\ncoarsen_tol_factor = -0.1\n[voxel.grid]\ndims = [1, 1, 1]\nspacing_nm = 1",
+            "[voxel]\ncoarsen_tol_factor = \"0.1\"\n[voxel.grid]\ndims = [1, 1, 1]\nspacing_nm = 1",
+        ] {
+            assert!(VoxelConfig::from_toml_str(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]

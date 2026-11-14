@@ -118,6 +118,14 @@ impl CarriedSteps {
         self.voxels.fill(0.0);
         self.background = 0.0;
     }
+
+    /// Forget the per-voxel steps and size them for `n_voxels` voxels (a change of
+    /// coarsening level). The background step is kept: the background does not depend on the
+    /// grid.
+    pub fn reset_voxels(&mut self, n_voxels: usize) {
+        self.voxels.clear();
+        self.voxels.resize(n_voxels, 0.0);
+    }
 }
 
 /// Fraction of the carried step taken as the first step of the next

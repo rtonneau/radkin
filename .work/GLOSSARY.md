@@ -76,3 +76,7 @@ _Avoid_: profile (also means a sampling profile), timings
 **Per-RHS cost**:
 Solve time divided by the number of RHS evaluations (nfev), solver overhead included; the headline figure compared against radiopyo.
 _Avoid_: RHS time (that is the kernel's share only)
+
+**Coarsening level**:
+The global resolution of the voxel grid relative to the configured fine grid: level L merges every 2^L×2^L×2^L block of fine voxels into one uniform voxel. The whole grid is always at one level.
+_Avoid_: AMR level, refinement level, octree depth
