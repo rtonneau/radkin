@@ -20,4 +20,4 @@ pub use output::write_voxel_dir;
 pub use seed::{
     DEFAULT_GEANT4_ALIASES, LoadedSeed, SeedPolicy, SeedReport, SeedSpec, load_seeds, run_schedule,
 };
-pub use sim::{RunSettings, Snapshot, VoxelOutput, VoxelSimulation};
+pub use sim::{RunControl, RunSettings, Snapshot, VoxelOutput, VoxelSimulation};
