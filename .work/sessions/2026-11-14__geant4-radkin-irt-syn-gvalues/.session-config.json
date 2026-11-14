@@ -116,9 +116,33 @@
       "files": [
         "HANDOFF.md"
       ]
+    },
+    {
+      "at": "2026-11-14T12:51:32.517Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-sweeps-and-report.md",
+        "03-implement/03-sweeps-and-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-sweeps-and-report"
+      }
+    },
+    {
+      "at": "2026-11-14T12:51:43.233Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-sweeps-and-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-sweeps-and-report",
+        "commit": "4a22fa7"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "chore/radkin-irt-syn-gvalues",
     "base_branch": "perf/background-voxels",
