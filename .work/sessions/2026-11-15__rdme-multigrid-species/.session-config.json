@@ -112,6 +112,30 @@
         "ticket": "02-species-level-state-and-hops",
         "commit": "f93cfc4"
       }
+    },
+    {
+      "at": "2026-11-14T23:55:32.922Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-cross-level-reactions.md",
+        "03-implement/03-cross-level-reactions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-cross-level-reactions"
+      }
+    },
+    {
+      "at": "2026-11-14T23:58:11.918Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-cross-level-reactions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-cross-level-reactions",
+        "commit": "e1c9cbc"
+      }
     }
   ],
   "git": {
