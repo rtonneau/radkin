@@ -1,5 +1,5 @@
 ---
-status: grilled
+status: planned
 scope: project
 created: 2026-11-14
 reviews: 0
@@ -28,6 +28,15 @@ Voxel mode spends reaction and diffusion work on every fine voxel even after con
 - Whether step-doubling / Strang dt control needs adjustment after a level change.
 - Coarsening check cadence: every macro step or every N steps.
 
+## Plan
+
+1. Baseline: a representative voxel case that homogenises, with its fine-grid timing and results recorded in docs/perf.
+2. Config: `[voxel] max_coarsen_levels` (default 0) and validation that dims divide by 2^L. Existing runs unchanged.
+3. Restrict/prolong between levels plus the global spread test. Mass conserved to round-off (unit tests).
+4. Driver runs diffusion and reactions on the current level, coarsening at macro-step boundaries. Settles the check cadence and the dt handling after a level change.
+5. Refine to level 0 before re-injection; outputs and checkpoints prolonged to the fine grid; resume recomputes the level.
+6. Acceptance: totals within rtol 1e-6 of the fine run, tolerance factor tuned, speedup measured against the keep rule. Decision recorded on keeping it and on whether the local-AMR follow-up is needed.
+
 ## Risks
 
 - Localized features (one fresh track, a re-injection front) block global coarsening, so the gain may be small for many runs. That would trigger the local-AMR follow-up.
@@ -38,3 +47,4 @@ Voxel mode spends reaction and diffusion work on every fine voxel even after con
 
 - 2026-11-14 — capture — from the reduce-computational-burden grill (radkin @ main)
 - 2026-11-14 — grill
+- 2026-11-14 — plan
