@@ -6,6 +6,8 @@
 //! threads. Each voxel's integration is deterministic and independent, so the
 //! result is bit-identical to the serial path.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use crate::error::Result;
 use crate::matrices::SimMatrices;
 use crate::solver::{DoseRateSource, SolveOptions, solve};
@@ -23,6 +25,53 @@ pub fn is_background(y: &[f64], bg: &[f64], atol: f64) -> bool {
     y.iter()
         .zip(bg)
         .all(|(a, b)| (a - b).abs() <= atol + BACKGROUND_RTOL * b.abs())
+}
+
+/// Counters of the reaction step, summed over all threads since the last
+/// [`reset_stats`]. Read-only instrumentation for `examples/voxel_bench.rs`; it
+/// does not influence the integration.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReactionStats {
+    /// Voxels summed over all reaction half-steps (background voxels included).
+    pub voxel_steps: u64,
+    /// Background voxels among them (they share one integration).
+    pub background_voxel_steps: u64,
+    /// rsoda solves actually run (active voxels plus background integrations).
+    pub solves: u64,
+    /// Right-hand-side evaluations summed over these solves.
+    pub nfev: u64,
+    /// rsoda steps summed over these solves.
+    pub nst: u64,
+}
+
+static VOXEL_STEPS: AtomicU64 = AtomicU64::new(0);
+static BACKGROUND_VOXEL_STEPS: AtomicU64 = AtomicU64::new(0);
+static SOLVES: AtomicU64 = AtomicU64::new(0);
+static NFEV: AtomicU64 = AtomicU64::new(0);
+static NST: AtomicU64 = AtomicU64::new(0);
+
+/// Zero the [`ReactionStats`] counters.
+pub fn reset_stats() {
+    for c in [&VOXEL_STEPS, &BACKGROUND_VOXEL_STEPS, &SOLVES, &NFEV, &NST] {
+        c.store(0, Ordering::Relaxed);
+    }
+}
+
+/// The [`ReactionStats`] counters since the last [`reset_stats`].
+pub fn stats() -> ReactionStats {
+    ReactionStats {
+        voxel_steps: VOXEL_STEPS.load(Ordering::Relaxed),
+        background_voxel_steps: BACKGROUND_VOXEL_STEPS.load(Ordering::Relaxed),
+        solves: SOLVES.load(Ordering::Relaxed),
+        nfev: NFEV.load(Ordering::Relaxed),
+        nst: NST.load(Ordering::Relaxed),
+    }
+}
+
+fn count_solve(sol: &crate::solver::Solution) {
+    SOLVES.fetch_add(1, Ordering::Relaxed);
+    NFEV.fetch_add(sol.nfev as u64, Ordering::Relaxed);
+    NST.fetch_add(sol.nst as u64, Ordering::Relaxed);
 }
 
 /// Integrate every voxel of `state` (dynamic species, µmol/L) over
@@ -82,8 +131,10 @@ pub fn reaction_step_background(
     if o.first_step >= h {
         o.first_step = h / 1e3;
     }
+    VOXEL_STEPS.fetch_add(state.n_voxels as u64, Ordering::Relaxed);
     let one = |y: &mut [f64]| -> Result<()> {
         let sol = solve(mat, &DoseRateSource::None, (t, t + h), y, &o)?;
+        count_solve(&sol);
         y.copy_from_slice(&sol.y[0]);
         Ok(())
     };
@@ -111,6 +162,7 @@ pub fn reaction_step_background(
         }
     }
     let n_background = state.n_voxels - active.len();
+    BACKGROUND_VOXEL_STEPS.fetch_add(n_background as u64, Ordering::Relaxed);
     run_voxels(&mut aos, n_sp, one)?;
     // Always advanced, so it stays the background of later steps.
     one(bg)?;

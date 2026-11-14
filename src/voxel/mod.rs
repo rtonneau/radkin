@@ -17,6 +17,7 @@ pub use diffusion::{Diffusion, Scheme};
 pub use driver::{StepControl, StepRecord, VoxelRun};
 pub use grid::{VoxelGrid, VoxelState};
 pub use output::write_voxel_dir;
+pub use reaction::ReactionStats;
 pub use seed::{
     DEFAULT_GEANT4_ALIASES, LoadedSeed, SeedPolicy, SeedReport, SeedSpec, load_seeds, run_schedule,
 };

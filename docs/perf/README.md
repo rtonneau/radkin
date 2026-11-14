@@ -4,6 +4,9 @@ This page records where a radkin solve spends its time and what was done about
 it (gps session `2026-11-13__rsoda-per-step-overhead`, idea
 `.work/idea/rsoda-per-step-overhead.md`).
 
+Voxel (Phase 2) runs are benchmarked separately: see [voxel.md](voxel.md)
+(`examples/voxel_bench.rs`).
+
 ## How it is measured
 
 - `examples/bench.rs` solves a case `--repeat` times in-process (see
