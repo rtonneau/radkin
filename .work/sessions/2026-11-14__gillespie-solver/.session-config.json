@@ -1,0 +1,303 @@
+{
+  "session_id": "2026-11-14__gillespie-solver",
+  "feature_name": "gillespie-solver",
+  "scratch_dir": ".scratch/tests/2026-11-14__gillespie-solver",
+  "created_at": "2026-11-14T19:57:02.938Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-14T19:57:02.938Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T20:05:09.636Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T20:06:01.091Z",
+      "event": "auto_started",
+      "phase": "plan-not-started",
+      "detail": {
+        "target": "finish",
+        "steps": "plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-14T20:06:01.200Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T20:10:42.866Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/gillespie-solver",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-14T20:10:42.900Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-unit-cell-exact-ssa.md",
+        "02-plan/tickets/02-beam-sources.md",
+        "02-plan/tickets/03-ensemble-output-cli.md",
+        "02-plan/tickets/04-lsoda-validation.md",
+        "02-plan/tickets/05-tau-leaping.md",
+        "02-plan/tickets/06-voxel-rdme-exact.md",
+        "02-plan/tickets/07-rdme-coarsening.md",
+        "02-plan/tickets/08-rdme-tau-leaping.md"
+      ],
+      "detail": {
+        "tickets": 8
+      }
+    },
+    {
+      "at": "2026-11-14T20:10:47.990Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-unit-cell-exact-ssa.md",
+        "03-implement/01-unit-cell-exact-ssa/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-unit-cell-exact-ssa"
+      }
+    },
+    {
+      "at": "2026-11-14T20:17:27.358Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-unit-cell-exact-ssa/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-unit-cell-exact-ssa",
+        "commit": "dca3a07"
+      }
+    },
+    {
+      "at": "2026-11-14T20:17:37.930Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-beam-sources.md",
+        "03-implement/02-beam-sources/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-beam-sources"
+      }
+    },
+    {
+      "at": "2026-11-14T20:19:35.793Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-beam-sources/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-beam-sources",
+        "commit": "f61b2a0"
+      }
+    },
+    {
+      "at": "2026-11-14T20:19:36.214Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-ensemble-output-cli.md",
+        "03-implement/03-ensemble-output-cli/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-ensemble-output-cli"
+      }
+    },
+    {
+      "at": "2026-11-14T20:23:41.261Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-ensemble-output-cli/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-ensemble-output-cli",
+        "commit": "7282381"
+      }
+    },
+    {
+      "at": "2026-11-14T20:23:41.715Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-lsoda-validation.md",
+        "03-implement/04-lsoda-validation/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-lsoda-validation"
+      }
+    },
+    {
+      "at": "2026-11-14T20:27:33.769Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-lsoda-validation/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-lsoda-validation",
+        "commit": "e3c5536"
+      }
+    },
+    {
+      "at": "2026-11-14T20:27:34.222Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-tau-leaping.md",
+        "03-implement/05-tau-leaping/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-tau-leaping"
+      }
+    },
+    {
+      "at": "2026-11-14T20:37:21.157Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-tau-leaping/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-tau-leaping",
+        "commit": "e96dbd5"
+      }
+    },
+    {
+      "at": "2026-11-14T20:37:21.599Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-voxel-rdme-exact.md",
+        "03-implement/06-voxel-rdme-exact/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-voxel-rdme-exact"
+      }
+    },
+    {
+      "at": "2026-11-14T20:45:39.577Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/06-voxel-rdme-exact/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-voxel-rdme-exact",
+        "commit": "3f1be8e"
+      }
+    },
+    {
+      "at": "2026-11-14T20:45:40.021Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/07-rdme-coarsening.md",
+        "03-implement/07-rdme-coarsening/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "07-rdme-coarsening"
+      }
+    },
+    {
+      "at": "2026-11-14T20:49:44.217Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/07-rdme-coarsening/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "07-rdme-coarsening",
+        "commit": "cdceb9c"
+      }
+    },
+    {
+      "at": "2026-11-14T20:49:44.667Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/08-rdme-tau-leaping.md",
+        "03-implement/08-rdme-tau-leaping/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "08-rdme-tau-leaping"
+      }
+    },
+    {
+      "at": "2026-11-14T20:56:59.593Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/08-rdme-tau-leaping/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "08-rdme-tau-leaping",
+        "commit": "f8d66f7"
+      }
+    },
+    {
+      "at": "2026-11-14T20:57:11.415Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-11-14T20:57:23.764Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/15"
+      }
+    },
+    {
+      "at": "2026-11-14T20:57:17.808Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/gillespie-solver",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-14T20:10:42.866Z",
+    "pr_url": "https://github.com/rtonneau/radkin/pull/15"
+  },
+  "ship_mode": "inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 5,
+    "path": ".work/changelog/2026-11-14__gillespie-solver.md",
+    "written_at": "2026-11-14T20:57:11.396Z"
+  },
+  "finished_at": "2026-11-14T20:57:17.808Z"
+}

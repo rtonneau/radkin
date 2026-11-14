@@ -1,0 +1,299 @@
+# Stochastic solver (SSA)
+
+`solver = "ssa"` simulates the reaction network on integer molecule counts with
+Gillespie's stochastic simulation algorithm. The code is in `src/ssa/`; usage is in the
+README. This file records how the solver is built and how it was validated.
+
+## Model
+
+The propensity model (`src/ssa/model.rs`) is built from the same `SimMatrices` as the
+LSODA kernel, for a volume `V`. With `N_A V` the number of molecules per mol/L:
+
+| Reaction | Propensity [1/s] |
+|---|---|
+| Mass action, rate `k · Π[reactants]` | `k · Π[fixed] · N_A V · Π n(n−1)…(n−m+1) / (N_A V)^m` over the dynamic reactants |
+| `2 A -> …` (rate `k [A]²`, stoichiometry −2) | `k / (N_A V) · n (n − 1)`, two molecules removed per firing |
+| Michaelis–Menten | its rate law at the concentrations `n / (N_A V)`, times `N_A V` |
+| Radiolytic production (G-value) | `yield · dose rate · N_A V`, one molecule produced |
+
+- `k` is the rate constant of the rate law, as stored in `SimMatrices`. For a scalar
+  `k_value` of a single-reactant reaction (`2 A -> …`) radiopyo's convention divides the
+  configured value by the stoichiometry when the config is read, so the propensity model
+  takes the stored value as it is.
+- Fixed species (H2O, or a buffered pH) enter as constant concentrations.
+- A reaction fires only if every species it consumes on balance is present in sufficient
+  number. This replaces the smooth depletion switch `c/(c+ε)` that the LSODA kernel puts
+  on "negative" products.
+
+## Exact SSA
+
+`src/ssa/exact.rs` is Gillespie's direct method. The dose rate is piecewise constant
+between the beam transitions (`src/ssa/schedule.rs`). When a segment or an output
+interval ends, the pending event is discarded and redrawn with the new propensities;
+waiting times are memoryless, so this is exact.
+
+## Random numbers
+
+One ChaCha8 generator per trajectory (`src/ssa/rng.rs`): the seed keys the generator and
+the trajectory index selects its stream. The samplers use IEEE basic operations only
+(the logarithm is `det_ln`, not the platform's libm), so a seed gives the same
+trajectories on every platform. Ensemble statistics are exact integer sums accumulated
+in trajectory order, so the output does not depend on the number of threads.
+
+## Validation against LSODA
+
+`tests/ssa_validation.rs` compares the ensemble mean with LSODA on the pure-water
+chemistry (`data/advanced_water_radiolysis.toml`, 15 dynamic species), at 12 times
+taken among the LSODA points after 1 µs:
+
+| Case | Setup |
+|---|---|
+| Reaction-only | radicals at µmol/L level as initial state, no beam, 1 ms |
+| Continuous beam | 1e4 Gy/s for 1 ms (10 Gy) |
+| Pulsed beam | 3 pulses of 3 Gy (2 µs each) every millisecond, 3.5 ms |
+
+Criterion, per species and time, in molecules:
+
+```text
+|mean − lsoda| ≤ 4 · SEM_eff + 1
+```
+
+`SEM_eff` is the larger of the sample standard error of the mean and the Poisson one,
+`sqrt(lsoda / N)`. The second matters for species with a mean far below one molecule,
+whose sample SEM is often 0. The seed is fixed, so the test is deterministic.
+
+Measured with `V = 1e-14 L` (6022 molecules per µmol/L), 64 trajectories, seed 2026:
+
+| Case | Checks | Worst deviation | Events per trajectory |
+|---|---|---|---|
+| Reaction-only | 180 | 2.0 SEM | 79 734 |
+| Continuous beam | 180 | 2.8 SEM | 105 583 |
+| Pulsed beam | 180 | 2.6 SEM | 164 860 |
+
+The three cases run in 0.5 s in total. A factor 2 on the `2 A` propensity was tried by
+hand: all three cases then fail, H2O2 being 30 SEM away from LSODA.
+
+### Finite-volume difference
+
+The ensemble mean of the stochastic model is not exactly the solution of the rate
+equations. With 2000 to 4000 trajectories the only visible difference is on H3O+ and
+OH−, in the two beam cases: their mean is about 4 molecules above LSODA.
+
+| Volume | Trajectories | OH− LSODA | OH− SSA mean | Difference | SEM |
+|---|---|---|---|---|---|
+| 1e-15 L | 4000 | 59.8 | 64.3 | +4.5 molecules | 0.39 |
+| 1e-14 L | 2000 | 598.4 | 602.6 | +4.2 molecules | 1.7 |
+
+(pulsed case, t = 3.5 ms.) The difference is the same number of molecules at both
+volumes, so its relative size falls as 1/V. It is expected: the G-values of H3O+ and of
+e_aq are independent sources, so the net charge of a trajectory fluctuates, and the
+water equilibrium `[H3O+][OH−] = Kw` is a convex function of that charge. The validation
+volume is chosen so that this difference stays below half a SEM. In the reaction-only
+case no such difference is seen (largest deviation 3.0 SEM over 180 checks at 4000
+trajectories).
+
+## Tau-leaping
+
+`tau_leap = true` (`src/ssa/tau.rs`) replaces the exact steps by leaps in which every
+reaction fires a Poisson number of times. It is the explicit tau-leaping of Cao,
+Gillespie and Petzold:
+
+- The leap bounds the relative change of every propensity by `tau_epsilon` (default
+  0.03), from the mean and variance of the change of each reactant species (J. Chem.
+  Phys. 124, 044109, 2006).
+- A reaction with fewer than 10 firings left before it exhausts a species is critical:
+  it fires one at a time, as in the exact SSA (J. Chem. Phys. 123, 054104, 2005).
+- When a leap would fire fewer than 10 events, 100 exact steps are taken instead.
+- A leap that would make a count negative is rejected and redone with half the step.
+- A leap never crosses a beam transition or an output time.
+
+Tau-leaping is an approximation. The reactions of a leap fire with the propensities of
+its start, so the ensemble mean has a systematic error proportional to `tau_epsilon`, on
+top of the sampling noise. Measured on the `radicals` case of
+`examples/ssa_bench.rs` (three reactions, 1e-12 L, 600 000 to 1 800 000 molecules, 32
+trajectories), as the largest difference of the two ensemble means:
+
+| `tau_epsilon` | Difference [combined SEM] | Speed-up over exact |
+|---|---|---|
+| 0.03 | 32 | 330x to 650x |
+| 0.01 | 11 | 220x |
+| 0.003 | 3.7 | 80x |
+| 0.001 | 2.4 | 25x |
+
+At `tau_epsilon = 0.03` the difference is 0.36 % of the peak concentration of the
+species. `tests/ssa_tau.rs` checks both parts with a fixed seed (1e-13 L, 64
+trajectories): with `tau_epsilon = 0.001` the two ensembles agree within 4 combined SEM
+(measured 2.4), and with 0.03 within 4 combined SEM plus 3 % of the species peak. The
+standard deviations agree within their sampling error in both.
+
+Speed-up on one core (`RAYON_NUM_THREADS=1`, `tau_epsilon = 0.03`):
+
+| Case | Volume | Events per trajectory | Exact | Tau-leap | Speed-up |
+|---|---|---|---|---|---|
+| `radicals` | 1e-12 L | 2.0e6 | 0.142 s | 0.0002 s | 650x |
+| `radicals` | 1e-13 L | 2.0e5 | 0.0138 s | 0.00025 s | 55x |
+| `radicals` | 1e-14 L | 2.0e4 | 0.0014 s | 0.0003 s | 4.5x |
+| `water-const` | 1e-13 L | 1.1e6 | 0.22 s | 0.25 s | 0.9x |
+| `water-pulsed` | 1e-13 L | 1.6e6 | 0.32 s | 0.28 s | 1.1x |
+
+(times per trajectory.) The speed-up grows with the molecule counts when no fast
+equilibrium is present. On the water chemistry it is absent: the acid-base equilibria
+keep a few species at very low counts with a very high turnover (at 1e-13 L, 2
+molecules of HO2− react 1.4e8 times per second with water). The reactions that consume
+them are critical and fire one at a time, which leaves about 17 events per leap. This
+limit of explicit tau-leaping does not go away at larger volumes (1.1x at 1e-11 L).
+
+## Voxel grid: the RDME
+
+`radkin voxel` with `solver = "ssa"` solves the reaction-diffusion master equation
+(`src/ssa/rdme.rs`, ADR 0003). Every voxel holds integer counts. Reactions fire inside
+a voxel with the propensities above for the voxel volume. Diffusion is a hop of one
+molecule to a face neighbour, with propensity `D / h²` per molecule and face;
+boundary voxels have fewer faces (zero flux). The mean of the hop process obeys the same
+discrete diffusion operator as the deterministic path.
+
+- **Algorithm:** next-subvolume method. Each voxel keeps the time of its next event in
+  an indexed binary heap; the earliest voxel fires one reaction or hop, and only the
+  voxels whose counts changed draw a new time. A hop updates the reaction rate of its
+  two voxels incrementally, from the reactions that read the hopping species.
+- **Initial solution:** a Poisson draw per voxel and species with mean `c N_A V`.
+- **Seeds:** the Geant4 molecules are injected as the integer counts they were binned
+  from. Voxel runs have no beam, as on the deterministic path.
+- **Ensemble:** `[ssa] trajectories` trajectories, trajectory `i` on stream `i` of
+  `seed`, reduced in trajectory order. The outputs keep the deterministic layout with the
+  ensemble mean, plus the standard deviation: `_std` snapshot files and `N_<sp>_std`,
+  `G_<sp>_std` columns in `yields.csv`. The totals are recorded at 100 log-spaced times
+  and at the snapshot and seed times.
+- **Not available:** checkpoints and `--resume`.
+
+### Validation against the deterministic voxel run
+
+`tests/ssa_rdme.rs`, fixed seed, criterion `|mean − lsoda| ≤ 4 SEM_eff` plus the
+tolerance of the deterministic run:
+
+| Case | Compared | Worst deviation |
+|---|---|---|
+| Diffusion only: 4000 e_aq seeded in one corner voxel of an 8x2x2 grid of 50 nm voxels, 64 trajectories | mean field of every voxel at 3 times | 2.4 SEM |
+| Pure water, 12 000 radicals seeded in the centre voxel of a 3x3x3 grid of 500 nm voxels, 48 trajectories | domain totals of every species at 4 times | 1.5 SEM |
+
+The second case is a large-count grid (75 molecules per µmol/L and voxel): there the
+RDME and the Strang-split rate equations agree.
+
+### Coarsening
+
+`voxel.max_coarsen_levels > 0` lets the RDME grid drop levels, as on the deterministic
+path: the whole grid merges every 2x2x2 block into one voxel
+(`src/ssa/rdme_coarsen.rs`).
+
+- **Test.** The deterministic test (spread of the 8 children below a tolerance) can
+  never pass on counts, because Poisson noise alone exceeds it. The grid drops a level
+  when the counts of every block are consistent with a uniform distribution over its 8
+  voxels. For a block holding `S` molecules of a species, Pearson's statistic
+  `X = Σ (c_i − S/8)² / (S/8)` has the exact mean 7 and variance `14 (S − 1) / S` under a
+  uniform split. For every species, two conditions must hold:
+  - over all blocks with `S ≥ 1`: `(Σ X − 7 B) / sqrt(Σ variance) ≤ z`;
+  - for each block with `S ≥ 16`: `(X − 7) / sqrt(variance) ≤ z + sqrt(2 ln B16)`, so
+    that a localized cluster is not diluted by a large uniform background.
+- **Threshold.** `z = 30 · coarsen_tol_factor`: 3 at the default factor 0.1.
+- **Cadence.** The test runs every `8 × (number of voxels)` events.
+- **Merge.** The 8 counts are summed. Hop rates and propensities use the spacing and
+  volume of the current level.
+- **Refine.** Before a seed is injected the grid returns to level 0: each molecule of a
+  voxel goes to one of its 8 children at random. It may coarsen again afterwards.
+- **Outputs** stay on the fine grid: a voxel of level `L` spreads its count evenly over
+  its `8^L` fine voxels.
+
+Species totals are conserved exactly through merging and refining.
+
+Measured on a homogenising case (pure water, 4500 radicals seeded in the centre of an
+8x8x8 grid of 100 nm voxels, 100 µs, 3 levels, 96 trajectories), against the fine-grid
+ensemble, as the largest difference of the species totals over all record times:
+
+| `coarsen_tol_factor` | `z` | Hops per trajectory | Fewer hops | Wall time | Difference [combined SEM] |
+|---|---|---|---|---|---|
+| fine grid | | 202 499 | | 0.97 s | |
+| 0.03 | 0.9 | 52 998 | 3.8x | 0.35 s | 1.6 |
+| 0.1 (default) | 3 | 28 534 | 7.1x | 0.20 s | 1.3 |
+| 0.3 | 9 | 19 085 | 10.6x | 0.15 s | 2.6 |
+| 1 | 30 | 12 528 | 16x | 0.12 s | 6.3 |
+| 3 | 90 | 6 924 | 29x | 0.09 s | 24 |
+
+Up to a factor of 0.3 the coarsened ensemble cannot be told from the fine one; from 1
+on the grid coarsens while the radicals are still clustered and their recombination is
+underestimated (more OH survives). The default 0.1 is kept. `tests/ssa_rdme.rs` checks
+the default against the fine grid with a fixed seed (two seeds, so that the refinement is
+exercised: 1.4 combined SEM, 5 times fewer hops).
+
+### Tau-leaping on the grid
+
+`tau_leap = true` also applies to voxel runs (`src/ssa/rdme_tau.rs`). The channels of a
+leap are the reactions of every voxel and the hops of every species through every face
+(`X(v) -> X(w)`, a first-order channel of propensity `n D / h²`).
+
+- A channel is critical when the population it consumes is below 10. Critical channels
+  fire one at a time.
+- The leap is the Cao–Gillespie–Petzold bound over every (voxel, species) population,
+  with the hops in and out counted in its mean and variance.
+- Non-critical channels fire a Poisson number of times. A leap that would make a count
+  negative is rejected and halved, so counts stay non-negative and hops conserve the
+  molecules.
+- A leap reads every voxel, so it is only taken when it replaces more than
+  `10 + 4 × voxels` non-critical events. Otherwise the run takes exact next-subvolume
+  events, in batches that double (from 8 to 512 events per voxel) while leaping keeps
+  being refused.
+- A leap never crosses a seed or snapshot time. The coarsening test counts the leaped
+  events.
+
+Measured against the exact RDME (three-reaction chemistry without fast equilibrium,
+4x4x4 grid, 1 ms, 16 trajectories, `tau_epsilon = 0.03`):
+
+| Case | Events per trajectory | Exact | Tau-leap | Speed-up | Difference of the totals |
+|---|---|---|---|---|---|
+| 1 µm voxels, 3000 OH per voxel, 60 000 e_aq and 60 000 H seeded in two corners | 4.1e6 | 2.08 s | 1.28 s | 1.6x | 0.12 % of the species peak |
+| 1 µm voxels, 3000 molecules per voxel of three species, uniform | 1.0e7 | 5.70 s | 1.12 s | 5.1x | 0.31 % |
+| 3 µm voxels, 81 000 molecules per voxel of three species, uniform | 3.9e7 | 19.96 s | 0.53 s | 38x | 0.25 % |
+
+(wall time of the ensemble on 16 threads.) The first case is the fixed-seed test of
+`tests/ssa_rdme.rs`: the totals agree within 4 combined SEM plus `tau_epsilon` times the
+species peak, and the mean field of every voxel likewise. Leaping pays on smooth,
+well-populated grids. A sharp front limits it: an empty voxel next to a full one may
+only gain about one molecule per leap. On a radiolysis track at nm voxels every channel
+is critical, no leap is taken, and the output is identical to the exact run; the leap
+decisions then cost about 20 % more time (`data/voxel_example.toml`: 1.0 s exact, 1.2 s
+with `tau_leap = true`, 2000 trajectories).
+
+### Small voxels
+
+At small voxels the two do not agree, and are not expected to. On
+`data/voxel_example.toml` (6 nm voxels, a synthetic 6-spur track, 100 ns; 64
+trajectories, seed 1):
+
+| G at 100 ns [/100 eV] | RDME (± SEM) | Deterministic |
+|---|---|---|
+| e_aq | 1.13 ± 0.06 | 0.84 |
+| OH_r | 2.53 ± 0.07 | 2.10 |
+| H3O_plus | 2.57 ± 0.06 | 2.02 |
+| H2O2 | 1.77 ± 0.04 | 2.02 |
+| H2 | 0.68 ± 0.05 | 0.80 |
+
+With about one molecule per voxel, the rate equations let a fraction of a molecule
+react with itself (`k [A]²` is not zero for one molecule, `n (n − 1)` is), so they
+recombine radicals faster than the stochastic model.
+
+The RDME has its own limit at small voxels. A bimolecular reaction of rate constant `k`
+between species of summed diffusion coefficient `D` can only be represented on a grid
+of spacing above `h* ≈ 0.25 k / (N_A D)` (Hellander, Hellander and Petzold, Phys. Rev.
+E 85, 042901, 2012); below it the reaction is too slow, whatever the propensity. radkin
+logs a warning with the worst reaction when the spacing is below `h*`. For
+diffusion-limited radical reactions `h*` is 1 to 4 nm. Reactions written with H2O as a
+reactant have an effective bimolecular constant `k [H2O]`, which can be far above the
+diffusion limit: `e_aq + O_minus + H2O` gives `h*` = 75 nm with the bundled chemistry.
+
+## Cost
+
+The cost is proportional to the number of events. On one core the exact SSA fires about
+5 million events per second on the pure-water chemistry (73 reactions and 6 sources) and 15 million
+on a three-reaction chemistry. The RDME fires about 3 million events per second, most of
+them hops: a molecule hops `6 D / h²` times per second (8e8 per second for e_aq at
+6 nm), so the cost grows as the number of molecules over `h²`. The fast acid-base equilibria fire continuously, so the
+event count grows with the simulated time even when the slow chemistry is over.
