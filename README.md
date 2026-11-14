@@ -116,6 +116,9 @@ Strang: reaction(dt/2), diffusion(dt), reaction(dt/2) (ADR 0002 in `.work/adr/`)
 - Diffusion uses Crank-Nicolson ADI with zero-flux boundaries. After each injection,
   backward-Euler substeps (Rannacher start) keep the concentrations non-negative.
 - dt is adaptive by step doubling and lands exactly on seed and snapshot times.
+- G-values in `yields.csv` are net of the background chemistry: the seedless uniform
+  solution is integrated alongside, so a background that drifts (e.g. a pH slightly off
+  equilibrium) does not show up as yield.
 - Background voxels, which still hold only the uniform initial solution (within
   `1e-3 * solver_atol + 1e-12 * |c|`), share one rsoda run per half-step, so untouched
   voxels cost almost nothing. Diffusion then acts on the deviation from that background.
@@ -173,8 +176,10 @@ Geant4-DNA chemistry yields (a CSV with columns `t,species,G`).
 
 **Mean-field caveat.** Each voxel is well mixed, so one molecule in a (5 nm)^3 voxel is
 about 13 mM, and second-order terms such as `e_aq + e_aq` act even on a lone molecule.
-Voxels larger than the spur size (a few nm) mix a spur too early and overestimate
-recombination. Voxels much smaller than the mean distance between molecules make
+Voxels larger than the spur size (a few nm) dilute a spur over the voxel and
+underestimate recombination: on a 100 keV electron track (Geant4-DNA option3 seeds at
+1 ps), G(OH) at 10 µs is 5.2 with 1 µm voxels, 4.3 with 250 nm and 4.2 with 40 nm on a
+track segment, against 2.1–3.3 for Geant4-DNA IRT. Voxels much smaller than the mean distance between molecules make
 the continuum description meaningless. Check that the results are stable as the voxel
 size changes, and compare against Geant4-DNA step-by-step chemistry before trusting
 absolute G-values. The example (`data/voxel_example.toml`, a synthetic track) shows the

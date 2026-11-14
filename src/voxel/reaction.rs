@@ -37,6 +37,28 @@ pub fn reaction_step(
     reaction_step_background(mat, state, None, t, h, opts).map(|_| ())
 }
 
+/// Integrate one homogeneous state `y` [µmol/L] over `[t, t + h]` (no
+/// source), with the options of [`reaction_step`].
+pub fn integrate_one(
+    mat: &SimMatrices,
+    y: &mut [f64],
+    t: f64,
+    h: f64,
+    opts: &SolveOptions,
+) -> Result<()> {
+    if h <= 0.0 {
+        return Ok(());
+    }
+    let mut o = opts.clone();
+    o.t_eval = Some(vec![t + h]);
+    if o.first_step >= h {
+        o.first_step = h / 1e3;
+    }
+    let sol = solve(mat, &DoseRateSource::None, (t, t + h), y, &o)?;
+    y.copy_from_slice(&sol.y[0]);
+    Ok(())
+}
+
 /// [`reaction_step`] with background voxels: when `background` is given, it
 /// is integrated once over `[t, t + h]` and every voxel that matches it at
 /// the start (see [`is_background`], atol `BACKGROUND_ATOL_FACTOR * opts.atol`)

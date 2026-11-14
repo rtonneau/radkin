@@ -99,6 +99,13 @@ pub fn yields_csv(out: &VoxelOutput, grid: &VoxelGrid) -> String {
             let _ = write!(s, ",{:e}", v * k);
         }
         if with_g {
+            // Net of the background chemistry when it is tracked (the
+            // background may drift, e.g. a pH not exactly at equilibrium).
+            let base = out
+                .background_totals
+                .get(i)
+                .filter(|_| out.background_totals.len() == out.totals.len());
+            let base = base.unwrap_or(&n0);
             // Seeds injected at `t` are already in `sums` (recorded after the injection).
             let e: f64 = out
                 .seed_energies
@@ -106,7 +113,7 @@ pub fn yields_csv(out: &VoxelOutput, grid: &VoxelGrid) -> String {
                 .filter(|(ts, _)| ts <= t)
                 .map(|(_, e)| e)
                 .sum();
-            for (v, v0) in sums.iter().zip(&n0) {
+            for (v, v0) in sums.iter().zip(base) {
                 if e > 0.0 {
                     let _ = write!(s, ",{:e}", (v - v0) * k / (e / 100.0));
                 } else {
@@ -168,6 +175,7 @@ mod tests {
                 (1e-12, vec![10.0 / k]),
                 (1e-9, vec![5.0 / k]),
             ],
+            background_totals: Vec::new(),
             snapshots: Vec::new(),
             seed_energies: vec![(1e-12, 100.0)],
             n_steps: 2,
@@ -181,6 +189,31 @@ mod tests {
         let g = |l: &str| l.rsplit(',').next().unwrap().parse::<f64>().unwrap();
         assert!((g(lines[2]) - 10.0).abs() < 1e-9);
         assert!((g(lines[3]) - 5.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn yields_g_values_are_net_of_the_background() {
+        let grid = VoxelGrid::new([1, 1, 1], [10e-9; 3], [0.0; 3]).unwrap();
+        let k = molecules_per_unit(&grid);
+        // The background alone goes 100 -> 100 -> 104 molecules; the seed adds 10.
+        let out = VoxelOutput {
+            species: vec!["A".into()],
+            totals: vec![
+                (0.0, vec![100.0 / k]),
+                (1e-12, vec![110.0 / k]),
+                (1e-9, vec![112.0 / k]),
+            ],
+            background_totals: vec![vec![100.0 / k], vec![100.0 / k], vec![104.0 / k]],
+            snapshots: Vec::new(),
+            seed_energies: vec![(1e-12, 100.0)],
+            n_steps: 2,
+            n_rejected: 0,
+        };
+        let csv = yields_csv(&out, &grid);
+        let g = |l: &str| l.rsplit(',').next().unwrap().parse::<f64>().unwrap();
+        let lines: Vec<&str> = csv.lines().collect();
+        assert!((g(lines[2]) - 10.0).abs() < 1e-9, "{csv}");
+        assert!((g(lines[3]) - 8.0).abs() < 1e-9, "{csv}");
     }
 
     #[test]

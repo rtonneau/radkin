@@ -13,7 +13,7 @@ use crate::matrices::SimMatrices;
 use crate::solver::SolveOptions;
 use crate::voxel::diffusion::{Diffusion, Scheme};
 use crate::voxel::grid::VoxelState;
-use crate::voxel::reaction::reaction_step_background;
+use crate::voxel::reaction::{integrate_one, reaction_step_background};
 
 /// Step-size control of the splitting.
 #[derive(Debug, Clone, PartialEq)]
@@ -72,10 +72,16 @@ pub struct VoxelRun {
     /// When `Some`, the domain sum of every species [µmol/L summed over
     /// voxels] after each accepted step, as `(t, sums)`.
     pub totals: Option<Vec<(f64, Vec<f64>)>>,
-    /// Background vector [µmol/L] of the background voxels (see
-    /// [`reaction_step_background`]), advanced with the state; `None`
-    /// integrates every voxel.
+    /// With `totals` and a background: the background vector times the
+    /// number of voxels at the same records (what the domain would hold
+    /// without seeds).
+    pub background_totals: Option<Vec<Vec<f64>>>,
+    /// Background vector [µmol/L]: the uniform solution without seeds,
+    /// advanced with the state. With `skip_background`, voxels that match it
+    /// share its integration (see [`reaction_step_background`]).
     pub background: Option<Vec<f64>>,
+    /// Advance background voxels with the shared integration (default true).
+    pub skip_background: bool,
     /// Background voxels summed over all reaction half-steps (rejected
     /// attempts included).
     pub background_voxel_steps: u64,
@@ -105,7 +111,9 @@ impl VoxelRun {
             steps: Vec::new(),
             rejected: 0,
             totals: None,
+            background_totals: None,
             background: None,
+            skip_background: true,
             background_voxel_steps: 0,
             voxel_steps: 0,
             dt,
@@ -128,6 +136,7 @@ impl VoxelRun {
     /// Start recording domain sums (records the current state first).
     pub fn track_totals(&mut self) {
         self.totals = Some(Vec::new());
+        self.background_totals = self.background.as_ref().map(|_| Vec::new());
         self.record_totals();
     }
 
@@ -144,6 +153,10 @@ impl VoxelRun {
             if let Some(v) = self.totals.as_mut() {
                 v.push((self.t, sums));
             }
+            if let (Some(v), Some(bg)) = (self.background_totals.as_mut(), &self.background) {
+                let n = self.state.n_voxels as f64;
+                v.push(bg.iter().map(|b| b * n).collect());
+            }
         }
     }
 
@@ -156,7 +169,12 @@ impl VoxelRun {
         damped: bool,
     ) -> Result<()> {
         self.half_reaction(state, bg, t, dt / 2.0)?;
-        self.diffuse(state, bg.as_deref(), dt, damped);
+        let shift = if self.skip_background {
+            bg.as_deref()
+        } else {
+            None
+        };
+        self.diffuse(state, shift, dt, damped);
         self.half_reaction(state, bg, t + dt / 2.0, dt / 2.0)
     }
 
@@ -191,7 +209,14 @@ impl VoxelRun {
         t: f64,
         h: f64,
     ) -> Result<()> {
-        let n_bg = reaction_step_background(&self.mat, state, bg.as_mut(), t, h, &self.solve)?;
+        let n_bg = if self.skip_background {
+            reaction_step_background(&self.mat, state, bg.as_mut(), t, h, &self.solve)?
+        } else {
+            if let Some(b) = bg.as_mut() {
+                integrate_one(&self.mat, b, t, h, &self.solve)?;
+            }
+            reaction_step_background(&self.mat, state, None, t, h, &self.solve)?
+        };
         self.background_voxel_steps += n_bg as u64;
         self.voxel_steps += state.n_voxels as u64;
         Ok(())

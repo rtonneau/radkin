@@ -130,6 +130,9 @@ pub struct VoxelOutput {
     pub species: Vec<String>,
     /// `(t, sums)`: domain sums [µmol/L summed over voxels] per species.
     pub totals: Vec<(f64, Vec<f64>)>,
+    /// Background domain sums at the same records as `totals` (empty if
+    /// not tracked); G-values are net of them.
+    pub background_totals: Vec<Vec<f64>>,
     pub snapshots: Vec<Snapshot>,
     /// `(time, energy_ev)` of every seed with a deposited energy.
     pub seed_energies: Vec<(f64, f64)>,
@@ -217,9 +220,8 @@ impl VoxelSimulation {
             s.control.clone(),
             s.solve.clone(),
         );
-        if s.background_voxels {
-            run.background = Some(y0);
-        }
+        run.background = Some(y0);
+        run.skip_background = s.background_voxels;
         run.track_totals();
         let mut snapshots = Vec::new();
         run_schedule(&mut run, &self.seeds, &s.snapshots, s.t_end, |r| {
@@ -239,6 +241,7 @@ impl VoxelSimulation {
         Ok(VoxelOutput {
             species,
             totals: run.totals.take().unwrap_or_default(),
+            background_totals: run.background_totals.take().unwrap_or_default(),
             snapshots,
             seed_energies: self
                 .seeds
