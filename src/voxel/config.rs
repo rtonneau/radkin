@@ -60,7 +60,8 @@ pub struct VoxelConfig {
     /// `voxel.max_coarsen_levels`: halvings allowed by the coarsening (0 = off).
     /// Every grid dimension must be divisible by `2^max_coarsen_levels`.
     pub max_coarsen_levels: u32,
-    /// `voxel.coarsen_tol_factor`: tolerance factor of the coarsening test (> 0).
+    /// `voxel.coarsen_tol_factor`: tolerance factor of the coarsening test (> 0,
+    /// default 0.1; the choice is measured in `docs/perf/voxel.md`).
     pub coarsen_tol_factor: f64,
 }
 

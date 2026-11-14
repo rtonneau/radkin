@@ -19,17 +19,29 @@
 //! The last stdout line is a stable `key=value` summary starting with
 //! `VOXEL_BENCH`, for scripts.
 //!
+//! With `--max-coarsen-levels N` (N > 0, overriding `[voxel] max_coarsen_levels`) the run
+//! is coarsened, and the same case is also run on the fine grid (`--repeat` times, same
+//! settings otherwise) for comparison. The bench then prints both times, the level
+//! history, the relative error of every species' domain total against the fine run and
+//! the max per-voxel difference to the fine run scaled by the merge tolerance
+//! (`coarsen_tol_factor * (atol + rtol * |y_fine|)`, below 1 = inside what a merge
+//! allows), and adds `fine_median_s`, `speedup`, `coarse_levels`, `coarse_max_total_err`
+//! and `coarse_max_scaled_err` to the last line. `--coarsen-tol-factor F` overrides
+//! `[voxel] coarsen_tol_factor`. Use a late `--t-end` (e.g. 1e-5) so that the case
+//! homogenises.
+//!
 //! ```text
 //! cargo run --release --example voxel_bench -- --write-reference
 //! cargo run --release --example voxel_bench -- --repeat 3
 //! RAYON_NUM_THREADS=1 cargo run --release --example voxel_bench -- --repeat 3
+//! cargo run --release --example voxel_bench -- --t-end 1e-5 --max-coarsen-levels 2
 //! ```
 
 use std::path::PathBuf;
 use std::time::Instant;
 
 use clap::Parser;
-use radkin::voxel::reaction::{reset_stats, stats};
+use radkin::voxel::reaction::{ReactionStats, reset_stats, stats};
 use radkin::voxel::{VoxelOutput, VoxelSimulation, VoxelState};
 use serde::{Deserialize, Serialize};
 
@@ -59,6 +71,13 @@ struct Args {
     /// Splitting `atol` of the reference run [umol/L].
     #[arg(long, default_value_t = 1e-6)]
     reference_atol: f64,
+    /// Coarsening levels (overrides `[voxel] max_coarsen_levels`). Above 0 the
+    /// fine grid is also run and compared.
+    #[arg(long)]
+    max_coarsen_levels: Option<u32>,
+    /// Tolerance factor of the coarsening test (overrides `[voxel] coarsen_tol_factor`).
+    #[arg(long)]
+    coarsen_tol_factor: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -95,6 +114,36 @@ fn final_state(out: &VoxelOutput, t_end: f64) -> &VoxelState {
     &s.state
 }
 
+/// Wall times and last output and counters of one case.
+type Timed = (Vec<f64>, VoxelOutput, ReactionStats);
+
+/// Run every case of `sims` `repeat` times, alternating between them within each repeat
+/// (so that warm-up and clock drift hit all cases alike), printing each wall time.
+fn timed_runs(sims: &[(&str, &VoxelSimulation)], repeat: usize) -> radkin::Result<Vec<Timed>> {
+    let mut res: Vec<Timed> = Vec::new();
+    for i in 0..repeat.max(1) {
+        for (k, (label, sim)) in sims.iter().enumerate() {
+            reset_stats();
+            let t0 = Instant::now();
+            let out = sim.run()?;
+            let wall = t0.elapsed().as_secs_f64();
+            let s = stats();
+            println!(
+                "{label} {i}: {wall:.4} s, {} steps ({} rejected), {} solves",
+                out.n_steps, out.n_rejected, s.solves
+            );
+            if i == 0 {
+                res.push((vec![wall], out, s));
+            } else {
+                res[k].0.push(wall);
+                res[k].1 = out;
+                res[k].2 = s;
+            }
+        }
+    }
+    Ok(res)
+}
+
 fn main() -> radkin::Result<()> {
     let a = Args::parse();
     let mut sim = VoxelSimulation::from_toml(&a.config)?;
@@ -104,6 +153,12 @@ fn main() -> radkin::Result<()> {
     let t_end = sim.settings.t_end;
     sim.settings.snapshots.retain(|t| *t < t_end);
     sim.settings.snapshots.push(t_end);
+    if let Some(l) = a.max_coarsen_levels {
+        sim.voxel.max_coarsen_levels = l;
+    }
+    if let Some(f) = a.coarsen_tol_factor {
+        sim.voxel.coarsen_tol_factor = f;
+    }
     let dims = sim.voxel.grid.dims;
     let n_vox = sim.voxel.grid.n_voxels();
     let threads = std::env::var("RAYON_NUM_THREADS")
@@ -144,22 +199,16 @@ fn main() -> radkin::Result<()> {
         return Ok(());
     }
 
-    let mut walls = Vec::new();
-    let mut last = None;
-    for i in 0..a.repeat.max(1) {
-        reset_stats();
-        let t0 = Instant::now();
-        let out = sim.run()?;
-        let wall = t0.elapsed().as_secs_f64();
-        let s = stats();
-        println!(
-            "repeat {i}: {wall:.4} s, {} steps ({} rejected), {} solves",
-            out.n_steps, out.n_rejected, s.solves
-        );
-        walls.push(wall);
-        last = Some((out, s));
-    }
-    let (out, s) = last.expect("at least one repeat");
+    // With coarsening, the fine grid runs alongside (alternating) for the comparison.
+    let mut fine_sim = sim.clone();
+    fine_sim.voxel.max_coarsen_levels = 0;
+    let mut timed = if sim.voxel.max_coarsen_levels > 0 {
+        timed_runs(&[("repeat", &sim), ("fine repeat", &fine_sim)], a.repeat)?
+    } else {
+        timed_runs(&[("repeat", &sim)], a.repeat)?
+    };
+    let fine_timed = (timed.len() > 1).then(|| timed.remove(1));
+    let (walls, out, s) = timed.remove(0);
     let med = median(&mut walls.clone());
     let min = walls.iter().copied().fold(f64::INFINITY, f64::min);
     let c = &sim.settings.control;
@@ -271,6 +320,9 @@ fn main() -> radkin::Result<()> {
             }
         }
     }
+    if let Some(fine) = &fine_timed {
+        acc.push_str(&coarse_comparison(&sim, &out, &walls, s.voxel_steps, fine));
+    }
     println!(
         "VOXEL_BENCH median_s={med:.6} min_s={min:.6} repeats={} threads={threads} voxels={n_vox} steps={} rejected={} voxel_steps={} background_voxel_steps={} solves={} nfev={} nst={}{acc}",
         walls.len(),
@@ -283,4 +335,83 @@ fn main() -> radkin::Result<()> {
         s.nst
     );
     Ok(())
+}
+
+/// Compare the coarsened `out` with the fine run `fine` (see the module doc).
+/// Returns the `key=value` fields to add to the summary line.
+fn coarse_comparison(
+    sim: &VoxelSimulation,
+    out: &VoxelOutput,
+    walls: &[f64],
+    coarse_voxel_steps: u64,
+    fine: &Timed,
+) -> String {
+    let t_end = sim.settings.t_end;
+    let n_vox = sim.voxel.grid.n_voxels();
+    let c = &sim.settings.control;
+    let (fine_walls, fine_out, fs) = fine;
+    let med = median(&mut walls.to_vec());
+    let fine_med = median(&mut fine_walls.clone());
+    let fine_min = fine_walls.iter().copied().fold(f64::INFINITY, f64::min);
+    let min = walls.iter().copied().fold(f64::INFINITY, f64::min);
+    println!(
+        "coarsening: max_coarsen_levels {}, coarsen_tol_factor {:e}",
+        sim.voxel.max_coarsen_levels, sim.voxel.coarsen_tol_factor
+    );
+    println!(
+        "time: fine median {fine_med:.4} s (min {fine_min:.4}), coarsened median {med:.4} s (min {min:.4}), speedup x{:.3} (min/min x{:.3})",
+        fine_med / med,
+        fine_min / min
+    );
+    println!(
+        "fine: {} steps, voxel half-steps {}; coarsened: {} steps, voxel half-steps {coarse_voxel_steps} ({:.1}% of fine)",
+        fine_out.n_steps,
+        fs.voxel_steps,
+        out.n_steps,
+        100.0 * coarse_voxel_steps as f64 / fs.voxel_steps as f64
+    );
+    let hist: Vec<String> = out
+        .level_history
+        .iter()
+        .map(|(t, l)| format!("{t:.3e}:{l}"))
+        .collect();
+    println!(
+        "level history ({} changes): [{}]",
+        out.level_history.len(),
+        hist.join(", ")
+    );
+    let st = final_state(out, t_end);
+    let fst = final_state(fine_out, t_end);
+    let mut worst_total = (0.0_f64, "");
+    for (s_i, name) in out.species.iter().enumerate() {
+        let range = s_i * n_vox..(s_i + 1) * n_vox;
+        let (sr, sf): (f64, f64) = (
+            st.data[range.clone()].iter().sum(),
+            fst.data[range].iter().sum(),
+        );
+        let err = (sr - sf).abs() / sf.abs().max(c.atol);
+        println!("  total rel. error vs fine {name:>10}: {err:.3e}");
+        if err > worst_total.0 {
+            worst_total = (err, name);
+        }
+    }
+    let scaled = |scale: f64| {
+        st.data
+            .iter()
+            .zip(&fst.data)
+            .map(|(y, yf)| (y - yf).abs() / (scale * (c.atol + c.rtol * yf.abs())))
+            .fold(0.0, f64::max)
+    };
+    let max_scaled = scaled(sim.voxel.coarsen_tol_factor);
+    let max_scaled_control = scaled(1.0);
+    println!(
+        "vs fine run: max domain-total rel. error {:.3e} ({}); max per-voxel difference {max_scaled:.3e} merge tolerances ({max_scaled_control:.3e} control tolerances)",
+        worst_total.0, worst_total.1
+    );
+    format!(
+        " fine_median_s={fine_med:.6} speedup={:.4} coarse_levels={} coarse_max_total_err={:.6e} coarse_max_scaled_err={max_scaled:.6e}",
+        fine_med / med,
+        out.level_history.len(),
+        worst_total.0
+    )
 }

@@ -123,6 +123,10 @@ Strang: reaction(dt/2), diffusion(dt), reaction(dt/2) (ADR 0002 in `.work/adr/`)
   `1e-3 * solver_atol + 1e-12 * |c|`), share one rsoda run per half-step, so untouched
   voxels cost almost nothing. Diffusion then acts on the deviation from that background.
   Set `background_voxels = false` in `[voxel.run]` to integrate every voxel.
+- Global coarsening (off by default) merges every 2x2x2 block of voxels into one once the whole
+  field is smooth, and refines back to the fine grid at the next injection. It is meant for runs
+  that continue until the system has homogenised, where it cuts the cost of the late steps. It
+  does nothing while a spur is still localized (see the `[voxel]` keys below).
 
 ```toml
 [includes]
@@ -130,6 +134,8 @@ toml = ["radkin/CONFIG_PAPER_01.toml"]   # chemistry
 
 [voxel]
 clip = false                 # true: drop out-of-grid molecules (lost fraction is logged)
+# max_coarsen_levels = 0     # halvings allowed (0 = off); each grid dim must be divisible by 2^levels
+# coarsen_tol_factor = 0.1   # > 0: coarsen when the spread is below factor * (atol + rtol * |mean|)
 
 [voxel.grid]
 dims = [8, 8, 12]
@@ -158,6 +164,23 @@ atol = 1e-3
 # background_voxels = true   # share one integration for untouched voxels
 # checkpoint_every = 2       # checkpoint every 2 snapshot times (default: end only)
 ```
+
+**Coarsening keys** (`[voxel]`):
+
+- `max_coarsen_levels` (integer >= 0, default 0 = off): how many times the grid may be halved
+  (dims / 2, spacing x 2 per level). Every dimension of `[voxel.grid] dims` must be divisible
+  by `2^max_coarsen_levels`; a violation is a configuration error naming the axis.
+- `coarsen_tol_factor` (> 0, default 0.1): a level is dropped when, for every species and every
+  2x2x2 block, the spread (max - min) over the block and its face neighbours is at most
+  `coarsen_tol_factor * (atol + rtol * |mean|)`, with `atol` and `rtol` of `[voxel.run]`. Smaller
+  is more conservative. On the example case at `t_end = 1e-5` the domain totals stay within
+  1e-6 (relative) of the fine run up to a factor of about 3; see `docs/perf/voxel.md`.
+
+Merging conserves the amount of every species, and diffusion and reaction then run on the
+coarse voxels. Snapshots and checkpoints are always written on the fine grid (the coarse state
+is copied to its fine voxels) and the `yields.csv` sums are volume-weighted, so outputs have the
+same shape with or without coarsening. A resumed run recomputes its level from the checkpoint. The coarsened result agrees
+with the fine run within the merge tolerance, not bit for bit.
 
 The background species come from the chemistry's initial concentrations, uniform over the
 grid. Each molecule adds `1/(N_A V)` to its voxel. The molecule CSV is written on the

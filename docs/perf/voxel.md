@@ -326,3 +326,110 @@ of the bench output.
 The default case (`t_end = 1e-7`) now measures 0.463 s median (16 threads) with 46
 steps, 176640 half-steps and 152510 solves, lower than the baseline table above
 because of the later per-voxel solve optimizations (PR #12).
+
+## Global coarsening (session `2026-11-14__voxel-adaptive-coarsening`) - kept, off by default
+
+`[voxel] max_coarsen_levels` (0 = off) and `coarsen_tol_factor` (default 0.1): when every
+species is smooth enough (spread over a 2x2x2 block and its face neighbours at most
+`factor * (atol + rtol * |mean|)`, the control tolerances), the grid drops one level
+(dims / 2, volume-averaged state) and refines back to the fine grid at the next injection.
+Measured with `voxel_bench`, which with `--max-coarsen-levels N` also runs the fine grid
+alongside (alternating with the coarsened run in each repeat, so warm-up hits both) and
+prints both times, the level history and the accuracy against the fine run:
+
+```bash
+cargo run --release --example voxel_bench -- --repeat 5 --t-end 1e-5 --max-coarsen-levels 2
+cargo run --release --example voxel_bench -- --repeat 5 --t-end 1e-5 --max-coarsen-levels 2 --coarsen-tol-factor 1
+RAYON_NUM_THREADS=1 cargo run --release --example voxel_bench -- --repeat 3 --t-end 1e-5 --max-coarsen-levels 2
+```
+
+radkin `dab5917` plus the bench flags, rsoda `f5d1312`, same machine as above, 16 threads,
+`--repeat 5`, medians. The grid is 8x8x12, so at most 2 levels (to 2x2x3). Accuracy is against
+the fine run of the same settings (case `rtol = 1e-2`, `atol = 1e-3`): the domain-total
+relative error is the max over species (denominator floored at `atol`), and the field
+difference is the max over voxels and species of `|y - y_fine| / (factor * (atol + rtol *
+|y_fine|))` (below 1 = inside the merge tolerance). The fine run is the baseline above
+(57 steps, 218880 half-steps, nfev 8904705).
+
+### Result at `t_end = 1e-5` (the homogenised baseline case)
+
+Level history at the default factor 0.1: `1e-13:1, 3e-13:2, 1e-12:0, 1.585e-6:1, 2.929e-6:2`.
+The first two changes are the uniform solution before the seed (coarsened, then refined at
+the injection at 1e-12, so they cost nothing and gain nothing); the two later changes are
+the real ones. The track fills the 48 x 48 x 72 nm box, so the field stays too rough to merge
+from 1e-12 s until 1.6e-6 s, then drops to level 1 and to level 2 about 1.3 us later.
+
+| factor | fine [s] | coarsened [s] | speedup | levels at (us) | half-steps | nfev | max total err | max field diff [merge tol] |
+|---|---|---|---|---|---|---|---|---|
+| 0.01 | 0.883 | 0.657 | x1.34 | 1.585, 2.929 | 197040 | 6171868 | 2.7e-11 | 1.1e-2 |
+| **0.1** | 0.885 | 0.661 | x1.34 | 1.585, 2.929 | 197040 | 6171868 | 2.7e-11 | 1.1e-3 |
+| 0.3 | 0.884 | 0.616 | x1.44 | 0.913, 1.585 | 193260 | 5656895 | 1.8e-9 | 4.0e-4 |
+| 1 | 0.890 | 0.587 | x1.51 | 0.577, 0.913 | 189480 | 5280698 | 4.0e-8 | 1.3e-4 |
+| 3 | 0.890 | 0.536 | x1.66 | 0.270, 0.386 | 181920 | 4682293 | 9.7e-7 | 3.9e-5 |
+| 10 | 0.884 | 0.511 | x1.73 | 0.199, 0.270 | 178140 | 4437710 | 1.7e-6 | 1.3e-5 |
+| 100 | 0.887 | 0.405 | x2.19 | 0.056, 0.086 | 155820 | 3229709 | 2.2e-4 | 8.7e-5 |
+
+Factors 0.01 and 0.1 give the same level history, so they differ only in the
+field-difference column, which is scaled by the factor itself. In control tolerances
+(`atol + rtol * |y|`) the field difference is 1.1e-4 to 1.3e-4 for every factor up to 10
+(8.7e-3 at 100): the merge changes the field far less than the control asks for, while the
+totals are what move first (the criterion is rtol 1e-6 on the totals). The totals error grows about as the factor squared
+(2.7e-11, 1.8e-9, 4.0e-8, 9.7e-7 for 0.1, 0.3, 1, 3), so 3 is at the limit and 10 is past it.
+
+One thread (`RAYON_NUM_THREADS=1`, `--repeat 3`): factor 0.1 fine 5.71 s, coarsened 4.11 s
+(x1.39); factor 1 fine 5.68 s, coarsened 3.48 s (x1.63). Same level histories, same errors.
+
+The time falls more than the half-step count (-10%) because the late half-steps are the costly
+ones: nfev falls by 31% (8.90M to 6.17M) at factor 0.1.
+
+### Other end times (factor 0.1, 16 threads, `--repeat 5`)
+
+| t_end | fine [s] | coarsened [s] | speedup | level changes after the seed | max total err |
+|---|---|---|---|---|---|
+| 1e-7 (default case) | 0.435 | 0.430 | x1.01 | none | 0 (identical result) |
+| 1e-6 | 0.627 | 0.620 | x1.01 | level 1 at 1.0e-6 (t_end) | 3.2e-15 |
+| 1e-5 | 0.885 | 0.661 | x1.34 | 1.585e-6 (1), 2.929e-6 (2) | 2.7e-11 |
+| 1e-4 | 1.321 | 0.676 | x1.95 | same | 1.1e-9 |
+
+With factor 1: 1e-6 gives x1.01 (levels at 5.8e-7 and 9.1e-7, total error 5.8e-8, field
+difference 3.6e-2 merge tolerances) and 1e-4 gives x2.04 (total error 4.2e-8).
+
+### Keep decision
+
+Keep rule (docs/perf/README.md): a change stays only if it cuts the median time by at least
+5% on the cases it targets, with no case slower beyond noise, and the accuracy gate holds.
+
+- Target (late, homogenised runs): -25% at 1e-5 and -49% at 1e-4 with 16 threads (-28% at 1e-5
+  with 1 thread), well above 5%.
+- Non-target (`t_end` 1e-7 and 1e-6, the field never merges before the end): +/-1%, within
+  the noise (first-run effects were removed by alternating the two runs). The cost of the
+  test is one pass over the state per accepted step.
+- Accuracy: the domain totals of every species are within rtol 1e-6 of the fine run for all
+  factors up to 3 (2.7e-11 at the default), and fields are inside the merge tolerance at every
+  factor measured (below 1.1e-2 merge tolerances).
+
+Kept. The feature stays off by default (`max_coarsen_levels = 0`), so default runs are
+unchanged.
+
+`coarsen_tol_factor`: kept at 0.1. Factor 1 is also inside the totals criterion with a margin
+of 25 (4e-8 against 1e-6) and gives x1.51 (x1.63 on one thread) against x1.34 (x1.39), but
+the totals error grows as the factor squared and the margin was measured on one case, so the
+extra 13% does not justify a less conservative default. Users who
+run long homogenised cases can set 1.
+
+### Is the local-AMR follow-up needed?
+
+For runs that go well past homogenisation, no: global coarsening already removes almost all of
+the late-time cost (the part of the 1e-5 run after 1e-6 s falls from about 0.26 s to about 0.04 s). For
+the early window it helps nothing: on this case, from the injection until 1.6e-6 s the
+localized field blocks every merge (at factor 1, until 0.58e-6 s), and that window holds
+about 70% of the fine cost of a 1e-5 run (the 1e-6 run takes 0.627 s of the 0.885 s). A
+`t_end` of 1e-7 or 1e-6 sees no gain at all. Only a local scheme (coarsen the voxels away
+from the spur) could speed up that window, so the follow-up is worth doing if runs of that
+length matter; it was not measured here. In this 768-voxel box the spur fills most of the
+grid, so a bigger domain around one track would make the local gain larger. Background voxels
+(14% of half-steps at 1e-7) are already cheap.
+
+Observation for the level counts: a step that lands on a seed time may coarsen and then refine
+immediately in the injection (here the two pre-seed changes at 1e-13 and 3e-13, refined at 1e-12);
+this costs one restriction and one prolongation of a uniform state and no solves.
