@@ -42,15 +42,36 @@ enum Command {
 struct VoxelArgs {
     /// TOML configuration file with `[voxel.grid]`, `[[voxel.seed]]` and `[voxel.run]`.
     config: PathBuf,
-    /// Output directory.
+    /// Output directory. The run's checkpoint is written there as `checkpoint.npz`.
     #[arg(long)]
     out: PathBuf,
+    /// Start from this checkpoint (`checkpoint.npz` of an earlier run) instead of
+    /// `t_start`. Use a new `--out` directory.
+    #[arg(long)]
+    resume: Option<PathBuf>,
 }
 
 fn voxel(a: &VoxelArgs) -> radkin::Result<()> {
     let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
+    let checkpoint = a.out.join("checkpoint.npz");
+    let resume = match &a.resume {
+        Some(p) => {
+            if std::path::absolute(p).ok() == std::path::absolute(&checkpoint).ok() {
+                return Err(radkin::RadkinError::Value(format!(
+                    "--resume {}: write the resumed run to another --out directory",
+                    p.display()
+                )));
+            }
+            Some(radkin::voxel::Checkpoint::read(p)?)
+        }
+        None => None,
+    };
+    std::fs::create_dir_all(&a.out).map_err(|e| radkin::RadkinError::io(&a.out, e))?;
     let started = std::time::Instant::now();
-    let out = sim.run()?;
+    let out = sim.run_with(&radkin::voxel::RunControl {
+        checkpoint: Some(checkpoint),
+        resume,
+    })?;
     radkin::voxel::write_voxel_dir(&a.out, &out, &sim.voxel.grid)?;
     eprintln!(
         "radkin: voxel run of {} voxels, {} steps ({} rejected) in {:.1} s; {} snapshots written to {}",
