@@ -62,6 +62,54 @@
       "detail": {
         "tickets": 4
       }
+    },
+    {
+      "at": "2026-11-14T17:20:49.517Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-rsoda-restart.md",
+        "03-implement/01-rsoda-restart/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-rsoda-restart"
+      }
+    },
+    {
+      "at": "2026-11-14T17:34:01.572Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-rsoda-warm-start.md",
+        "03-implement/02-rsoda-warm-start/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-rsoda-warm-start"
+      }
+    },
+    {
+      "at": "2026-11-14T18:26:09.343Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-radkin-reuse-solver.md",
+        "03-implement/03-radkin-reuse-solver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-radkin-reuse-solver"
+      }
+    },
+    {
+      "at": "2026-11-14T19:00:26.098Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-radkin-reuse-solver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-radkin-reuse-solver",
+        "commit": "346f8ad"
+      }
     }
   ],
   "current_phase": "ship",
@@ -70,5 +118,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-14T17:20:45.485Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "delegate"
 }
