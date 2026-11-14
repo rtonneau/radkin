@@ -65,6 +65,22 @@ pub struct VoxelConfig {
     pub coarsen_tol_factor: f64,
 }
 
+/// An error unless every grid dimension is divisible by `2^levels`; `key`
+/// names the setting that asked for those levels.
+pub fn check_divisible(dims: [usize; 3], levels: u32, key: &str) -> Result<()> {
+    let block = 1usize
+        .checked_shl(levels)
+        .ok_or_else(|| RadkinError::Config(format!("{key} = {levels} is too large")))?;
+    for (axis, n) in ["x", "y", "z"].iter().zip(dims) {
+        if n % block != 0 {
+            return Err(RadkinError::Config(format!(
+                "voxel.grid.dims along {axis} ({n}) must be divisible by 2^{key} = {block}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn num(v: &toml::Value, what: &str) -> Result<f64> {
     match v {
         toml::Value::Float(f) => Ok(*f),
@@ -195,19 +211,7 @@ impl VoxelConfig {
                     RadkinError::Config("voxel.max_coarsen_levels must be an integer >= 0".into())
                 })?,
         };
-        let block = 1usize.checked_shl(max_coarsen_levels).ok_or_else(|| {
-            RadkinError::Config(format!(
-                "voxel.max_coarsen_levels = {max_coarsen_levels} is too large"
-            ))
-        })?;
-        for (axis, n) in ["x", "y", "z"].iter().zip(dims) {
-            if n % block != 0 {
-                return Err(RadkinError::Config(format!(
-                    "voxel.grid.dims along {axis} ({n}) must be divisible by \
-                     2^voxel.max_coarsen_levels = {block}"
-                )));
-            }
-        }
+        check_divisible(dims, max_coarsen_levels, "voxel.max_coarsen_levels")?;
         let coarsen_tol_factor = match voxel.get("coarsen_tol_factor") {
             None => 0.1,
             Some(v) => {

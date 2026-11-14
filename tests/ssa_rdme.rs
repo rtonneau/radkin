@@ -552,3 +552,45 @@ fn ssa_rdme_tau_leaping_matches_the_exact_rdme() {
     assert!((events(&tau) / events(&exact) - 1.0).abs() < 0.05);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn ssa_rdme_species_levels_are_checked() {
+    let dir = scratch("species_levels");
+    let sim = VoxelSimulation::from_toml(diffusion_case(&dir)).unwrap();
+    let with = |levels: &[(&str, u32)]| SsaConfig {
+        species_levels: levels.iter().map(|(s, l)| (s.to_string(), *l)).collect(),
+        ..ssa(1)
+    };
+    // 8x2x2 voxels: level 2 needs dims divisible by 4.
+    let e = run_rdme(&sim, &with(&[("e_aq", 2)]))
+        .unwrap_err()
+        .to_string();
+    assert!(
+        e.contains("ssa.species_levels.e_aq") && e.contains("along y"),
+        "{e}"
+    );
+    let e = run_rdme(&sim, &with(&[("Ar", 1)])).unwrap_err().to_string();
+    assert!(e.contains("ssa.species_levels.Ar"), "{e}");
+    // Level 0 everywhere is the plain RDME.
+    assert!(run_rdme(&sim, &with(&[("e_aq", 0)])).is_ok());
+
+    // The deterministic voxel run refuses the table.
+    let cfg = diffusion_case(&dir);
+    let mut text = std::fs::read_to_string(&cfg).unwrap();
+    text.push_str("\n[ssa.species_levels]\ne_aq = 1\n");
+    std::fs::write(&cfg, text).unwrap();
+    let out = radkin()
+        .arg("voxel")
+        .arg(&cfg)
+        .arg("--out")
+        .arg(dir.join("out"))
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("deterministic voxel run"),
+        "{}",
+        stderr(&out)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

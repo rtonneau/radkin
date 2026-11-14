@@ -16,12 +16,13 @@ use std::time::Instant;
 
 use crate::error::{RadkinError, Result};
 use crate::matrices::SimMatrices;
-use crate::ssa::config::{RateCorrection, SsaConfig};
+use crate::ssa::config::{RateCorrection, SsaConfig, hierarchy_depth, suggested_level};
 use crate::ssa::ensemble::{Moments, map_ordered};
 use crate::ssa::rdme::{Rdme, RdmeSetup, is_cubic};
 use crate::ssa::rdme_coarsen::dispersion_threshold;
 use crate::ssa::rng::SsaRng;
 use crate::unit_cell::thinned_times;
+use crate::voxel::config::check_divisible;
 use crate::voxel::grid::{VoxelGrid, VoxelState};
 use crate::voxel::sim::VoxelSimulation;
 
@@ -193,12 +194,78 @@ fn resolve_correction(setting: Option<RateCorrection>, grid: &VoxelGrid) -> Resu
     }
 }
 
+/// The species level of every dynamic species (`[ssa.species_levels]`),
+/// after checking that the grid can hold the hierarchy they need. Logs the
+/// suggested level of every background species (non-zero initial
+/// concentration, not seeded) from the diffusion coefficients (ADR 0005);
+/// nothing is applied.
+fn species_levels(
+    sim: &VoxelSimulation,
+    cfg: &SsaConfig,
+    species: &[String],
+    coeffs: &[f64],
+) -> Result<Vec<u32>> {
+    let levels = cfg.resolve_species_levels(species)?;
+    let max_coarsen = sim.voxel.max_coarsen_levels;
+    let depth = hierarchy_depth(max_coarsen, &levels);
+    if depth > max_coarsen {
+        let deepest = (0..species.len())
+            .find(|s| levels[*s] == depth)
+            .unwrap_or(0);
+        let key = format!("ssa.species_levels.{}", species[deepest]);
+        check_divisible(sim.voxel.grid.dims, depth, &key)?;
+    }
+    let seeded: Vec<bool> = (0..species.len())
+        .map(|s| {
+            sim.seeds
+                .iter()
+                .any(|x| x.amount.field(s).iter().any(|a| *a != 0.0))
+        })
+        .collect();
+    let d_slowest = (0..species.len())
+        .filter(|s| seeded[*s] && coeffs[*s] > 0.0)
+        .map(|s| coeffs[s])
+        .fold(f64::INFINITY, f64::min);
+    // The suggestion may use levels the grid does not divide into.
+    let max_depth = sim
+        .voxel
+        .grid
+        .dims
+        .iter()
+        .map(|n| n.trailing_zeros())
+        .min()
+        .unwrap_or(0);
+    let y0 = sim.env.initial_values();
+    for (s, name) in species.iter().enumerate() {
+        if y0[s] <= 0.0 || seeded[s] {
+            continue;
+        }
+        if let Some(l) = suggested_level(coeffs[s], d_slowest, max_depth) {
+            log::info!(
+                "rdme: suggested species level of background {name}: {l} \
+                 (floor(log2 sqrt(D / D_slowest seeded)), {:.2e} / {:.2e} m^2/s; set {})",
+                coeffs[s],
+                d_slowest,
+                levels[s]
+            );
+        }
+    }
+    Ok(levels)
+}
+
 /// Run the RDME ensemble of `sim`.
 pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let started = Instant::now();
     let species = sim.species();
     let mat = SimMatrices::build(&sim.env)?;
     let coeffs: Vec<f64> = species.iter().map(|s| sim.voxel.diffusion_of(s)).collect();
+    let levels = species_levels(sim, cfg, &species, &coeffs)?;
+    if let Some(s) = levels.iter().position(|l| *l > 0) {
+        return Err(RadkinError::Config(format!(
+            "ssa.species_levels.{} = {}: species levels above 0 are not implemented yet",
+            species[s], levels[s]
+        )));
+    }
     let grid = &sim.voxel.grid;
     let correct = resolve_correction(cfg.rate_correction, grid)?;
     let setup = RdmeSetup::new(&mat, grid, coeffs, sim.voxel.max_coarsen_levels, correct)?;

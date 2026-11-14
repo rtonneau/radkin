@@ -83,6 +83,7 @@ fn main() {
             tau_leap,
             tau_epsilon,
             rate_correction: None,
+            ..Default::default()
         };
         let options = EnsembleOptions {
             t_eval: Some(radkin::unit_cell::thinned_times(t_span.0, t_span.1, 20)),
