@@ -89,6 +89,7 @@ trajectories = 100    # ensemble size (default 100)
 seed = 0              # default 0
 tau_leap = false      # default false: exact SSA
 tau_epsilon = 0.03    # accuracy of a leap when tau_leap = true
+rate_correction = "hellander"  # voxel runs only: "hellander" (default) or "none"
 ```
 
 ```bash
@@ -132,6 +133,10 @@ reaction-diffusion master equation, in place of the Strang splitting).
 - It takes the same `[voxel]` sections. `[ssa] volume` is not used (each voxel has its
   own volume); `trajectories` and `seed` are. The splitting and rsoda settings of
   `[voxel.run]` are ignored.
+- Bimolecular propensities are mesh-corrected by default (`rate_correction =
+  "hellander"`): on a grid of spacing `h` each one is scaled by `1 / (1 - h*/h)`,
+  `h*` the reaction's critical spacing, so that nm voxels keep the macroscopic rate.
+  `"none"` gives the plain RDME. Details and limits are in `docs/ssa.md`.
 - The initial solution is drawn per voxel (Poisson); the Geant4 molecules are injected
   as whole molecules.
 - Outputs keep the layout of the deterministic run with the ensemble mean, plus

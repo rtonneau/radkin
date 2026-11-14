@@ -63,6 +63,14 @@ _Avoid_: leaping SSA, approximate SSA
 The move of one molecule to a face-neighbouring voxel, an event of propensity `D/h²` per molecule and face; it replaces the diffusion step in stochastic voxel runs.
 _Avoid_: jump, diffusion event
 
+**Critical spacing**:
+The voxel spacing `h* = 0.2527 κ / D` of a bimolecular reaction (`κ` its pair rate constant, `D` the summed diffusion coefficients) below which no propensity can reproduce its mean encounter time on the grid (Hellander 2012). For `2 A` reactions `κ = 2k`.
+_Avoid_: validity bound, h_min (h_min is where the uncorrected RDME starts to degrade)
+
+**Mesh correction**:
+The scaling `1 / (1 - h*/h)` of a bimolecular propensity on a grid level of spacing `h > h*`, which makes the RDME's mean encounter time match the macroscopic rate constant (`[ssa] rate_correction = "hellander"`).
+_Avoid_: rate correction (the config key only), mesoscopic rate, renormalisation
+
 ### Voxel model
 
 **Voxel grid**:

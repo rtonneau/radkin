@@ -206,7 +206,7 @@ mod tests {
         let e = env.species.index_of("e_aq").unwrap();
         (
             e,
-            RdmeSetup::new(&mat, &grid, vec![5e-9; mat.n_dyn], levels).unwrap(),
+            RdmeSetup::new(&mat, &grid, vec![5e-9; mat.n_dyn], levels, false).unwrap(),
         )
     }
 

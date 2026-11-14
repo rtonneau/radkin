@@ -31,6 +31,7 @@ struct SnapshotIndex<'a> {
     trajectories: usize,
     seed: u64,
     tau_leap: bool,
+    rate_correction: &'static str,
     /// Events summed over the trajectories.
     n_reactions: u64,
     n_hops: u64,
@@ -140,6 +141,7 @@ pub fn write_rdme_dir(dir: &Path, out: &RdmeOutput, grid: &VoxelGrid) -> Result<
         trajectories: out.trajectories,
         seed: out.seed,
         tau_leap: out.tau_leap,
+        rate_correction: out.rate_correction,
         n_reactions: out.n_reactions,
         n_hops: out.n_hops,
         exec_time: out.exec_time,
