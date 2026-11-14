@@ -112,6 +112,30 @@
         "ticket": "02-config",
         "commit": "a07a91c"
       }
+    },
+    {
+      "at": "2026-11-14T15:23:45.725Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-coarsen-primitives.md",
+        "03-implement/03-coarsen-primitives/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-coarsen-primitives"
+      }
+    },
+    {
+      "at": "2026-11-14T15:27:41.578Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-coarsen-primitives/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-coarsen-primitives",
+        "commit": "929f08c"
+      }
     }
   ],
   "current_phase": "ship",
