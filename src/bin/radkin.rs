@@ -7,6 +7,9 @@ use clap::{Parser, Subcommand, ValueEnum};
 use radkin::RadkinError;
 use radkin::output::{RunMeta, write_run_dir};
 use radkin::solver::JacobianMode;
+use radkin::ssa::{
+    EnsembleOptions, SolverConfig, SolverKind, SsaConfig, SsaRunMeta, run_ensemble, write_ssa_dir,
+};
 use radkin::unit_cell::{ChunkOptions, RunOptions, UnitCell};
 
 #[derive(Parser)]
@@ -27,6 +30,24 @@ enum Mode {
     Chunked,
     /// Single-pulse chunks (`prepare_single_pulse`).
     SinglePulse,
+}
+
+/// `--solver` values.
+#[derive(Clone, Copy, ValueEnum)]
+enum SolverArg {
+    /// Deterministic rate equations (LSODA).
+    Lsoda,
+    /// Stochastic simulation on molecule counts (`[ssa]` table of the config).
+    Ssa,
+}
+
+/// The solver of a run: `--solver` if given, else the config's `solver` key.
+fn solver_of(arg: Option<SolverArg>, cfg: &SolverConfig) -> SolverKind {
+    match arg {
+        Some(SolverArg::Lsoda) => SolverKind::Lsoda,
+        Some(SolverArg::Ssa) => SolverKind::Ssa,
+        None => cfg.solver,
+    }
 }
 
 #[derive(Subcommand)]
@@ -92,6 +113,9 @@ struct RunArgs {
     /// Start and end times [s].
     #[arg(long, num_args = 2, value_names = ["START", "STOP"], required = true)]
     t_span: Vec<f64>,
+    /// Solver; overrides the `solver` key of the configuration.
+    #[arg(long, value_enum)]
+    solver: Option<SolverArg>,
     #[arg(long, value_enum, default_value = "run")]
     mode: Mode,
     /// File with output times separated by blanks (mode `run` only).
@@ -153,7 +177,8 @@ fn read_times(path: &PathBuf) -> radkin::Result<Vec<f64>> {
         .map_err(|e| RadkinError::Value(format!("{}: {e}", path.display())))
 }
 
-fn run(a: &RunArgs) -> radkin::Result<()> {
+/// The cell of a run: config, then `--temperature`, `--beam` and `--let`.
+fn build_cell(a: &RunArgs) -> radkin::Result<UnitCell> {
     let mut cell = UnitCell::from_toml(&a.config)?;
     if let Some(t) = a.temperature {
         cell.set_temperature(t)?;
@@ -164,6 +189,72 @@ fn run(a: &RunArgs) -> radkin::Result<()> {
         cell.beam()?;
         cell.change_let(l)?;
     }
+    Ok(cell)
+}
+
+/// LSODA-only options given on the command line (not used by the SSA).
+fn lsoda_only_options(a: &RunArgs) -> Vec<&'static str> {
+    let mut v = Vec::new();
+    let mut add = |given: bool, name: &'static str| {
+        if given {
+            v.push(name);
+        }
+    };
+    add(!matches!(a.mode, Mode::Run), "--mode");
+    add(a.rtol.is_some(), "--rtol");
+    add(a.atol.is_some(), "--atol");
+    add(a.max_step.is_some(), "--max-step");
+    add(a.first_step.is_some(), "--first-step");
+    add(a.max_step_on.is_some(), "--max-step-on");
+    add(a.max_step_off.is_some(), "--max-step-off");
+    add(a.max_step_trans.is_some(), "--max-step-trans");
+    add(a.max_step_final.is_some(), "--max-step-final");
+    add(a.trans_time.is_some(), "--trans-time");
+    add(a.points_on.is_some(), "--points-on");
+    add(a.points_off.is_some(), "--points-off");
+    add(a.no_jac, "--no-jac");
+    add(a.sparse_jacobian, "--sparse-jacobian");
+    add(!a.production.is_empty(), "--production");
+    add(!a.consumption.is_empty(), "--consumption");
+    v
+}
+
+/// `radkin run` with the stochastic solver.
+fn run_ssa(a: &RunArgs, cfg: &SsaConfig) -> radkin::Result<()> {
+    let unused = lsoda_only_options(a);
+    if !unused.is_empty() {
+        return Err(RadkinError::Value(format!(
+            "{} cannot be used with the ssa solver",
+            unused.join(", ")
+        )));
+    }
+    let cell = build_cell(a)?;
+    let t_span = (a.t_span[0], a.t_span[1]);
+    let options = EnsembleOptions {
+        t_eval: a.t_eval.as_ref().map(read_times).transpose()?,
+        ..Default::default()
+    };
+    let res = run_ensemble(&cell, cfg, t_span, &options)?;
+    let config = a.config.display().to_string();
+    let label = (!cell.beams.is_empty()).then(|| cell.beams.current_name());
+    let meta = SsaRunMeta::from_result(&res, &config, t_span, label);
+    write_ssa_dir(&a.out, &res, &meta)?;
+    eprintln!(
+        "radkin: ssa, {} trajectories, {} events, {} points written to {}",
+        res.trajectories,
+        res.n_events,
+        res.t.len(),
+        a.out.display()
+    );
+    Ok(())
+}
+
+fn run(a: &RunArgs) -> radkin::Result<()> {
+    let solver = SolverConfig::from_toml_file(&a.config)?;
+    if solver_of(a.solver, &solver) == SolverKind::Ssa {
+        return run_ssa(a, &solver.ssa);
+    }
+    let mut cell = build_cell(a)?;
     let t_span = (a.t_span[0], a.t_span[1]);
     let t_eval = a.t_eval.as_ref().map(read_times).transpose()?;
     if !matches!(a.mode, Mode::Run) && t_eval.is_some() {

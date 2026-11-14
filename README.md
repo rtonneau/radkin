@@ -72,6 +72,53 @@ Each run writes into `--out`:
 `pd.read_csv("concentrations.csv", index_col=0)` gives the same DataFrame as
 `res.to_pandas()`.
 
+## Stochastic solver (SSA)
+
+`solver = "ssa"` runs the same chemistry on integer molecule counts with Gillespie's
+exact stochastic simulation algorithm, instead of the rate equations. It is meant for
+small volumes and low doses, where the rate equations stop being valid, and as an
+independent check of the LSODA results at large volume. Select it in the run file or
+with `--solver`:
+
+```toml
+solver = "ssa"        # "lsoda" (default) or "ssa"; put it before any [table]
+
+[ssa]
+volume = 1e-15        # L: volume of the unit cell (required)
+trajectories = 100    # ensemble size (default 100)
+seed = 0              # default 0
+tau_leap = false      # default false
+```
+
+```bash
+radkin run CONFIG --t-span 0 1e-3 --solver ssa --out out/ssa
+```
+
+`--solver lsoda|ssa` overrides the `solver` key. `solver` and `[ssa]` are read from the
+run file itself, not from its includes.
+
+- Each reaction fires with a propensity taken from its rate law: for `2 A -> ...` it is
+  `k/(N_A V) n (n - 1)` and two molecules are removed, which matches the rate
+  `k [A]^2` of the LSODA path at large counts.
+- Each G-value is a source that produces molecules at `G x dose rate x N_A V` per
+  second while the beam is on.
+- The run is an ensemble of `trajectories` independent trajectories. Trajectory `i`
+  draws from stream `i` of a ChaCha8 generator keyed by `seed`, so a seed gives the same
+  output on every platform and for every thread count.
+- Outputs: `concentrations.csv` holds the ensemble mean in the LSODA layout (`t`,
+  dynamic species, fixed species; µmol/L), followed by one `<species>_std` column per
+  dynamic species (standard deviation over the trajectories). `run.json` records the
+  solver settings and the number of events. The other LSODA files are not written.
+- Output times: `--t-eval FILE`, else 200 log-spaced times over `--t-span`.
+- `--beam`, `--let` and `--temperature` work as with LSODA. The LSODA-only options
+  (`--mode chunked|single-pulse`, tolerances, step sizes, `--production`,
+  `--consumption`) are rejected.
+- A configuration without beam runs the reactions only.
+
+One molecule in the volume is `1 / (N_A V)` mol/L: 1.66 nmol/L for 1e-15 L (1 µm³).
+The cost grows with the number of reaction events, so with the volume, the dose and
+the simulated time.
+
 ## Library
 
 ```rust
