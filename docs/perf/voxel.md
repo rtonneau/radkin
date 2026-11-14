@@ -264,3 +264,65 @@ Not tried: keep step-doubling and take the first half-reaction of both paths
 from one solve (from `y0` to `t + dt/2` with an rsoda `tcrit` stop at
 `t + dt/4`). That is 4 solves per attempt instead of 5 with the same
 estimator, but results would no longer be bit-identical to now.
+
+## Coarsening baseline (fine grid, homogenised case)
+
+Baseline for the adaptive-coarsening session (`2026-11-14__voxel-adaptive-coarsening`).
+Same case as above, run to `--t-end 1e-5` so that it homogenises: seeded at 1e-12 s,
+then smooth everywhere at late times (8x8x12 grid, dims divisible by 4). The bench
+prints the final species totals and the spread `(max - min) / mean` over voxels for
+each species; the max spread is 7.2e-6 at 1e-5 s (1.1 at the default 1e-7 s, 9.1e-3
+at 1e-6 s). No library change: radkin `473dfa6` (voxel_bench prints the totals),
+rsoda `f5d1312`, same machine and toolchain as the baseline above, `--repeat 5`.
+
+```bash
+cargo run --release --example voxel_bench -- --repeat 5 --t-end 1e-5
+RAYON_NUM_THREADS=1 cargo run --release --example voxel_bench -- --repeat 3 --t-end 1e-5
+```
+
+(The "reference does not match the case" line is expected: the stored reference is for
+`t_end` 1e-7.)
+
+| threads | median [s] | min [s] |
+|---|---|---|
+| 16 (default) | 0.974 | 0.908 |
+| 1 | 5.635 | 5.622 |
+
+Work (deterministic, fine grid, no coarsening):
+
+| quantity | value |
+|---|---|
+| splitting steps accepted / rejected | 57 / 0 |
+| voxel half-steps (of which background) | 218880 (24360) |
+| rsoda solves | 194805 |
+| nfev / nst (sum over solves) | 8904705 / 4437432 |
+
+Final species totals (sum over voxels, umol/L) at `t_end = 1e-5 s`, and the spread:
+
+| species | total | spread |
+|---|---|---|
+| H2O2 | 7.673668445e4 | 2.1e-7 |
+| HO2_minus | 4.110676128e0 | 4.1e-6 |
+| OH_r | 2.989969987e3 | 3.5e-7 |
+| O_minus | 1.590131675e-1 | 4.3e-6 |
+| HO2 | 2.489160687e3 | 2.3e-6 |
+| O2_minus | 5.255607484e3 | 5.0e-7 |
+| H3O_plus | 5.479183763e3 | 2.9e-6 |
+| OH_minus | 2.192696398e2 | 4.0e-6 |
+| e_aq | 6.946615872e-6 | 1.5e-6 |
+| H_r | 3.674431149e0 | 5.2e-7 |
+| O2 | 1.967070665e4 | 3.9e-7 |
+| H2 | 2.625840999e4 | 1.2e-7 |
+| O3_minus | 3.694331383e-2 | 7.2e-6 |
+| O3 | 2.248954370e-1 | 1.2e-6 |
+| HO3 | 3.903025082e-2 | 3.8e-7 |
+| O_atom | 0 | 0 |
+
+The same case at `--t-end 1e-6` (16 threads, `--repeat 5`): median 0.637 s, min
+0.613 s; 54 steps, 207360 half-steps (24360 background), 183270 solves, nfev
+5727857, nst 2896845; max spread 9.1e-3. Its totals are in the `VOXEL_TOTALS` line
+of the bench output.
+
+The default case (`t_end = 1e-7`) now measures 0.463 s median (16 threads) with 46
+steps, 176640 half-steps and 152510 solves, lower than the baseline table above
+because of the later per-voxel solve optimizations (PR #12).

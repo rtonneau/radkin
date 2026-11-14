@@ -189,6 +189,37 @@ fn main() -> radkin::Result<()> {
         s.nst
     );
 
+    // Final species totals (sum over voxels) and spread, to record a baseline and to
+    // check that a case homogenises: spread = (max - min) / mean over voxels.
+    {
+        let st = final_state(&out, t_end);
+        println!("final species totals (sum over voxels [umol/L]) and spread (max-min)/mean:");
+        let mut max_spread = 0.0_f64;
+        let mut line = String::new();
+        for (s_i, name) in out.species.iter().enumerate() {
+            let v = &st.data[s_i * n_vox..(s_i + 1) * n_vox];
+            let sum: f64 = v.iter().sum();
+            let (lo, hi) = v
+                .iter()
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), x| {
+                    (l.min(*x), h.max(*x))
+                });
+            let mean = sum / n_vox as f64;
+            let spread = if mean.abs() > 0.0 {
+                (hi - lo) / mean.abs()
+            } else {
+                0.0
+            };
+            if sum.abs() > 1e-12 {
+                max_spread = max_spread.max(spread);
+            }
+            println!("  {name:>10}: total {sum:.9e}, spread {spread:.3e}");
+            line.push_str(&format!(" total_{name}={sum:.9e}"));
+        }
+        println!("max spread over species with a nonzero total: {max_spread:.3e}");
+        println!("VOXEL_TOTALS{line}");
+    }
+
     let mut acc = String::from(" acc=none");
     match std::fs::read_to_string(&a.reference) {
         Err(e) => println!(
