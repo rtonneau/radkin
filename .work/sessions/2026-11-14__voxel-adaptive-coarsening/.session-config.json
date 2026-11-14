@@ -136,6 +136,30 @@
         "ticket": "03-coarsen-primitives",
         "commit": "929f08c"
       }
+    },
+    {
+      "at": "2026-11-14T15:27:41.962Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-driver-levels.md",
+        "03-implement/04-driver-levels/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-driver-levels"
+      }
+    },
+    {
+      "at": "2026-11-14T15:46:51.769Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-driver-levels/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-driver-levels",
+        "commit": "c369f5e"
+      }
     }
   ],
   "current_phase": "ship",
