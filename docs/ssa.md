@@ -143,9 +143,74 @@ molecules of HO2− react 1.4e8 times per second with water). The reactions that
 them are critical and fire one at a time, which leaves about 17 events per leap. This
 limit of explicit tau-leaping does not go away at larger volumes (1.1x at 1e-11 L).
 
+## Voxel grid: the RDME
+
+`radkin voxel` with `solver = "ssa"` solves the reaction-diffusion master equation
+(`src/ssa/rdme.rs`, ADR 0003). Every voxel holds integer counts. Reactions fire inside
+a voxel with the propensities above for the voxel volume. Diffusion is a hop of one
+molecule to a face neighbour, with propensity `D / h²` per molecule and face;
+boundary voxels have fewer faces (zero flux). The mean of the hop process obeys the same
+discrete diffusion operator as the deterministic path.
+
+- **Algorithm:** next-subvolume method. Each voxel keeps the time of its next event in
+  an indexed binary heap; the earliest voxel fires one reaction or hop, and only the
+  voxels whose counts changed draw a new time. A hop updates the reaction rate of its
+  two voxels incrementally, from the reactions that read the hopping species.
+- **Initial solution:** a Poisson draw per voxel and species with mean `c N_A V`.
+- **Seeds:** the Geant4 molecules are injected as the integer counts they were binned
+  from. Voxel runs have no beam, as on the deterministic path.
+- **Ensemble:** `[ssa] trajectories` trajectories, trajectory `i` on stream `i` of
+  `seed`, reduced in trajectory order. The outputs keep the deterministic layout with the
+  ensemble mean, plus the standard deviation: `_std` snapshot files and `N_<sp>_std`,
+  `G_<sp>_std` columns in `yields.csv`. The totals are recorded at 100 log-spaced times
+  and at the snapshot and seed times.
+- **Not available:** checkpoints and `--resume`.
+
+### Validation against the deterministic voxel run
+
+`tests/ssa_rdme.rs`, fixed seed, criterion `|mean − lsoda| ≤ 4 SEM_eff` plus the
+tolerance of the deterministic run:
+
+| Case | Compared | Worst deviation |
+|---|---|---|
+| Diffusion only: 4000 e_aq seeded in one corner voxel of an 8x2x2 grid of 50 nm voxels, 64 trajectories | mean field of every voxel at 3 times | 2.4 SEM |
+| Pure water, 12 000 radicals seeded in the centre voxel of a 3x3x3 grid of 500 nm voxels, 48 trajectories | domain totals of every species at 4 times | 1.5 SEM |
+
+The second case is a large-count grid (75 molecules per µmol/L and voxel): there the
+RDME and the Strang-split rate equations agree.
+
+### Small voxels
+
+At small voxels the two do not agree, and are not expected to. On
+`data/voxel_example.toml` (6 nm voxels, a synthetic 6-spur track, 100 ns; 64
+trajectories, seed 1):
+
+| G at 100 ns [/100 eV] | RDME (± SEM) | Deterministic |
+|---|---|---|
+| e_aq | 1.13 ± 0.06 | 0.84 |
+| OH_r | 2.53 ± 0.07 | 2.10 |
+| H3O_plus | 2.57 ± 0.06 | 2.02 |
+| H2O2 | 1.77 ± 0.04 | 2.02 |
+| H2 | 0.68 ± 0.05 | 0.80 |
+
+With about one molecule per voxel, the rate equations let a fraction of a molecule
+react with itself (`k [A]²` is not zero for one molecule, `n (n − 1)` is), so they
+recombine radicals faster than the stochastic model.
+
+The RDME has its own limit at small voxels. A bimolecular reaction of rate constant `k`
+between species of summed diffusion coefficient `D` can only be represented on a grid
+of spacing above `h* ≈ 0.25 k / (N_A D)` (Hellander, Hellander and Petzold, Phys. Rev.
+E 85, 042901, 2012); below it the reaction is too slow, whatever the propensity. radkin
+logs a warning with the worst reaction when the spacing is below `h*`. For
+diffusion-limited radical reactions `h*` is 1 to 4 nm. Reactions written with H2O as a
+reactant have an effective bimolecular constant `k [H2O]`, which can be far above the
+diffusion limit: `e_aq + O_minus + H2O` gives `h*` = 75 nm with the bundled chemistry.
+
 ## Cost
 
 The cost is proportional to the number of events. On one core the exact SSA fires about
 5 million events per second on the pure-water chemistry (73 reactions and 6 sources) and 15 million
-on a three-reaction chemistry. The fast acid-base equilibria fire continuously, so the
+on a three-reaction chemistry. The RDME fires about 3 million events per second, most of
+them hops: a molecule hops `6 D / h²` times per second (8e8 per second for e_aq at
+6 nm), so the cost grows as the number of molecules over `h²`. The fast acid-base equilibria fire continuously, so the
 event count grows with the simulated time even when the slow chemistry is over.

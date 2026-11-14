@@ -1,0 +1,326 @@
+//! Ensemble of RDME trajectories of a voxel run (`radkin voxel` with
+//! `solver = "ssa"`).
+//!
+//! The run takes the same configuration as the deterministic voxel path:
+//! chemistry, `[voxel]` grid, diffusion coefficients and seeds, and
+//! `[voxel.run]` times. The splitting and rsoda settings of `[voxel.run]`
+//! are not used.
+//!
+//! Each trajectory starts from a Poisson draw of the initial solution in
+//! every voxel, receives the Geant4 seeds as exact integer counts at their
+//! times, and is recorded at the snapshot times (full fields) and at the
+//! record times (domain totals). Trajectory `i` draws from stream `i` of
+//! the seed; the statistics are accumulated in trajectory order.
+
+use std::time::Instant;
+
+use crate::error::{RadkinError, Result};
+use crate::matrices::SimMatrices;
+use crate::ssa::config::SsaConfig;
+use crate::ssa::ensemble::{Moments, map_ordered};
+use crate::ssa::rdme::{Rdme, RdmeSetup};
+use crate::ssa::rng::SsaRng;
+use crate::unit_cell::thinned_times;
+use crate::voxel::grid::VoxelState;
+use crate::voxel::sim::VoxelSimulation;
+
+/// Log-spaced record times of the domain totals, on top of the snapshot and
+/// seed times.
+pub const N_RECORDS: usize = 100;
+
+/// Trajectories run at once before their sums are accumulated.
+const BATCH: usize = 32;
+
+/// Sum and sum of squares of one field value over the trajectories. The
+/// sum of squares is a float: it is accumulated in trajectory order, so it
+/// is reproducible, and it keeps a snapshot at 16 bytes per value.
+#[derive(Debug, Clone, Copy, Default)]
+struct FieldMoments {
+    sum: i64,
+    sum_sq: f64,
+}
+
+/// Everything an RDME voxel run produces.
+#[derive(Debug, Clone)]
+pub struct RdmeOutput {
+    /// Dynamic species labels, in state order.
+    pub species: Vec<String>,
+    /// Times of the snapshots [s].
+    pub snapshot_times: Vec<f64>,
+    /// Ensemble mean field of every snapshot [µmol/L], on the fine grid.
+    pub mean: Vec<VoxelState>,
+    /// Standard deviation over the trajectories [µmol/L].
+    pub std: Vec<VoxelState>,
+    /// Times of the domain totals [s].
+    pub record_times: Vec<f64>,
+    /// Mean molecules of every species in the domain, per record time.
+    pub totals_mean: Vec<Vec<f64>>,
+    /// Standard deviation of the totals over the trajectories.
+    pub totals_std: Vec<Vec<f64>>,
+    /// Mean and standard deviation of the molecules net of the totals at
+    /// `t_start` (before any seed), per record time.
+    pub net_mean: Vec<Vec<f64>>,
+    pub net_std: Vec<Vec<f64>>,
+    /// `(time, energy_ev)` of every seed with a deposited energy.
+    pub seed_energies: Vec<(f64, f64)>,
+    pub trajectories: usize,
+    pub seed: u64,
+    pub tau_leap: bool,
+    /// Events summed over the trajectories.
+    pub n_reactions: u64,
+    pub n_hops: u64,
+    /// `(t, level)` after every change of coarsening level of trajectory 0.
+    pub level_history: Vec<(f64, u32)>,
+    /// Wall time [s].
+    pub exec_time: f64,
+}
+
+/// What one trajectory returns.
+struct TrajectoryOutput {
+    /// Fine fields at the snapshot times ([`Rdme::fine_field`] units).
+    snapshots: Vec<Vec<i64>>,
+    /// Domain totals at the record times.
+    totals: Vec<Vec<i64>>,
+    /// Totals at `t_start`, before any seed.
+    baseline: Vec<i64>,
+    n_reactions: u64,
+    n_hops: u64,
+    level_history: Vec<(f64, u32)>,
+}
+
+/// The times a trajectory stops at, in order.
+struct Schedule {
+    times: Vec<f64>,
+    /// Indices into the seed list injected at each time.
+    seeds: Vec<Vec<usize>>,
+    is_record: Vec<bool>,
+    is_snapshot: Vec<bool>,
+}
+
+fn schedule(sim: &VoxelSimulation) -> Result<Schedule> {
+    let s = &sim.settings;
+    if let Some(bad) = sim
+        .seeds
+        .iter()
+        .find(|x| x.spec.time < s.t_start || x.spec.time > s.t_end)
+    {
+        return Err(RadkinError::Config(format!(
+            "seed time {} s is outside the run [{}, {}] s",
+            bad.spec.time, s.t_start, s.t_end
+        )));
+    }
+    let snapshots: Vec<f64> = s
+        .snapshots
+        .iter()
+        .copied()
+        .filter(|t| *t >= s.t_start && *t <= s.t_end)
+        .collect();
+    let mut times = thinned_times(s.t_start, s.t_end, N_RECORDS);
+    times.extend(&snapshots);
+    times.extend(sim.seeds.iter().map(|x| x.spec.time));
+    times.sort_by(f64::total_cmp);
+    times.dedup();
+    let seeds = times
+        .iter()
+        .map(|t| {
+            (0..sim.seeds.len())
+                .filter(|i| sim.seeds[*i].spec.time == *t)
+                .collect()
+        })
+        .collect();
+    let is_snapshot = times.iter().map(|t| snapshots.contains(t)).collect();
+    Ok(Schedule {
+        is_record: vec![true; times.len()],
+        times,
+        seeds,
+        is_snapshot,
+    })
+}
+
+/// `(fine voxel, species, molecules)` entries of every seed: the binned
+/// concentrations back to the integer counts they came from.
+fn seed_molecules(sim: &VoxelSimulation) -> Result<Vec<Vec<(usize, usize, i64)>>> {
+    let unit = sim.voxel.grid.molecule_concentration() * 1e6;
+    sim.seeds
+        .iter()
+        .map(|seed| {
+            let st = &seed.amount;
+            let mut out = Vec::new();
+            for s in 0..st.n_species {
+                for (v, amount) in st.field(s).iter().enumerate() {
+                    if *amount == 0.0 {
+                        continue;
+                    }
+                    let n = (amount / unit).round();
+                    if n < 0.0 || (amount / unit - n).abs() > 1e-6 * n.max(1.0) {
+                        return Err(RadkinError::Value(format!(
+                            "rdme: seed {} does not hold whole molecules in voxel {v}",
+                            seed.spec.file.display()
+                        )));
+                    }
+                    out.push((v, s, n as i64));
+                }
+            }
+            Ok(out)
+        })
+        .collect()
+}
+
+/// Run the RDME ensemble of `sim`.
+pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
+    let started = Instant::now();
+    if cfg.tau_leap {
+        return Err(RadkinError::Config(
+            "ssa.tau_leap = true is not available for voxel runs".into(),
+        ));
+    }
+    if sim.voxel.max_coarsen_levels > 0 {
+        return Err(RadkinError::Config(
+            "voxel.max_coarsen_levels > 0 is not available with solver = \"ssa\"".into(),
+        ));
+    }
+    let species = sim.species();
+    let mat = SimMatrices::build(&sim.env)?;
+    let coeffs: Vec<f64> = species.iter().map(|s| sim.voxel.diffusion_of(s)).collect();
+    let setup = RdmeSetup::new(&mat, &sim.voxel.grid, coeffs, sim.voxel.max_coarsen_levels)?;
+    if let Some((h, j)) = setup.validity_bound() {
+        let smallest = sim
+            .voxel
+            .grid
+            .spacing
+            .iter()
+            .copied()
+            .fold(f64::INFINITY, f64::min);
+        if smallest < h {
+            log::warn!(
+                "rdme: the voxel spacing {:.2} nm is below {:.2} nm, the smallest spacing at \
+                 which reaction '{}' is represented correctly on a grid (0.2527 k / (N_A D)): \
+                 its rate is underestimated",
+                smallest * 1e9,
+                h * 1e9,
+                sim.env.reaction_strings()[j]
+            );
+        }
+    }
+    let plan = schedule(sim)?;
+    let molecules = seed_molecules(sim)?;
+    let y0 = sim.env.initial_values();
+    let t_start = sim.settings.t_start;
+
+    let one = |i: usize| -> TrajectoryOutput {
+        let mut rdme = Rdme::new(&setup, t_start, SsaRng::new(cfg.seed, i as u64));
+        rdme.fill_poisson(&y0);
+        let baseline = rdme.totals();
+        let mut out = TrajectoryOutput {
+            snapshots: Vec::new(),
+            totals: Vec::new(),
+            baseline,
+            n_reactions: 0,
+            n_hops: 0,
+            level_history: Vec::new(),
+        };
+        for (k, t) in plan.times.iter().enumerate() {
+            rdme.advance_to(*t);
+            for seed in &plan.seeds[k] {
+                rdme.inject(&molecules[*seed]);
+            }
+            if plan.is_record[k] {
+                out.totals.push(rdme.totals());
+            }
+            if plan.is_snapshot[k] {
+                out.snapshots.push(rdme.fine_field());
+            }
+        }
+        out.n_reactions = rdme.n_reactions;
+        out.n_hops = rdme.n_hops;
+        out
+    };
+
+    let n_sp = species.len();
+    let n_fine = sim.voxel.grid.n_voxels();
+    let snapshot_times: Vec<f64> = plan
+        .times
+        .iter()
+        .zip(&plan.is_snapshot)
+        .filter(|(_, s)| **s)
+        .map(|(t, _)| *t)
+        .collect();
+    let mut fields = vec![vec![FieldMoments::default(); n_sp * n_fine]; snapshot_times.len()];
+    let mut totals = vec![vec![Moments::default(); n_sp]; plan.times.len()];
+    let mut net = vec![vec![Moments::default(); n_sp]; plan.times.len()];
+    let (mut n_reactions, mut n_hops) = (0u64, 0u64);
+    let mut level_history = Vec::new();
+    let mut first = 0;
+    while first < cfg.trajectories {
+        let last = (first + BATCH).min(cfg.trajectories);
+        for (i, traj) in map_ordered(first..last, one).into_iter().enumerate() {
+            n_reactions += traj.n_reactions;
+            n_hops += traj.n_hops;
+            if first + i == 0 {
+                level_history = traj.level_history;
+            }
+            for (snap, acc) in traj.snapshots.iter().zip(fields.iter_mut()) {
+                for (x, m) in snap.iter().zip(acc.iter_mut()) {
+                    m.sum += x;
+                    m.sum_sq += (*x as f64) * (*x as f64);
+                }
+            }
+            for (k, row) in traj.totals.iter().enumerate() {
+                for (s, x) in row.iter().enumerate() {
+                    totals[k][s].add(*x);
+                    net[k][s].add(*x - traj.baseline[s]);
+                }
+            }
+        }
+        first = last;
+    }
+
+    // Field units: 1 / 8^max_levels molecule per fine voxel -> µmol/L.
+    let n = cfg.trajectories as f64;
+    let unit = sim.voxel.grid.molecule_concentration() * 1e6
+        / 8f64.powi(sim.voxel.max_coarsen_levels as i32);
+    let field = |f: &dyn Fn(&FieldMoments) -> f64| -> Vec<VoxelState> {
+        fields
+            .iter()
+            .map(|acc| VoxelState {
+                n_species: n_sp,
+                n_voxels: n_fine,
+                data: acc.iter().map(|m| f(m) * unit).collect(),
+            })
+            .collect()
+    };
+    let mean = field(&|m| m.sum as f64 / n);
+    let std = field(&|m| {
+        if n < 2.0 {
+            return 0.0;
+        }
+        let s = m.sum as f64;
+        ((m.sum_sq - s * s / n).max(0.0) / (n - 1.0)).sqrt()
+    });
+    let table = |acc: &[Vec<Moments>], f: fn(&Moments) -> f64| -> Vec<Vec<f64>> {
+        acc.iter().map(|row| row.iter().map(f).collect()).collect()
+    };
+    Ok(RdmeOutput {
+        species,
+        snapshot_times,
+        mean,
+        std,
+        record_times: plan.times,
+        totals_mean: table(&totals, Moments::mean),
+        totals_std: table(&totals, Moments::std),
+        net_mean: table(&net, Moments::mean),
+        net_std: table(&net, Moments::std),
+        seed_energies: sim
+            .seeds
+            .iter()
+            .filter_map(|s| s.spec.energy_ev.map(|e| (s.spec.time, e)))
+            .collect(),
+        trajectories: cfg.trajectories,
+        seed: cfg.seed,
+        tau_leap: cfg.tau_leap,
+        n_reactions,
+        n_hops,
+        level_history,
+        exec_time: started.elapsed().as_secs_f64(),
+    })
+}

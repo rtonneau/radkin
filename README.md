@@ -124,6 +124,25 @@ equilibria, and brings nothing on the water chemistry, where the acid-base equil
 force exact steps. Measurements and the validation are in `docs/ssa.md`;
 `cargo run --release --example ssa_bench -- radicals 1e-12 32` compares the two.
 
+`radkin voxel CONFIG --solver ssa --out DIR` (or `solver = "ssa"` in the file) runs the
+voxel grid stochastically: reactions fire in each voxel on its own counts, and
+diffusion is a hop of one molecule to a neighbouring voxel at rate `D / h²` (the
+reaction-diffusion master equation, in place of the Strang splitting).
+
+- It takes the same `[voxel]` sections. `[ssa] volume` is not used (each voxel has its
+  own volume); `trajectories` and `seed` are. The splitting and rsoda settings of
+  `[voxel.run]` are ignored.
+- The initial solution is drawn per voxel (Poisson); the Geant4 molecules are injected
+  as whole molecules.
+- Outputs keep the layout of the deterministic run with the ensemble mean, plus
+  `snapshots/t<k>_<sp>_std.npy` and the `N_<sp>_std`, `G_<sp>_std` columns of
+  `yields.csv`.
+- No checkpoint is written and `--resume` is rejected.
+- At a few nm per voxel the result differs from the deterministic run (more surviving
+  radicals, less H2O2 and H2): the rate equations stop being valid at about one molecule
+  per voxel. A warning is logged when the spacing is too small for a reaction to be
+  represented on a grid. See `docs/ssa.md`.
+
 One molecule in the volume is `1 / (N_A V)` mol/L: 1.66 nmol/L for 1e-15 L (1 µm³).
 The cost grows with the number of reaction events, so with the volume, the dose and
 the simulated time.

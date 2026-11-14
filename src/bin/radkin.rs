@@ -70,9 +70,39 @@ struct VoxelArgs {
     /// `t_start`. Use a new `--out` directory.
     #[arg(long)]
     resume: Option<PathBuf>,
+    /// Solver; overrides the `solver` key of the configuration.
+    #[arg(long, value_enum)]
+    solver: Option<SolverArg>,
+}
+
+/// `radkin voxel` with the stochastic solver (RDME).
+fn voxel_ssa(a: &VoxelArgs, cfg: &SsaConfig) -> radkin::Result<()> {
+    if a.resume.is_some() {
+        return Err(RadkinError::Value(
+            "--resume cannot be used with the ssa solver (no checkpoint is written)".into(),
+        ));
+    }
+    let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
+    let out = radkin::ssa::run_rdme(&sim, cfg)?;
+    radkin::ssa::write_rdme_dir(&a.out, &out, &sim.voxel.grid)?;
+    eprintln!(
+        "radkin: ssa voxel run of {} voxels, {} trajectories, {} reactions and {} hops in {:.1} s; {} snapshots written to {}",
+        sim.voxel.grid.n_voxels(),
+        out.trajectories,
+        out.n_reactions,
+        out.n_hops,
+        out.exec_time,
+        out.snapshot_times.len(),
+        a.out.display()
+    );
+    Ok(())
 }
 
 fn voxel(a: &VoxelArgs) -> radkin::Result<()> {
+    let solver = SolverConfig::from_toml_file(&a.config)?;
+    if solver_of(a.solver, &solver) == SolverKind::Ssa {
+        return voxel_ssa(a, &solver.ssa);
+    }
     let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
     let checkpoint = a.out.join("checkpoint.npz");
     let resume = match &a.resume {
