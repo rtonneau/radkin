@@ -7,8 +7,6 @@
 //! [`rsoda::Lsoda::nordsieck`] for the `t_eval` points of each step,
 //! including one equal to the step's end, as scipy does.
 
-use std::borrow::BorrowMut;
-
 use rsoda::{
     JacobianKind, Lsoda, LsodaError, OdeSystem, OptionsBuilder, SparsityPattern, Tolerance,
 };
@@ -77,21 +75,18 @@ pub struct Solution {
     pub nst: usize,
 }
 
-/// The right-hand side and Jacobian of `mat` for rsoda, on the kernel buffers
-/// of `scratch`: a `&mut SolveScratch` borrowed for one solve, or a
-/// [`SolveScratch`] owned by a reused solver ([`Integrator`]).
-struct ChemSystem<'a, K> {
+struct ChemSystem<'a> {
     mat: &'a SimMatrices,
     source: &'a DoseRateSource,
-    scratch: K,
+    ws: &'a mut Workspace,
+    sparse: Option<&'a SparseJacobian>,
 }
 
-impl<K: BorrowMut<SolveScratch>> OdeSystem for ChemSystem<'_, K> {
+impl OdeSystem for ChemSystem<'_> {
     fn rhs(&mut self, t: f64, y: &[f64], ydot: &mut [f64]) -> std::result::Result<(), LsodaError> {
         #[cfg(feature = "timing")]
         let started = std::time::Instant::now();
-        let ws = &mut self.scratch.borrow_mut().ws;
-        derive(y, self.source.at(t), self.mat, ws, ydot);
+        derive(y, self.source.at(t), self.mat, self.ws, ydot);
         #[cfg(feature = "timing")]
         timing::add_rhs(started.elapsed());
         Ok(())
@@ -100,7 +95,7 @@ impl<K: BorrowMut<SolveScratch>> OdeSystem for ChemSystem<'_, K> {
     fn jac(&mut self, _t: f64, y: &[f64], pd: &mut [f64]) -> std::result::Result<(), LsodaError> {
         #[cfg(feature = "timing")]
         let started = std::time::Instant::now();
-        jacobian(y, self.mat, &mut self.scratch.borrow_mut().ws, pd);
+        jacobian(y, self.mat, self.ws, pd);
         #[cfg(feature = "timing")]
         timing::add_jac(started.elapsed());
         Ok(())
@@ -111,11 +106,7 @@ impl<K: BorrowMut<SolveScratch>> OdeSystem for ChemSystem<'_, K> {
     }
 
     fn sparsity_pattern(&self) -> Option<&SparsityPattern> {
-        self.scratch
-            .borrow()
-            .sparse
-            .as_ref()
-            .map(SparseJacobian::pattern)
+        self.sparse.map(SparseJacobian::pattern)
     }
 
     fn jac_sparse(
@@ -124,20 +115,19 @@ impl<K: BorrowMut<SolveScratch>> OdeSystem for ChemSystem<'_, K> {
         y: &[f64],
         values: &mut [f64],
     ) -> std::result::Result<(), LsodaError> {
-        let SolveScratch { ws, sparse } = self.scratch.borrow_mut();
-        let sj = sparse
-            .as_ref()
+        let sj = self
+            .sparse
             .expect("sparse Jacobian only requested in sparse mode");
         #[cfg(feature = "timing")]
         let started = std::time::Instant::now();
-        jacobian_sparse(y, self.mat, sj, ws, values);
+        jacobian_sparse(y, self.mat, sj, self.ws, values);
         #[cfg(feature = "timing")]
         timing::add_jac(started.elapsed());
         Ok(())
     }
 
     fn has_jac_sparse(&self) -> bool {
-        self.scratch.borrow().sparse.is_some()
+        self.sparse.is_some()
     }
 }
 
@@ -223,13 +213,13 @@ fn solver_failed(t_span: (f64, f64), t_reached: f64, e: &dyn std::fmt::Display) 
 
 /// An rsoda solver for `system` from `(t_span.0, y0)` with the options of
 /// `opts` and the first step `first_step`.
-fn new_lsoda<'a, K: BorrowMut<SolveScratch>>(
-    system: ChemSystem<'a, K>,
+fn new_lsoda<'a>(
+    system: ChemSystem<'a>,
     t_span: (f64, f64),
     y0: &[f64],
     opts: &SolveOptions,
     first_step: f64,
-) -> Result<Lsoda<'static, ChemSystem<'a, K>>> {
+) -> Result<Lsoda<'static, ChemSystem<'a>>> {
     let mut builder = OptionsBuilder::new(y0.len())
         .tolerance(Tolerance::scalar(opts.rtol, opts.atol))
         .jacobian(match (opts.jacobian, opts.use_jac) {
@@ -269,10 +259,13 @@ pub fn solve(
             ));
         }
     }
+    let mut ws = Workspace::new(mat);
+    let sparse = (opts.jacobian == JacobianMode::Sparse).then(|| SparseJacobian::new(mat));
     let system = ChemSystem {
         mat,
         source,
-        scratch: SolveScratch::new(mat, opts.jacobian),
+        ws: &mut ws,
+        sparse: sparse.as_ref(),
     };
     let mut solver = new_lsoda(system, t_span, y0, opts, opts.first_step)?;
     let mut sol = Solution::default();
@@ -356,6 +349,7 @@ pub fn integrate_to(
     first_step: f64,
     scratch: &mut SolveScratch,
 ) -> Result<Integration> {
+    let (t0, t_end) = t_span;
     assert_eq!(
         scratch.sparse.is_some(),
         opts.jacobian == JacobianMode::Sparse,
@@ -364,20 +358,10 @@ pub fn integrate_to(
     let system = ChemSystem {
         mat,
         source,
-        scratch,
+        ws: &mut scratch.ws,
+        sparse: scratch.sparse.as_ref(),
     };
     let mut solver = new_lsoda(system, t_span, y, opts, first_step)?;
-    step_to(&mut solver, t_span, y)
-}
-
-/// Step `solver`, started at `(t_span.0, y)`, to `t_span.1` and write the
-/// state there into `y` (the stepping of [`integrate_to`]).
-fn step_to<S: OdeSystem>(
-    solver: &mut Lsoda<'_, S>,
-    t_span: (f64, f64),
-    y: &mut [f64],
-) -> Result<Integration> {
-    let (t0, t_end) = t_span;
     let mut h_last = 0.0;
     let mut t = t0;
     while t < t_end {
@@ -400,54 +384,6 @@ fn step_to<S: OdeSystem>(
         h_last,
     })
 }
-
-/// One rsoda solver reused by successive [`Integrator::integrate_to`] calls on
-/// the same matrices, source and options (one per thread).
-///
-/// Each call restarts the solver ([`rsoda::Lsoda::restart`], a full reset) instead
-/// of building a new one, so the kernel buffers, rsoda's state arrays and its
-/// linear solver are allocated once. A restart gives the same results as a new
-/// solver, so every call is bit-identical to [`integrate_to`] with the same
-/// arguments.
-#[derive(Debug)]
-pub struct Integrator<'a> {
-    solver: Lsoda<'static, ChemSystem<'a, SolveScratch>>,
-}
-
-impl<'a> Integrator<'a> {
-    /// A solver for `mat` and `source` with the options of `opts`
-    /// (`opts.first_step` is only the construction step, replaced at every
-    /// [`Integrator::integrate_to`]; `opts.t_eval` is ignored).
-    pub fn new(
-        mat: &'a SimMatrices,
-        source: &'a DoseRateSource,
-        opts: &SolveOptions,
-    ) -> Result<Self> {
-        let system = ChemSystem {
-            mat,
-            source,
-            scratch: SolveScratch::new(mat, opts.jacobian),
-        };
-        let y0 = vec![0.0; mat.n_dyn];
-        let solver = new_lsoda(system, (0.0, 0.0), &y0, opts, opts.first_step)?;
-        Ok(Self { solver })
-    }
-
-    /// [`integrate_to`] on this solver: integrate `y` [µmol/L] in place over
-    /// `t_span` with the first step `first_step`.
-    pub fn integrate_to(
-        &mut self,
-        t_span: (f64, f64),
-        y: &mut [f64],
-        first_step: f64,
-    ) -> Result<Integration> {
-        self.solver
-            .restart(t_span.0, y, first_step)
-            .map_err(|e| solver_failed(t_span, t_span.0, &e))?;
-        step_to(&mut self.solver, t_span, y)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -525,8 +461,7 @@ mod tests {
                 ..opts()
             };
             let mut scratch = SolveScratch::new(&mat, mode);
-            let mut reused = Integrator::new(&mat, &DoseRateSource::None, &o).unwrap();
-            // The same scratch and solver for several states, in both orders.
+            // The same scratch for several states, in both orders.
             for scale in [1.0, 3.0, 1.0] {
                 let y: Vec<f64> = y0.iter().map(|v| v * scale).collect();
                 let reference = solve(&mat, &DoseRateSource::None, (0.0, 1e-6), &y, &o).unwrap();
@@ -547,12 +482,6 @@ mod tests {
                     (reference.nfev, reference.njev, reference.nst)
                 );
                 assert!(r.h_last > 0.0 && r.h_last < 1e-6);
-                let mut restarted = y.clone();
-                let rr = reused
-                    .integrate_to((0.0, 1e-6), &mut restarted, o.first_step)
-                    .unwrap();
-                assert_eq!(restarted, lean, "{mode:?} x{scale} restarted");
-                assert_eq!(rr, r, "{mode:?} x{scale} restarted");
             }
         }
     }

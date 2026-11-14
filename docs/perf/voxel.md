@@ -135,8 +135,8 @@ and measured, in a separate A/B session where the ticket-01 build ran at
 0.564 s (16 threads) / 3.71 s (1 thread) and this lever at about 0.53 s /
 3.14 s, 0.495 s at 16 threads (about -7% on top of this lever) and 2.94 s at
 1 thread (no gain there). Left as a follow-up idea
-(`.work/idea/rsoda-lsoda-restart.md`), done later: see
-[Solver restart](#solver-restart-session-2026-11-14__rsoda-lsoda-restart---kept).
+(`.work/idea/rsoda-lsoda-restart.md`), tried later and reverted: see
+[Solver restart](#solver-restart-session-2026-11-14__rsoda-lsoda-restart---reverted).
 
 ## Lever 2: fused junction half-reactions (ticket 03) - kept
 
@@ -435,60 +435,123 @@ Observation for the level counts: a step that lands on a seed time may coarsen a
 immediately in the injection (here the two pre-seed changes at 1e-13 and 3e-13, refined at 1e-12);
 this costs one restriction and one prolongation of a uniform state and no solves.
 
-## Solver restart (session `2026-11-14__rsoda-lsoda-restart`) - kept
+## Solver restart (session `2026-11-14__rsoda-lsoda-restart`) - reverted
 
-rsoda `2255091` adds `Lsoda::restart(t0, y0, h0)`: a full reset in place, equal to
-`Lsoda::new` with the same system and options, that keeps the `State` arrays and the
-linear solver (the dense `n x n` matrix never used here). In `reaction_step_background`
-each rayon pool thread now builds one `solver::Integrator` (kernel scratch plus one
-`Lsoda`, options as `integrate_to` builds them) on its first voxel and restarts it for
-each of its voxels; the background integration runs on one of these solvers. The first
-step is unchanged (`CARRY_FACTOR` times the carried step, through `restart`'s `h0`).
-The chunked and single-pulse drivers and `integrate_one` keep `Lsoda::new`.
+rsoda `2255091` adds `Lsoda::restart(t0, y0, h0)`, a full reset in place that gives
+the same results as `Lsoda::new` with the same system and options, and keeps the
+`State` arrays and the linear solver (the dense `n x n` matrix, never used here). It
+also adds `Lsoda::restart_warm(t0, y0, h0)`, which starts the new problem on the
+method the solver is on (Adams or BDF), at order 1. Ticket 03 used `restart` in
+`reaction_step_background`: each rayon pool thread built one `solver::Integrator`
+(kernel scratch plus one `Lsoda`) on its first voxel and restarted it for each of its
+voxels and the background. Ticket 04 added a `[voxel] warm_start` option (off by
+default) that switched those restarts to `restart_warm`, with the first step still
+`CARRY_FACTOR` times the carried step. Results with `restart` are bit-identical to
+`Lsoda::new` (unit test and all 67 output files of `radkin voxel
+data/voxel_example.toml` at 16 and 1 threads).
 
-Results are bit-identical: unit test (`Integrator` against `integrate_to` and `solve`,
-dense and sparse, reused over several states) and all 67 output files of `radkin voxel
-data/voxel_example.toml` at 16 and 1 threads equal to the pre-session build. The work
-counts and accuracy are unchanged (46 / 0 steps, 152510 solves, nfev 3693056, nst
-1896047, max total error 1.4963e-3, max scaled error 0.193).
+**Final state: both reverted.** The voxel reaction step builds a new `Lsoda` per
+solve again, as before the session. The warm-start option is removed. The rsoda
+`rev = "2255091"` pin stays: the new functions are unused, and the rest of rsoda is
+unchanged.
 
-A/B with four builds run in alternation: **oldrev** (radkin `a91c033`, rsoda
-`f5d1312`), **before** (the rsoda rev bump alone), **after** (this change) and, in the
-third session, **afternew**, a control with the final code but `Lsoda::new` in place of
-`restart` (not committed). Medians of the per-run medians (16 threads: 10, 10 and 8 runs
-of `--repeat 5`; 1 thread: 3 sessions of 4 runs of `--repeat 3`):
+### Measurement
 
-| threads | session | oldrev [s] | before [s] | afternew [s] | after [s] | after vs before | after vs afternew | after vs oldrev |
-|---|---|---|---|---|---|---|---|---|
-| 16 | 1 | 0.464 | 0.474 | - | 0.464 | -2.1% | - | +0.1% |
-| 16 | 2 (reversed order) | 0.463 | 0.484 | - | 0.473 | -2.4% | - | +2.2% |
-| 16 | 3 | 0.457 | 0.483 | 0.483 | 0.460 | -4.7% | -4.8% | +0.6% |
-| 1 | 1 | 2.694 | 2.890 | - | 2.716 | -6.0% | - | +0.8% |
-| 1 | 2 (reversed order) | 2.828 | 3.110 | - | 2.860 | -8.0% | - | +1.1% |
-| 1 | 3 | 2.634 | 2.971 | 2.912 | 2.683 | -9.7% | -7.9% | +1.9% |
+Three variants. **new** builds one `Lsoda` per solve and keeps the per-thread kernel
+scratch, as before the session. **restart** is ticket 03. **warm** is restart with
+`warm_start = true`. Two cases: **short** is the default bench case (`t_end` 1e-7,
+default reference), and **late** is `--t-end 1e-5` against its own reference
+(`--write-reference`, rtol/atol 1e-6, 709 steps). Each session runs 4 rounds. Within a
+round the variants alternate (16 threads: `--repeat 5` short and `--repeat 3` late; 1
+thread: `--repeat 3` short and `--repeat 1` late). The three sessions use the orders
+new/restart/warm, warm/restart/new and restart/new/warm. Medians of the per-run
+medians are below.
 
-Reading:
+The first try used two binaries: a control build with `new` (a temporary edit) and
+the restart build, run with and without `--warm-start`. It measured restart **0.5-11%
+slower** than the control in every session (16 threads: +0.5% to +3.0% short, +4.9%
+to +5.8% late; 1 thread: +4.9% to +6.8% short, +8.4% to +10.6% late). Ticket 03, with
+a control of the same kind, had measured restart 5-8% **faster**. Same code, opposite
+sign, about 10% apart: two separate builds of this crate differ by more than the
+effect, so build-to-build (code layout) noise swamps it. The decisive run therefore
+used **one binary**: an environment variable picked `new` or `restart` per solve
+(temporary edit, not committed), and `--warm-start` picked warm.
 
-- The restart itself: **after** against **before** and against the same-code control
-  **afternew** is -6% to -10% on one thread and -2% to -5% on 16 threads. A microbenchmark
-  (n = 16, one thread) gives `Lsoda::new` plus drop 0.75 us and `restart` 0.11 us; in the
-  run the saving is about 1.5 us per solve on one thread, more than the microbenchmark,
-  probably because the reused buffers stay in cache.
-- **before** is 2-6% (16 threads) and 7-13% (1 thread) slower than **oldrev**, although
-  rsoda `2255091` only changes the solver setup (`Lsoda::new` plus drop is about 0.07-0.1 us slower).
-  A run-mode control (`examples/bench.rs`, Labarbe 1e-7..10 s, one solve, 4 runs of
-  `--repeat 20`) is 5.6% faster with the new rsoda (6.175 -> 5.830 ms, same nfev and nst),
-  so there is no step-loop regression: this is a build-to-build (code layout) difference,
-  the kind of noise floor already seen between two builds (README, ticket 04 of the
-  per-step-overhead session: +1% to +8%).
-- So against the pre-session build the voxel step is unchanged (+0% to +2%), and against
-  the rev bump alone (the state a revert would leave) it is faster.
+One binary, all variants alternating:
 
-Keep rule (docs/perf/README.md), measured against the rev bump alone: one thread gains
-6.0-9.7% in every session (7.9% against the same-code control), above 5%; 16 threads gains
-2.1-4.8%, below 5% but never slower; results are bit-identical and the golden tests pass at
-unchanged tolerances. Kept provisionally: the one-thread margin rests on one same-code control session and is close to the build-to-build noise above, 16 threads alone would fail the rule, and there is no net gain against the pre-session build. The final keep or revert is decided with repeated sessions together with the warm start (next section). The gain at 16 threads is smaller than the earlier prototype's
--7% (Lever 1), and the expected allocator-contention gain did not show beyond the one-thread
-saving divided over the threads.
+| threads | case | session | new [s] | restart [s] | warm [s] | restart vs new | warm vs restart |
+|---|---|---|---|---|---|---|---|
+| 16 | short | 1 | 0.4560 | 0.4333 | 0.4321 | -5.0% | -0.3% |
+| 16 | short | 2 | 0.4556 | 0.4349 | 0.4312 | -4.5% | -0.8% |
+| 16 | short | 3 | 0.4521 | 0.4315 | 0.4335 | -4.6% | +0.5% |
+| 16 | short | all 12 runs | 0.4546 | 0.4345 | 0.4316 | -4.4% | -0.6% |
+| 16 | late | 1 | 0.9303 | 0.9057 | 0.8925 | -2.6% | -1.5% |
+| 16 | late | 2 | 0.9327 | 0.9034 | 0.8906 | -3.1% | -1.4% |
+| 16 | late | 3 | 0.9354 | 0.9031 | 0.8922 | -3.4% | -1.2% |
+| 16 | late | all 12 runs | 0.9333 | 0.9037 | 0.8921 | -3.2% | -1.3% |
+| 1 | short | 1 | 2.6736 | 2.4179 | 2.4945 | -9.6% | +3.2% |
+| 1 | short | 2 | 2.5206 | 2.3660 | 2.3753 | -6.1% | +0.4% |
+| 1 | short | 3 | 2.6805 | 2.5152 | 2.5038 | -6.2% | -0.5% |
+| 1 | short | all 12 runs | 2.6736 | 2.4232 | 2.4893 | -9.4% | +2.7% |
+| 1 | late | 1 | 6.1623 | 5.8683 | 5.6768 | -4.8% | -3.3% |
+| 1 | late | 2 | 5.7755 | 5.6876 | 5.7006 | -1.5% | +0.2% |
+| 1 | late | 3 | 6.1477 | 5.9669 | 5.8692 | -2.9% | -1.6% |
+| 1 | late | all 12 runs | 6.1473 | 5.8683 | 5.8360 | -4.5% | -0.6% |
 
-Evidence (not committed): `.scratch/tests/2026-11-14__rsoda-lsoda-restart/evidence/03-*`.
+Work and accuracy against the reference (both bench methods; the warm 16-thread ranges
+cover all 24 runs):
+
+| case | variant | solves | nfev | nst | max total err | max scaled err |
+|---|---|---|---|---|---|---|
+| short | new, restart | 152510 | 3693056 | 1896047 | 1.496305e-3 | 0.1928750 |
+| short | warm | 152510 | 3693056 | 1896047 | 1.496305e-3 | 0.1928750 |
+| late | new, restart | 194805 | 8904705 | 4437432 | 2.556073e-4 | 0.0193585 |
+| late | warm, 1 thread | 194805 | 7962681 (-10.6%) | 4126494 | 2.556072e-4 | 0.0193585 |
+| late | warm, 16 threads | 194805 | 8285202-8347088 (-6.3% to -7.0%) | 4227879-4248984 | 2.556072e-4 to 2.556073e-4 | 0.0193585 |
+
+### Warm start: removed
+
+- Short case: no solve ends on BDF (a temporary counter found none in the first
+  150000 of 152510 solves), so `restart_warm` behaves as `restart`. The work is identical, and the wall-time
+  differences (-0.8% to +3.2%) are noise.
+- Late case: BDF appears only in the late, slow half-steps. nfev drops by 6-11% at
+  equal accuracy (the errors agree to 7 digits), but wall time drops only 1.2-1.5% at
+  16 threads and -3.3% to +0.2% at 1 thread, probably because the BDF steps form and
+  factor the iteration matrix, which costs more than the right-hand-side calls saved.
+- With more than one thread the result is no longer deterministic. A warm restart
+  starts on the method of whichever voxel the thread solved last, and that depends on
+  rayon's scheduling. nfev changed from run to run (12 different values in 12 runs), and
+  the final state changed in the last digits. Per-voxel results would no longer be
+  bit-identical across thread counts (`carried_steps_do_not_depend_on_thread_count`) or
+  with a serial run. A deterministic version would carry the method per voxel, as the
+  step size is carried, but it needs an rsoda API that restarts on a given method, which
+  does not exist.
+
+The rule (fewer nfev **and** less wall time at equal accuracy) fails on the default
+case. On the late case the time gain is within noise and far below the 5% keep rule,
+and the result loses determinism. The option, its parsing and its test are removed
+(README unchanged).
+
+### Restart: reverted
+
+Keep rule (docs/perf/README.md): at least 5% on the targeted cases, none slower beyond
+noise. In one binary, restart against new gains 6.1-9.6% on one thread (short), but
+only 4.4-5.0% at 16 threads on the default case (the default thread count, and the
+case the prototype's expected -7% was for) and 1.5-4.8% on the late case. It is never
+slower in one binary. Across separate builds, the gain is smaller than the
+build-to-build noise: this session's control build ran faster than the restart build,
+and ticket 03's ran slower. The saving per solve is real (about 1.5 us of setup on one
+thread; microbenchmark: `Lsoda::new` plus drop 0.75 us, `restart` 0.11 us), but the
+rule asks 5% on the targeted cases and 16 threads does not reach it. So the code of
+ticket 03 is reverted (`src/solver.rs` and `src/voxel/reaction.rs` as at `a91c033`);
+results are unchanged (same work and accuracy, bit-identical as before).
+
+If the voxel step is ever measured against a lower noise floor (fixed code layout, or a
+much bigger grid where setup is a larger share), restart is the first thing to retry:
+in one binary it was never slower.
+
+Evidence (not committed): `.scratch/tests/2026-11-14__rsoda-lsoda-restart/evidence/`:
+`03-*` (ticket 03), `04-abc-raw-s{1,2,3}.txt` and `04-abc-summary-separate-builds.txt`
+(two binaries, control diff `04-control-new.diff`), `04-abc-switch-raw-s{1,2,3}.txt` and
+`04-abc-summary-one-binary.txt` (one binary, `04-control-switch.diff`), scripts
+`04-abc.sh`, `04-abc-switch.sh` and `04-summary.py` one level up.
