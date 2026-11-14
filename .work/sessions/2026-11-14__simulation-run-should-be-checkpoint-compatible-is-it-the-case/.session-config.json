@@ -108,9 +108,33 @@
         "ticket": "02-sim-checkpoint-resume",
         "commit": "9979269"
       }
+    },
+    {
+      "at": "2026-11-14T11:43:26.562Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-cli-resume-tests-docs.md",
+        "03-implement/03-cli-resume-tests-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-cli-resume-tests-docs"
+      }
+    },
+    {
+      "at": "2026-11-14T11:44:33.924Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-cli-resume-tests-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-cli-resume-tests-docs",
+        "commit": "92415ae"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/voxel-checkpoint",
     "base_branch": "chore/radkin-irt-syn-gvalues",
