@@ -35,6 +35,8 @@ struct SnapshotIndex<'a> {
     /// Events summed over the trajectories.
     n_reactions: u64,
     n_hops: u64,
+    /// Species level of every species, in `species` order.
+    species_levels: &'a [u32],
     exec_time: f64,
 }
 
@@ -144,6 +146,7 @@ pub fn write_rdme_dir(dir: &Path, out: &RdmeOutput, grid: &VoxelGrid) -> Result<
         rate_correction: out.rate_correction,
         n_reactions: out.n_reactions,
         n_hops: out.n_hops,
+        species_levels: &out.species_levels,
         exec_time: out.exec_time,
     };
     let json = serde_json::to_string_pretty(&index)

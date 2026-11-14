@@ -573,6 +573,28 @@ fn ssa_rdme_species_levels_are_checked() {
     assert!(e.contains("ssa.species_levels.Ar"), "{e}");
     // Level 0 everywhere is the plain RDME.
     assert!(run_rdme(&sim, &with(&[("e_aq", 0)])).is_ok());
+    // e_aq on level 1: 4x1x1 voxels of 100 nm, molecules conserved, and the
+    // fine field spreads each coarse voxel over its 8 fine voxels.
+    let out = run_rdme(&sim, &with(&[("e_aq", 1)])).unwrap();
+    let e_aq = out.species.iter().position(|s| s == "e_aq").unwrap();
+    assert_eq!(out.species_levels[e_aq], 1);
+    assert!(out.n_hops > 0);
+    for row in &out.totals_mean {
+        assert_eq!(row[e_aq], 4000.0);
+    }
+    let last = out.mean.last().unwrap().field(e_aq);
+    for v in 0..sim.voxel.grid.n_voxels() {
+        let c = sim.voxel.grid.coords(v);
+        let twin = sim.voxel.grid.index(c[0] ^ 1, c[1] ^ 1, c[2] ^ 1);
+        assert_eq!(last[v], last[twin], "voxel {v}");
+    }
+    // Not combined yet with global coarsening or tau-leaping.
+    let tau = SsaConfig {
+        tau_leap: true,
+        ..with(&[("e_aq", 1)])
+    };
+    let e = run_rdme(&sim, &tau).unwrap_err().to_string();
+    assert!(e.contains("tau_leap"), "{e}");
 
     // The deterministic voxel run refuses the table.
     let cfg = diffusion_case(&dir);
