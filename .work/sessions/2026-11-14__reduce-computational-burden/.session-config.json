@@ -1,0 +1,74 @@
+{
+  "session_id": "2026-11-14__reduce-computational-burden",
+  "feature_name": "reduce-computational-burden",
+  "scratch_dir": ".scratch/tests/2026-11-14__reduce-computational-burden",
+  "created_at": "2026-11-14T13:04:58.948Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-14T13:04:58.948Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T13:15:12.567Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish",
+        "shipMode": "delegate"
+      }
+    },
+    {
+      "at": "2026-11-14T13:15:30.313Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T13:15:30.415Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T13:16:06.515Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "perf/voxel-reaction-cost",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-14T13:16:06.533Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-voxel-bench-and-gate.md",
+        "02-plan/tickets/02-lean-voxel-solve.md",
+        "02-plan/tickets/03-fuse-half-reactions.md",
+        "02-plan/tickets/04-embedded-error-estimate.md"
+      ],
+      "detail": {
+        "tickets": 4
+      }
+    }
+  ],
+  "current_phase": "ship",
+  "git": {
+    "branch": "perf/voxel-reaction-cost",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-14T13:16:06.515Z",
+    "pr_url": null
+  }
+}
