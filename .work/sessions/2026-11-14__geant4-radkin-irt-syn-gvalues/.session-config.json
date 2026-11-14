@@ -108,6 +108,26 @@
         "ticket": "02-chemistry-export-and-tooling",
         "commit": "2112de0"
       }
+    },
+    {
+      "at": "2026-11-14T08:40:20.129Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-sweeps-and-report.md",
+        "03-implement/03-sweeps-and-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-sweeps-and-report"
+      }
+    },
+    {
+      "at": "2026-11-14T08:53:59.764Z",
+      "event": "handoff_saved",
+      "phase": "ship",
+      "files": [
+        "HANDOFF.md"
+      ]
     }
   ],
   "current_phase": "ship",
