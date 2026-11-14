@@ -134,9 +134,33 @@
         "ticket": "03-fuse-half-reactions",
         "commit": "309ffe7"
       }
+    },
+    {
+      "at": "2026-11-14T13:58:21.918Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-embedded-error-estimate.md",
+        "03-implement/04-embedded-error-estimate/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-embedded-error-estimate"
+      }
+    },
+    {
+      "at": "2026-11-14T14:18:14.308Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/04-embedded-error-estimate/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-embedded-error-estimate",
+        "commit": "fc39c67"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "perf/voxel-reaction-cost",
     "base_branch": "main",
