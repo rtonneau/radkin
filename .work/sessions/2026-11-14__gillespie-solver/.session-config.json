@@ -161,6 +161,30 @@
         "ticket": "04-lsoda-validation",
         "commit": "e3c5536"
       }
+    },
+    {
+      "at": "2026-11-14T20:27:34.222Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-tau-leaping.md",
+        "03-implement/05-tau-leaping/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-tau-leaping"
+      }
+    },
+    {
+      "at": "2026-11-14T20:37:21.157Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-tau-leaping/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-tau-leaping",
+        "commit": "e96dbd5"
+      }
     }
   ],
   "current_phase": "ship",
