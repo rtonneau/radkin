@@ -110,6 +110,18 @@
         "ticket": "03-radkin-reuse-solver",
         "commit": "346f8ad"
       }
+    },
+    {
+      "at": "2026-11-14T19:00:26.602Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-rsoda-restart/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-rsoda-restart",
+        "commit": "346f8ad"
+      }
     }
   ],
   "current_phase": "ship",

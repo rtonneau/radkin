@@ -1,6 +1,6 @@
 # Ticket 01: rsoda-restart
 
-**Status:** In Progress
+**Status:** ✅ Done
 
 ## Local Test Result
 
@@ -70,8 +70,8 @@ with a fresh banded FD solver instead.
 
 ## Commits
 
-Filled by ticket-complete.js.
+- 346f8ad perf: Reuse one rsoda solver per thread in the voxel reaction step (ticket 03)
 
 ## Time Spent
 
-Filled by ticket-complete.js.
+1h 40m (ticket-start.js to ticket-complete.js)
