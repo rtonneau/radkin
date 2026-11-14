@@ -88,6 +88,30 @@
         "ticket": "01-species-levels-config",
         "commit": "0286a80"
       }
+    },
+    {
+      "at": "2026-11-14T23:45:39.911Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-species-level-state-and-hops.md",
+        "03-implement/02-species-level-state-and-hops/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-species-level-state-and-hops"
+      }
+    },
+    {
+      "at": "2026-11-14T23:52:22.602Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-species-level-state-and-hops/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-species-level-state-and-hops",
+        "commit": "f93cfc4"
+      }
     }
   ],
   "git": {
