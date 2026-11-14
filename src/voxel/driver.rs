@@ -13,7 +13,7 @@ use crate::matrices::SimMatrices;
 use crate::solver::SolveOptions;
 use crate::voxel::diffusion::{Diffusion, Scheme};
 use crate::voxel::grid::VoxelState;
-use crate::voxel::reaction::{integrate_one, reaction_step_background};
+use crate::voxel::reaction::{CarriedSteps, integrate_one, reaction_step_background};
 
 /// Step-size control of the splitting.
 #[derive(Debug, Clone, PartialEq)]
@@ -89,6 +89,9 @@ pub struct VoxelRun {
     pub voxel_steps: u64,
     dt: f64,
     rannacher_pending: bool,
+    /// rsoda step sizes carried between reaction half-steps, along the
+    /// accepted trajectory (not stored in checkpoints).
+    carry: CarriedSteps,
 }
 
 impl VoxelRun {
@@ -101,6 +104,7 @@ impl VoxelRun {
         solve: SolveOptions,
     ) -> Self {
         let dt = control.dt_initial;
+        let carry = CarriedSteps::new(state.n_voxels);
         Self {
             mat,
             diffusion,
@@ -118,6 +122,7 @@ impl VoxelRun {
             voxel_steps: 0,
             dt,
             rannacher_pending: true,
+            carry,
         }
     }
 
@@ -132,7 +137,8 @@ impl VoxelRun {
     }
 
     /// Add `amount` [µmol/L, same layout as the state] and damp the next
-    /// diffusion step (Rannacher). dt restarts from `dt_initial`.
+    /// diffusion step (Rannacher). dt restarts from `dt_initial` and the
+    /// carried rsoda steps are forgotten.
     pub fn inject(&mut self, amount: &VoxelState) {
         assert_eq!(amount.data.len(), self.state.data.len());
         for (s, a) in self.state.data.iter_mut().zip(&amount.data) {
@@ -140,6 +146,7 @@ impl VoxelRun {
         }
         self.rannacher_pending = true;
         self.dt = self.control.dt_initial;
+        self.carry.reset();
         self.record_totals();
     }
 
@@ -174,18 +181,19 @@ impl VoxelRun {
         &mut self,
         state: &mut VoxelState,
         bg: &mut Option<Vec<f64>>,
+        carry: &mut CarriedSteps,
         t: f64,
         dt: f64,
         damped: bool,
     ) -> Result<()> {
-        self.half_reaction(state, bg, t, dt / 2.0)?;
+        self.half_reaction(state, bg, carry, t, dt / 2.0)?;
         let shift = if self.skip_background {
             bg.as_deref()
         } else {
             None
         };
         self.diffuse(state, shift, dt, damped);
-        self.half_reaction(state, bg, t + dt / 2.0, dt / 2.0)
+        self.half_reaction(state, bg, carry, t + dt / 2.0, dt / 2.0)
     }
 
     /// Diffusion over `dt`. With a background, the deviation from it is
@@ -216,16 +224,18 @@ impl VoxelRun {
         &mut self,
         state: &mut VoxelState,
         bg: &mut Option<Vec<f64>>,
+        carry: &mut CarriedSteps,
         t: f64,
         h: f64,
     ) -> Result<()> {
+        let (mat, o) = (&self.mat, &self.solve);
         let n_bg = if self.skip_background {
-            reaction_step_background(&self.mat, state, bg.as_mut(), t, h, &self.solve)?
+            reaction_step_background(mat, state, bg.as_mut(), carry, t, h, o)?
         } else {
             if let Some(b) = bg.as_mut() {
-                integrate_one(&self.mat, b, t, h, &self.solve)?;
+                integrate_one(mat, b, &mut carry.background, t, h, o)?;
             }
-            reaction_step_background(&self.mat, state, None, t, h, &self.solve)?
+            reaction_step_background(mat, state, None, carry, t, h, o)?
         };
         self.background_voxel_steps += n_bg as u64;
         self.voxel_steps += state.n_voxels as u64;
@@ -253,17 +263,14 @@ impl VoxelRun {
             let damped = self.rannacher_pending;
             let mut big = self.state.clone();
             let mut big_bg = self.background.clone();
-            self.strang(&mut big, &mut big_bg, self.t, dt, damped)?;
+            let mut big_carry = self.carry.clone();
+            self.strang(&mut big, &mut big_bg, &mut big_carry, self.t, dt, damped)?;
             let mut small = self.state.clone();
             let mut small_bg = self.background.clone();
-            self.strang(&mut small, &mut small_bg, self.t, dt / 2.0, damped)?;
-            self.strang(
-                &mut small,
-                &mut small_bg,
-                self.t + dt / 2.0,
-                dt / 2.0,
-                false,
-            )?;
+            let mut small_carry = self.carry.clone();
+            let (sb, sc) = (&mut small_bg, &mut small_carry);
+            self.strang(&mut small, sb, sc, self.t, dt / 2.0, damped)?;
+            self.strang(&mut small, sb, sc, self.t + dt / 2.0, dt / 2.0, false)?;
             let err = self.error_norm(&big, &small);
             let c = &self.control;
             let factor = if err == 0.0 {
@@ -274,6 +281,7 @@ impl VoxelRun {
             if err <= 1.0 {
                 self.state = small;
                 self.background = small_bg;
+                self.carry = small_carry;
                 self.t = if landing { t_target } else { self.t + dt };
                 self.steps.push(StepRecord {
                     t: self.t,
@@ -473,6 +481,23 @@ mod tests {
             let tol = 1e-8 * b.abs() + 1e-10;
             assert!((a - b).abs() <= tol, "{a} vs {b}");
         }
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn seeded_run_does_not_depend_on_thread_count() {
+        let pool = |n| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(n)
+                .build()
+                .unwrap()
+        };
+        let one = pool(1).install(|| seeded_run(true));
+        let four = pool(4).install(|| seeded_run(true));
+        assert_eq!(one.state.data, four.state.data);
+        assert_eq!(one.background, four.background);
+        assert_eq!(one.steps, four.steps);
+        assert_eq!(one.carry, four.carry);
     }
 
     #[test]
