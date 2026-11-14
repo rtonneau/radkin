@@ -332,3 +332,110 @@ fn ssa_rdme_cli_writes_mean_and_std_files() {
     assert!(stderr(&c).contains("--resume"), "{}", stderr(&c));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Pure water, radicals seeded in the centre of an 8x8x8 grid of 100 nm
+/// voxels, twice; the box homogenises after each seed. `levels` coarsening
+/// levels.
+fn homogenising_case(dir: &Path, levels: u32) -> PathBuf {
+    std::fs::write(
+        dir.join("track.csv"),
+        molecules(&["e_aq", "OH_r", "H3O_plus"], 1500, 310.0, 490.0),
+    )
+    .unwrap();
+    let path = dir.join(format!("run{levels}.toml"));
+    let text = format!(
+        r#"
+        [includes]
+        toml = ["radkin/advanced_water_radiolysis.toml"]
+
+        [voxel]
+        max_coarsen_levels = {levels}
+
+        [voxel.grid]
+        dims = [8, 8, 8]
+        spacing_nm = 100.0
+
+        [[voxel.seed]]
+        file = "track.csv"
+        time = 1e-9
+
+        [[voxel.seed]]
+        file = "track.csv"
+        time = 5e-5
+
+        [voxel.run]
+        t_end = 1e-4
+        snapshots = [1e-6, 1e-5, 1e-4]
+        "#
+    );
+    std::fs::write(&path, text).unwrap();
+    path
+}
+
+#[test]
+fn ssa_rdme_coarsening_matches_the_fine_grid() {
+    let dir = scratch("coarsening");
+    let fine_sim = VoxelSimulation::from_toml(homogenising_case(&dir, 0)).unwrap();
+    let coarse_sim = VoxelSimulation::from_toml(homogenising_case(&dir, 3)).unwrap();
+    let n = 24;
+    let fine = run_rdme(&fine_sim, &ssa(n)).unwrap();
+    let coarse = run_rdme(&coarse_sim, &ssa(n)).unwrap();
+    assert!(fine.level_history.is_empty());
+    // Trajectory 0: coarsened once the first seed has spread, refined to the
+    // fine grid for the second seed, coarsened again afterwards.
+    let levels: Vec<u32> = coarse.level_history.iter().map(|(_, l)| *l).collect();
+    let refined = levels
+        .iter()
+        .position(|l| *l == 0)
+        .expect("refined for the second seed");
+    assert!(
+        levels[..refined].iter().any(|l| *l >= 2),
+        "levels {levels:?}"
+    );
+    assert_eq!(coarse.level_history[refined].0, 5e-5);
+    assert!(
+        levels[refined..].iter().any(|l| *l >= 2),
+        "levels {levels:?}"
+    );
+
+    let mut worst = 0.0f64;
+    for t in &fine.snapshot_times {
+        let (rf, rc) = (record(&fine, *t), record(&coarse, *t));
+        for (s, label) in fine.species.iter().enumerate() {
+            let (mf, mc) = (fine.totals_mean[rf][s], coarse.totals_mean[rc][s]);
+            let var =
+                (fine.totals_std[rf][s].powi(2) + coarse.totals_std[rc][s].powi(2)) / n as f64;
+            let sem = var.max(mf.max(1.0) / n as f64).sqrt();
+            assert!(
+                (mf - mc).abs() <= K * sem + 1.0,
+                "t = {t:e} s, {label}: coarsened {mc:.2} vs fine {mf:.2} molecules (SEM {sem:.2})"
+            );
+            worst = worst.max((mf - mc).abs() / sem);
+        }
+    }
+    // The snapshots stay on the fine grid and hold every molecule.
+    let unit = per_umol(&coarse_sim);
+    for (k, t) in coarse.snapshot_times.iter().enumerate() {
+        assert_eq!(coarse.mean[k].n_voxels, 512);
+        let r = record(&coarse, *t);
+        for s in 0..coarse.species.len() {
+            let total = coarse.mean[k].field(s).iter().sum::<f64>() * unit;
+            assert!(
+                (total - coarse.totals_mean[r][s]).abs() <= 1e-9 * total.max(1.0),
+                "snapshot {k}, species {s}: {total} vs {}",
+                coarse.totals_mean[r][s]
+            );
+        }
+    }
+    println!(
+        "coarsening: worst total difference {worst:.2} combined SEM; hops per trajectory \
+         {} fine, {} coarsened; reactions {} and {}; levels of trajectory 0: {:?}",
+        fine.n_hops / n as u64,
+        coarse.n_hops / n as u64,
+        fine.n_reactions / n as u64,
+        coarse.n_reactions / n as u64,
+        coarse.level_history
+    );
+    assert!(coarse.n_hops * 2 < fine.n_hops, "coarsening saves hops");
+    let _ = std::fs::remove_dir_all(&dir);
+}

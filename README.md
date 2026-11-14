@@ -138,6 +138,11 @@ reaction-diffusion master equation, in place of the Strang splitting).
   `snapshots/t<k>_<sp>_std.npy` and the `N_<sp>_std`, `G_<sp>_std` columns of
   `yields.csv`.
 - No checkpoint is written and `--resume` is rejected.
+- `max_coarsen_levels` works as in the deterministic run, with its own test: the grid
+  drops a level when the counts of every 2x2x2 block are statistically uniform
+  (`coarsen_tol_factor` sets the threshold; the default 0.1 gave 7 times fewer hops on a
+  homogenising case with no measurable change of the results). It refines back to the
+  fine grid before each seed.
 - At a few nm per voxel the result differs from the deterministic run (more surviving
   radicals, less H2O2 and H2): the rate equations stop being valid at about one molecule
   per voxel. A warning is logged when the spacing is too small for a reaction to be

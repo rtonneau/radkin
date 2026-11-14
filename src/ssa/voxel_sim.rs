@@ -19,6 +19,7 @@ use crate::matrices::SimMatrices;
 use crate::ssa::config::SsaConfig;
 use crate::ssa::ensemble::{Moments, map_ordered};
 use crate::ssa::rdme::{Rdme, RdmeSetup};
+use crate::ssa::rdme_coarsen::dispersion_threshold;
 use crate::ssa::rng::SsaRng;
 use crate::unit_cell::thinned_times;
 use crate::voxel::grid::VoxelState;
@@ -174,11 +175,6 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
             "ssa.tau_leap = true is not available for voxel runs".into(),
         ));
     }
-    if sim.voxel.max_coarsen_levels > 0 {
-        return Err(RadkinError::Config(
-            "voxel.max_coarsen_levels > 0 is not available with solver = \"ssa\"".into(),
-        ));
-    }
     let species = sim.species();
     let mat = SimMatrices::build(&sim.env)?;
     let coeffs: Vec<f64> = species.iter().map(|s| sim.voxel.diffusion_of(s)).collect();
@@ -202,6 +198,8 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
             );
         }
     }
+    let z_max = (sim.voxel.max_coarsen_levels > 0)
+        .then(|| dispersion_threshold(sim.voxel.coarsen_tol_factor));
     let plan = schedule(sim)?;
     let molecules = seed_molecules(sim)?;
     let y0 = sim.env.initial_values();
@@ -209,6 +207,7 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
 
     let one = |i: usize| -> TrajectoryOutput {
         let mut rdme = Rdme::new(&setup, t_start, SsaRng::new(cfg.seed, i as u64));
+        rdme.set_coarsening(z_max);
         rdme.fill_poisson(&y0);
         let baseline = rdme.totals();
         let mut out = TrajectoryOutput {
@@ -233,6 +232,7 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
         }
         out.n_reactions = rdme.n_reactions;
         out.n_hops = rdme.n_hops;
+        out.level_history = rdme.level_history;
         out
     };
 

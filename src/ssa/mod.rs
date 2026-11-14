@@ -9,6 +9,7 @@ pub mod exact;
 pub mod model;
 pub mod output;
 pub mod rdme;
+pub mod rdme_coarsen;
 pub mod rng;
 pub mod schedule;
 pub mod tau;
@@ -21,6 +22,7 @@ pub use exact::{Cell, Exact, Segment, Stepper, Trajectory, initial_counts, run_t
 pub use model::{Law, Reaction, Slot, Source, SsaModel};
 pub use output::{SsaRunMeta, write_ssa_dir};
 pub use rdme::{Rdme, RdmeSetup};
+pub use rdme_coarsen::dispersion_threshold;
 pub use rng::{SsaRng, det_ln, ln_factorial};
 pub use schedule::{beam_segments, delivered_dose};
 pub use tau::TauLeap;

@@ -226,6 +226,12 @@ pub struct Rdme<'a> {
     /// Events selected in a voxel whose rate had become zero (round-off of
     /// the incremental rate updates); they change nothing.
     pub n_null: u64,
+    /// Threshold of the dispersion test; `None`: coarsening off.
+    pub(crate) z_max: Option<f64>,
+    /// `(t, level)` after every change of coarsening level.
+    pub level_history: Vec<(f64, u32)>,
+    /// Events fired since the last coarsening test.
+    events_since_test: u64,
 }
 
 /// Stride of every axis in the flat voxel index.
@@ -265,6 +271,9 @@ impl<'a> Rdme<'a> {
             n_reactions: 0,
             n_hops: 0,
             n_null: 0,
+            z_max: None,
+            level_history: Vec::new(),
+            events_since_test: 0,
         };
         r.rebuild();
         r
@@ -333,10 +342,11 @@ impl<'a> Rdme<'a> {
         self.rebuild();
     }
 
-    /// Add `(fine voxel, species, molecules)` entries. The grid must be at
-    /// level 0.
+    /// Add `(fine voxel, species, molecules)` entries. A coarsened grid is
+    /// refined to the fine grid first.
     pub fn inject(&mut self, molecules: &[(usize, usize, i64)]) {
-        assert_eq!(self.level, 0, "rdme: injection needs the fine grid");
+        self.refine_to_fine();
+        self.events_since_test = 0;
         let n_sp = self.setup.n_sp;
         for &(v, s, n) in molecules {
             self.counts[v * n_sp + s] += n;
@@ -545,9 +555,29 @@ impl<'a> Rdme<'a> {
         true
     }
 
+    /// Events between two coarsening tests: the test reads every count once,
+    /// which costs about as much as a few hundred events.
+    fn test_interval(&self) -> u64 {
+        8 * self.grid().n_voxels() as u64
+    }
+
+    /// Run the coarsening test if enough events fired since the last one.
+    pub(crate) fn count_events(&mut self, fired: u64) {
+        if self.z_max.is_none() {
+            return;
+        }
+        self.events_since_test += fired;
+        if self.events_since_test >= self.test_interval() {
+            self.events_since_test = 0;
+            self.coarsen_while_uniform();
+        }
+    }
+
     /// Advance to `t_stop` (exact).
     pub fn advance_to(&mut self, t_stop: f64) {
-        while self.step(t_stop) {}
+        while self.step(t_stop) {
+            self.count_events(1);
+        }
         if t_stop > self.t {
             self.t = t_stop;
         }

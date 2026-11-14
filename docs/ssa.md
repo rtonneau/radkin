@@ -179,6 +179,51 @@ tolerance of the deterministic run:
 The second case is a large-count grid (75 molecules per µmol/L and voxel): there the
 RDME and the Strang-split rate equations agree.
 
+### Coarsening
+
+`voxel.max_coarsen_levels > 0` lets the RDME grid drop levels, as on the deterministic
+path: the whole grid merges every 2x2x2 block into one voxel
+(`src/ssa/rdme_coarsen.rs`).
+
+- **Test.** The deterministic test (spread of the 8 children below a tolerance) can
+  never pass on counts, because Poisson noise alone exceeds it. The grid drops a level
+  when the counts of every block are consistent with a uniform distribution over its 8
+  voxels. For a block holding `S` molecules of a species, Pearson's statistic
+  `X = Σ (c_i − S/8)² / (S/8)` has the exact mean 7 and variance `14 (S − 1) / S` under a
+  uniform split. For every species, two conditions must hold:
+  - over all blocks with `S ≥ 1`: `(Σ X − 7 B) / sqrt(Σ variance) ≤ z`;
+  - for each block with `S ≥ 16`: `(X − 7) / sqrt(variance) ≤ z + sqrt(2 ln B16)`, so
+    that a localized cluster is not diluted by a large uniform background.
+- **Threshold.** `z = 30 · coarsen_tol_factor`: 3 at the default factor 0.1.
+- **Cadence.** The test runs every `8 × (number of voxels)` events.
+- **Merge.** The 8 counts are summed. Hop rates and propensities use the spacing and
+  volume of the current level.
+- **Refine.** Before a seed is injected the grid returns to level 0: each molecule of a
+  voxel goes to one of its 8 children at random. It may coarsen again afterwards.
+- **Outputs** stay on the fine grid: a voxel of level `L` spreads its count evenly over
+  its `8^L` fine voxels.
+
+Species totals are conserved exactly through merging and refining.
+
+Measured on a homogenising case (pure water, 4500 radicals seeded in the centre of an
+8x8x8 grid of 100 nm voxels, 100 µs, 3 levels, 96 trajectories), against the fine-grid
+ensemble, as the largest difference of the species totals over all record times:
+
+| `coarsen_tol_factor` | `z` | Hops per trajectory | Fewer hops | Wall time | Difference [combined SEM] |
+|---|---|---|---|---|---|
+| fine grid | | 202 499 | | 0.97 s | |
+| 0.03 | 0.9 | 52 998 | 3.8x | 0.35 s | 1.6 |
+| 0.1 (default) | 3 | 28 534 | 7.1x | 0.20 s | 1.3 |
+| 0.3 | 9 | 19 085 | 10.6x | 0.15 s | 2.6 |
+| 1 | 30 | 12 528 | 16x | 0.12 s | 6.3 |
+| 3 | 90 | 6 924 | 29x | 0.09 s | 24 |
+
+Up to a factor of 0.3 the coarsened ensemble cannot be told from the fine one; from 1
+on the grid coarsens while the radicals are still clustered and their recombination is
+underestimated (more OH survives). The default 0.1 is kept. `tests/ssa_rdme.rs` checks
+the default against the fine grid with a fixed seed (two seeds, so that the refinement is
+exercised: 1.4 combined SEM, 5 times fewer hops).
+
 ### Small voxels
 
 At small voxels the two do not agree, and are not expected to. On
