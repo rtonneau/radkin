@@ -1,0 +1,72 @@
+{
+  "session_id": "2026-11-14__geant4-radkin-irt-syn-gvalues",
+  "feature_name": "geant4-radkin-irt-syn-gvalues",
+  "scratch_dir": ".scratch/tests/2026-11-14__geant4-radkin-irt-syn-gvalues",
+  "created_at": "2026-11-14T07:23:44.655Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-14T07:23:44.655Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T07:29:13.602Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-14T07:29:43.215Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T07:29:50.285Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T07:30:58.960Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "chore/radkin-irt-syn-gvalues",
+        "base": "perf/background-voxels"
+      }
+    },
+    {
+      "at": "2026-11-14T07:30:58.976Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-geant4-irt-syn-project.md",
+        "02-plan/tickets/02-chemistry-export-and-tooling.md",
+        "02-plan/tickets/03-sweeps-and-report.md"
+      ],
+      "detail": {
+        "tickets": 3
+      }
+    }
+  ],
+  "current_phase": "ship",
+  "git": {
+    "branch": "chore/radkin-irt-syn-gvalues",
+    "base_branch": "perf/background-voxels",
+    "branch_created_at": "2026-11-14T07:30:58.960Z",
+    "pr_url": null
+  }
+}
