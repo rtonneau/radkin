@@ -185,6 +185,30 @@
         "ticket": "05-tau-leaping",
         "commit": "e96dbd5"
       }
+    },
+    {
+      "at": "2026-11-14T20:37:21.599Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-voxel-rdme-exact.md",
+        "03-implement/06-voxel-rdme-exact/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-voxel-rdme-exact"
+      }
+    },
+    {
+      "at": "2026-11-14T20:45:39.577Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/06-voxel-rdme-exact/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-voxel-rdme-exact",
+        "commit": "3f1be8e"
+      }
     }
   ],
   "current_phase": "ship",
