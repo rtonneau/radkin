@@ -422,7 +422,7 @@ mod tests {
         let env = SimEnv::from_config(&Config::from_toml_str(CHEMISTRY, None).unwrap()).unwrap();
         let mat = SimMatrices::build(&env).unwrap();
         let grid = VoxelGrid::new(dims, [h; 3], [0.0; 3]).unwrap();
-        let s = RdmeSetup::new(&mat, &grid, vec![5e-9; mat.n_dyn], levels).unwrap();
+        let s = RdmeSetup::new(&mat, &grid, vec![5e-9; mat.n_dyn], levels, false).unwrap();
         (env, s)
     }
 

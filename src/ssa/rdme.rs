@@ -105,6 +105,48 @@ pub(crate) struct Level {
     pub(crate) inv_h2: [f64; 3],
 }
 
+/// `C_3 / 6` with `C_3 = 1.5164` (Hellander, Hellander and Petzold 2012,
+/// Theorem 1): the critical spacing of a pair is `h* = C_3 kappa / (6 D)`.
+const CRITICAL_FACTOR: f64 = 1.5164 / 6.0;
+
+/// Critical spacing `h*` [m] of every mass-action reaction with two dynamic
+/// reactant slots and a diffusing pair, as `(reaction, h*)`.
+///
+/// `kappa` [m^3/s] is the pair rate constant the RDME sees: `c N_A V`
+/// (`k` times any fixed concentration) per molecule, doubled for `2 A`,
+/// whose propensity `c n (n - 1)` is `2 c` per pair. `D` is the summed
+/// diffusion coefficient of the pair (`2 D_A` for `2 A`).
+fn critical_spacings(model: &SsaModel, diffusion: &[f64]) -> Vec<(usize, f64)> {
+    use crate::consts::AVOGADRO;
+    use crate::ssa::model::Law;
+    let mut out = Vec::new();
+    for (j, r) in model.reactions.iter().enumerate() {
+        let Law::MassAction { c, reactants } = &r.law else {
+            continue;
+        };
+        if r.order != 2 {
+            continue;
+        }
+        let d: f64 = reactants
+            .iter()
+            .map(|(s, mult)| diffusion[*s] * *mult as f64)
+            .sum();
+        if d <= 0.0 {
+            continue;
+        }
+        let pairs = if reactants.len() == 1 { 2.0 } else { 1.0 };
+        let kappa = pairs * c * model.nav / (1e3 * AVOGADRO);
+        out.push((j, CRITICAL_FACTOR * kappa / d));
+    }
+    out
+}
+
+/// Whether the three spacings of `grid` are equal (relative 1e-12).
+pub fn is_cubic(grid: &VoxelGrid) -> bool {
+    let h = grid.spacing[0];
+    grid.spacing.iter().all(|s| (s - h).abs() <= 1e-12 * h)
+}
+
 /// Everything that does not change during a run, shared by the trajectories.
 #[derive(Debug, Clone)]
 pub struct RdmeSetup {
@@ -112,16 +154,27 @@ pub struct RdmeSetup {
     /// Diffusion coefficient [m^2/s] of every dynamic species.
     pub(crate) diffusion: Vec<f64>,
     pub(crate) n_sp: usize,
+    /// `(reaction, h*)` of every bimolecular reaction with a diffusing pair.
+    critical: Vec<(usize, f64)>,
+    /// Whether the propensities carry the mesh correction.
+    corrected: bool,
 }
 
 impl RdmeSetup {
     /// Setup for `mat` on `grid`, with `max_levels` coarsening levels above
     /// the fine grid (every dimension must be divisible by `2^max_levels`).
+    ///
+    /// With `correct`, every level of spacing `h` scales the propensity of
+    /// each reaction of critical spacing `h* < h` by `1 / (1 - h*/h)`
+    /// (mesh correction, Hellander and Hellander 2020, eq. 6 with
+    /// `1/k = 1/k_r + 1/(4 pi sigma D)`); the grid must be cubic. Reactions
+    /// with `h* >= h` keep the macroscopic rate on that level.
     pub fn new(
         mat: &SimMatrices,
         grid: &VoxelGrid,
         diffusion: Vec<f64>,
         max_levels: u32,
+        correct: bool,
     ) -> Result<Self> {
         if diffusion.len() != mat.n_dyn {
             return Err(RadkinError::Value(format!(
@@ -135,14 +188,26 @@ impl RdmeSetup {
                 "rdme: diffusion coefficients must be finite and >= 0".into(),
             ));
         }
+        if correct && !is_cubic(grid) {
+            return Err(RadkinError::Value(format!(
+                "rdme: the mesh correction needs a cubic grid, got spacing {:?} m",
+                grid.spacing
+            )));
+        }
+        // `h*` does not depend on the volume: take it from the fine model.
+        let critical = critical_spacings(&SsaModel::new(mat, grid.voxel_volume_l())?, &diffusion);
         let mut levels = Vec::with_capacity(max_levels as usize + 1);
         let mut g = grid.clone();
         for l in 0..=max_levels {
             if l > 0 {
                 g = coarse_grid(&g)?;
             }
+            let mut model = SsaModel::new(mat, g.voxel_volume_l())?;
+            if correct {
+                mesh_correct(&mut model, &critical, g.spacing[0]);
+            }
             levels.push(Level {
-                model: SsaModel::new(mat, g.voxel_volume_l())?,
+                model,
                 inv_h2: g.spacing.map(|h| 1.0 / (h * h)),
                 grid: g.clone(),
             });
@@ -151,7 +216,20 @@ impl RdmeSetup {
             levels,
             diffusion,
             n_sp: mat.n_dyn,
+            critical,
+            corrected: correct,
         })
+    }
+
+    /// Whether the propensities carry the mesh correction.
+    pub fn corrected(&self) -> bool {
+        self.corrected
+    }
+
+    /// `(reaction, h*)` of every bimolecular reaction with a diffusing pair:
+    /// its critical spacing [m].
+    pub fn critical_spacings(&self) -> &[(usize, f64)] {
+        &self.critical
     }
 
     /// The fine grid.
@@ -171,36 +249,32 @@ impl RdmeSetup {
 
     /// Smallest voxel spacing below which a bimolecular reaction can no
     /// longer be represented by the RDME, and the index of that reaction:
-    /// `h* = 0.2527 k / (N_A D)` with `D` the sum of the two diffusion
-    /// coefficients (Hellander, Hellander and Petzold, Phys. Rev. E 85,
-    /// 042901, 2012). `None` when no reaction has two diffusing reactants.
+    /// the largest critical spacing `h* = 0.2527 kappa / D`, `kappa` the pair
+    /// rate constant and `D` the sum of the two diffusion coefficients
+    /// (Hellander, Hellander and Petzold, Phys. Rev. E 85, 042901, 2012).
+    /// `None` when no reaction has two diffusing reactants.
     pub fn validity_bound(&self) -> Option<(f64, usize)> {
-        use crate::consts::AVOGADRO;
-        use crate::ssa::model::Law;
-        let model = self.model();
         let mut worst: Option<(f64, usize)> = None;
-        for (j, r) in model.reactions.iter().enumerate() {
-            let Law::MassAction { c, reactants } = &r.law else {
-                continue;
-            };
-            if r.order != 2 {
-                continue;
-            }
-            let d: f64 = reactants
-                .iter()
-                .map(|(s, mult)| self.diffusion[*s] * *mult as f64)
-                .sum();
-            if d <= 0.0 {
-                continue;
-            }
-            // `c * N_A V` is the second-order rate constant [L/mol/s].
-            let k_m3 = c * model.nav / (1e3 * AVOGADRO);
-            let h = 0.2527 * k_m3 / d;
+        for &(j, h) in &self.critical {
             if worst.is_none_or(|(w, _)| h > w) {
                 worst = Some((h, j));
             }
         }
         worst
+    }
+}
+
+/// Scale the propensity of every reaction of `critical` with `h* < h` by
+/// `1 / (1 - h*/h)`.
+fn mesh_correct(model: &mut SsaModel, critical: &[(usize, f64)], h: f64) {
+    use crate::ssa::model::Law;
+    for &(j, h_star) in critical {
+        if h_star >= h {
+            continue;
+        }
+        if let Law::MassAction { c, .. } = &mut model.reactions[j].law {
+            *c /= 1.0 - h_star / h;
+        }
     }
 }
 
@@ -630,8 +704,32 @@ mod tests {
         let env = SimEnv::from_config(&Config::from_toml_str(toml, None).unwrap()).unwrap();
         let mat = SimMatrices::build(&env).unwrap();
         let grid = VoxelGrid::new(dims, [h; 3], [0.0; 3]).unwrap();
-        let s = RdmeSetup::new(&mat, &grid, vec![d; mat.n_dyn], 0).unwrap();
+        let s = RdmeSetup::new(&mat, &grid, vec![d; mat.n_dyn], 0, false).unwrap();
         (env, s)
+    }
+
+    /// Setup with `levels` coarsening levels, with or without the mesh
+    /// correction.
+    fn setup_levels(toml: &str, h: f64, d: f64, levels: u32, correct: bool) -> RdmeSetup {
+        let env = SimEnv::from_config(&Config::from_toml_str(toml, None).unwrap()).unwrap();
+        let mat = SimMatrices::build(&env).unwrap();
+        let grid = VoxelGrid::new([4, 4, 4], [h; 3], [0.0; 3]).unwrap();
+        RdmeSetup::new(&mat, &grid, vec![d; mat.n_dyn], levels, correct).unwrap()
+    }
+
+    fn c_of(s: &RdmeSetup, level: usize, j: usize) -> f64 {
+        match &s.levels[level].model.reactions[j].law {
+            crate::ssa::model::Law::MassAction { c, .. } => *c,
+            other => panic!("{other:?}"),
+        }
+    }
+
+    const PAIR: &str =
+        "[[reactions.k_reaction]]\nreaction = \"e_aq + OH_r -> OH_minus\"\nk_value = 3.0e10";
+
+    /// `h*` of `PAIR` with D = 5e-9 per species.
+    fn pair_h_star() -> f64 {
+        CRITICAL_FACTOR * 3.0e10 / (1e3 * crate::consts::AVOGADRO) / 1e-8
     }
 
     const DECAY: &str = r#"
@@ -715,18 +813,103 @@ mod tests {
 
     #[test]
     fn validity_bound_follows_k_over_d() {
+        let (_, s) = setup(PAIR, [2, 2, 2], 10e-9, 5e-9);
+        let (h, j) = s.validity_bound().unwrap();
+        assert_eq!(j, 0);
+        // 0.2527 * 3e10 / (1e3 N_A) / 1e-8 m^2/s = 1.26 nm.
+        let expected = pair_h_star();
+        assert!((h - expected).abs() < 1e-12 * expected, "{h}");
+        assert!((h - 1.259e-9).abs() < 1e-12, "{h}");
+        let (_, none) = setup(DECAY, [2, 2, 2], 10e-9, 5e-9);
+        assert!(none.validity_bound().is_none());
+    }
+
+    #[test]
+    fn two_a_uses_the_pair_constant() {
+        // radiopyo stores `k = k_value / 2` for `2 A` (rate `k [A]^2`,
+        // stoichiometry -2): the propensity c n (n - 1) is 2c per pair, so the
+        // pair constant is 2k = k_value, and D = 2 D_A. Same k_value and
+        // summed D as PAIR: the same h* (the per-molecule k alone gives half).
         let (_, s) = setup(
-            "[[reactions.k_reaction]]\nreaction = \"e_aq + OH_r -> OH_minus\"\nk_value = 3.0e10",
+            "[[reactions.k_reaction]]\nreaction = \"OH_r + OH_r -> H2O2\"\nk_value = 3.0e10",
             [2, 2, 2],
             10e-9,
             5e-9,
         );
-        let (h, j) = s.validity_bound().unwrap();
-        assert_eq!(j, 0);
-        // 0.2527 * 3e10 / (1e3 N_A) / 1e-8 m^2/s = 1.26 nm.
-        let expected = 0.2527 * 3.0e10 / (1e3 * crate::consts::AVOGADRO) / 1e-8;
-        assert!((h - expected).abs() < 1e-6 * expected, "{h}");
-        let (_, none) = setup(DECAY, [2, 2, 2], 10e-9, 5e-9);
-        assert!(none.validity_bound().is_none());
+        let c = c_of(&s, 0, 0);
+        let k = c * s.model().nav;
+        assert!((k - 1.5e10).abs() < 1e-6 * 1.5e10, "{k}");
+        let (h, _) = s.validity_bound().unwrap();
+        let expected = pair_h_star();
+        assert!((h - expected).abs() < 1e-12 * expected, "{h}");
+    }
+
+    #[test]
+    fn mesh_correction_scales_each_level_with_its_own_spacing() {
+        let h = 2e-9;
+        let plain = setup_levels(PAIR, h, 5e-9, 1, false);
+        let fixed = setup_levels(PAIR, h, 5e-9, 1, true);
+        assert!(!plain.corrected() && fixed.corrected());
+        let hs = pair_h_star();
+        for (level, spacing) in [(0, h), (1, 2.0 * h)] {
+            let want = c_of(&plain, level, 0) / (1.0 - hs / spacing);
+            let got = c_of(&fixed, level, 0);
+            assert!(
+                (got - want).abs() < 1e-12 * want,
+                "level {level}: {got} vs {want}"
+            );
+        }
+        // The factor is larger on the fine level, closer to the pole.
+        let f0 = c_of(&fixed, 0, 0) / c_of(&plain, 0, 0);
+        let f1 = c_of(&fixed, 1, 0) / c_of(&plain, 1, 0);
+        assert!(f0 > f1 && f1 > 1.0, "{f0} {f1}");
+        assert_eq!(plain.critical_spacings(), fixed.critical_spacings());
+    }
+
+    #[test]
+    fn mesh_correction_leaves_reactions_at_or_below_the_pole() {
+        // h = 1 nm < h* = 1.26 nm on the fine level, 2 nm > h* one level up.
+        let plain = setup_levels(PAIR, 1e-9, 5e-9, 1, false);
+        let fixed = setup_levels(PAIR, 1e-9, 5e-9, 1, true);
+        assert_eq!(c_of(&fixed, 0, 0), c_of(&plain, 0, 0));
+        assert!(c_of(&fixed, 1, 0) > c_of(&plain, 1, 0));
+    }
+
+    #[test]
+    fn mesh_correction_skips_first_order_and_still_pairs() {
+        let toml = format!("{DECAY}\n{PAIR}");
+        // D = 0: no diffusing pair, no correction.
+        let still = setup_levels(&toml, 2e-9, 0.0, 0, true);
+        assert!(still.critical_spacings().is_empty());
+        let plain = setup_levels(&toml, 2e-9, 5e-9, 0, false);
+        let fixed = setup_levels(&toml, 2e-9, 5e-9, 0, true);
+        // Reaction 0 is the first-order decay.
+        assert_eq!(c_of(&fixed, 0, 0), c_of(&plain, 0, 0));
+        assert!(c_of(&fixed, 0, 1) > c_of(&plain, 0, 1));
+    }
+
+    #[test]
+    fn mesh_correction_uses_the_effective_constant_of_a_fixed_reactant() {
+        // H2O is fixed (55 M): kappa = k [H2O].
+        let toml = "[[reactions.k_reaction]]\nreaction = \"e_aq + OH_r + H2O -> OH_minus\"\
+                    \nk_value = 1.0e7";
+        let s = setup_levels(toml, 10e-9, 5e-9, 0, false);
+        let model = &s.levels[0].model;
+        assert_eq!(model.reactions[0].order, 2);
+        let k_eff = c_of(&s, 0, 0) * model.nav; // k [H2O], L/mol/s
+        assert!(k_eff > 1.0e7 * 50.0, "{k_eff}");
+        let (_, h_star) = s.critical_spacings()[0];
+        let want = CRITICAL_FACTOR * k_eff / (1e3 * crate::consts::AVOGADRO) / 1e-8;
+        assert!((h_star - want).abs() < 1e-12 * want, "{h_star}");
+    }
+
+    #[test]
+    fn mesh_correction_refuses_an_anisotropic_grid() {
+        let env = SimEnv::from_config(&Config::from_toml_str(PAIR, None).unwrap()).unwrap();
+        let mat = SimMatrices::build(&env).unwrap();
+        let grid = VoxelGrid::new([2, 2, 2], [2e-9, 2e-9, 4e-9], [0.0; 3]).unwrap();
+        assert!(!is_cubic(&grid));
+        assert!(RdmeSetup::new(&mat, &grid, vec![5e-9; mat.n_dyn], 0, true).is_err());
+        assert!(RdmeSetup::new(&mat, &grid, vec![5e-9; mat.n_dyn], 0, false).is_ok());
     }
 }

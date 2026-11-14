@@ -16,13 +16,13 @@ use std::time::Instant;
 
 use crate::error::{RadkinError, Result};
 use crate::matrices::SimMatrices;
-use crate::ssa::config::SsaConfig;
+use crate::ssa::config::{RateCorrection, SsaConfig};
 use crate::ssa::ensemble::{Moments, map_ordered};
-use crate::ssa::rdme::{Rdme, RdmeSetup};
+use crate::ssa::rdme::{Rdme, RdmeSetup, is_cubic};
 use crate::ssa::rdme_coarsen::dispersion_threshold;
 use crate::ssa::rng::SsaRng;
 use crate::unit_cell::thinned_times;
-use crate::voxel::grid::VoxelState;
+use crate::voxel::grid::{VoxelGrid, VoxelState};
 use crate::voxel::sim::VoxelSimulation;
 
 /// Log-spaced record times of the domain totals, on top of the snapshot and
@@ -67,6 +67,8 @@ pub struct RdmeOutput {
     pub trajectories: usize,
     pub seed: u64,
     pub tau_leap: bool,
+    /// Mesh correction applied: `"hellander"` or `"none"`.
+    pub rate_correction: &'static str,
     /// Events summed over the trajectories.
     pub n_reactions: u64,
     pub n_hops: u64,
@@ -167,31 +169,66 @@ fn seed_molecules(sim: &VoxelSimulation) -> Result<Vec<Vec<(usize, usize, i64)>>
         .collect()
 }
 
+/// Whether the run applies the mesh correction: an unset key means
+/// Hellander on a cubic grid and none (with a warning) otherwise; an
+/// explicit Hellander on an anisotropic grid is an error.
+fn resolve_correction(setting: Option<RateCorrection>, grid: &VoxelGrid) -> Result<bool> {
+    let cubic = is_cubic(grid);
+    match setting {
+        Some(RateCorrection::None) => Ok(false),
+        Some(RateCorrection::Hellander) if cubic => Ok(true),
+        Some(RateCorrection::Hellander) => Err(RadkinError::Config(format!(
+            "ssa.rate_correction = \"hellander\" needs equal voxel spacings, got {:?} nm",
+            grid.spacing.map(|h| h * 1e9)
+        ))),
+        None if cubic => Ok(true),
+        None => {
+            log::warn!(
+                "rdme: the voxel spacings {:?} nm are not equal: the bimolecular propensities \
+                 are not mesh-corrected (set ssa.rate_correction = \"none\" to silence this)",
+                grid.spacing.map(|h| h * 1e9)
+            );
+            Ok(false)
+        }
+    }
+}
+
 /// Run the RDME ensemble of `sim`.
 pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let started = Instant::now();
     let species = sim.species();
     let mat = SimMatrices::build(&sim.env)?;
     let coeffs: Vec<f64> = species.iter().map(|s| sim.voxel.diffusion_of(s)).collect();
-    let setup = RdmeSetup::new(&mat, &sim.voxel.grid, coeffs, sim.voxel.max_coarsen_levels)?;
-    if let Some((h, j)) = setup.validity_bound() {
-        let smallest = sim
-            .voxel
-            .grid
-            .spacing
-            .iter()
-            .copied()
-            .fold(f64::INFINITY, f64::min);
-        if smallest < h {
-            log::warn!(
-                "rdme: the voxel spacing {:.2} nm is below {:.2} nm, the smallest spacing at \
-                 which reaction '{}' is represented correctly on a grid (0.2527 k / (N_A D)): \
-                 its rate is underestimated",
-                smallest * 1e9,
-                h * 1e9,
-                sim.env.reaction_strings()[j]
-            );
+    let grid = &sim.voxel.grid;
+    let correct = resolve_correction(cfg.rate_correction, grid)?;
+    let setup = RdmeSetup::new(&mat, grid, coeffs, sim.voxel.max_coarsen_levels, correct)?;
+    let smallest = grid.spacing.iter().copied().fold(f64::INFINITY, f64::min);
+    let reactions = sim.env.reaction_strings();
+    if correct {
+        for &(j, h) in setup.critical_spacings() {
+            if smallest <= h {
+                log::warn!(
+                    "rdme: reaction '{}' is not mesh-corrected on the fine grid: the voxel \
+                     spacing {:.2} nm is at or below its critical spacing {:.2} nm \
+                     (0.2527 kappa / D), where no propensity represents it: its rate is \
+                     underestimated",
+                    reactions[j],
+                    smallest * 1e9,
+                    h * 1e9,
+                );
+            }
         }
+    } else if let Some((h, j)) = setup.validity_bound()
+        && smallest < h
+    {
+        log::warn!(
+            "rdme: the voxel spacing {:.2} nm is below {:.2} nm, the smallest spacing at \
+             which reaction '{}' is represented correctly on a grid (0.2527 kappa / D): \
+             its rate is underestimated",
+            smallest * 1e9,
+            h * 1e9,
+            reactions[j]
+        );
     }
     let z_max = (sim.voxel.max_coarsen_levels > 0)
         .then(|| dispersion_threshold(sim.voxel.coarsen_tol_factor));
@@ -314,9 +351,32 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
         trajectories: cfg.trajectories,
         seed: cfg.seed,
         tau_leap: cfg.tau_leap,
+        rate_correction: if correct { "hellander" } else { "none" },
         n_reactions,
         n_hops,
         level_history,
         exec_time: started.elapsed().as_secs_f64(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn grid(spacing: [f64; 3]) -> VoxelGrid {
+        VoxelGrid::new([2, 2, 2], spacing, [0.0; 3]).unwrap()
+    }
+
+    #[test]
+    fn correction_defaults_to_hellander_on_cubic_grids_only() {
+        let cubic = grid([5e-9; 3]);
+        let flat = grid([5e-9, 5e-9, 10e-9]);
+        assert!(resolve_correction(None, &cubic).unwrap());
+        assert!(!resolve_correction(None, &flat).unwrap());
+        assert!(resolve_correction(Some(RateCorrection::Hellander), &cubic).unwrap());
+        assert!(!resolve_correction(Some(RateCorrection::None), &cubic).unwrap());
+        assert!(!resolve_correction(Some(RateCorrection::None), &flat).unwrap());
+        let e = resolve_correction(Some(RateCorrection::Hellander), &flat).unwrap_err();
+        assert!(e.to_string().contains("rate_correction"), "{e}");
+    }
 }
