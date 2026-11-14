@@ -287,7 +287,10 @@ fn resume_at_injection_time(coarsen: bool) {
         .copied()
         .collect();
     assert_eq!(resumed.level_history, after);
-    assert!(!coarsen || !after.is_empty(), "the reference never coarsened");
+    assert!(
+        !coarsen || !after.is_empty(),
+        "the reference never coarsened"
+    );
     assert_eq!(resumed.snapshots.len(), reference.snapshots.len());
     for (a, b) in resumed.snapshots.iter().zip(&reference.snapshots) {
         assert_eq!(a.t, b.t);
