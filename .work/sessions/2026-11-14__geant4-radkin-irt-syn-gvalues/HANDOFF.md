@@ -1,35 +1,35 @@
 # Handoff: geant4-radkin-irt-syn-gvalues
 
 **Session:** 2026-11-14__geant4-radkin-irt-syn-gvalues
-**Saved:** 2026-11-14T08:53:59.758Z
+**Saved:** 2026-11-14T12:47:04.570Z
 **Current phase:** ship
 **Active ticket:** 03-sweeps-and-report
 
 ## Where I Stopped
 
-Ticket 03: the sweep is running detached (started 2026-11-14 ~10:50 local): `run_sweep.py --only main` (20 runs at 250 nm and 20 at 500 nm, about 4–5 h), then `--only fine` (event 0, g4 chemistry, 10 and 50 ns at 125 nm, about 2 h each). Logs: `.scratch/tests/2026-11-14__geant4-radkin-irt-syn-gvalues/runs/main_sweep.log` and `fine_sweep.log`.
+Ticket 03: the 250/500 nm sweep is done (40 runs, all exit 0) and analysed (plots/summary.csv). The 125 nm runs (e0, g4 chemistry, 10 and 50 ns, ~2.5 h each) were approved, then held by the user: not started, no partial output. Work was stopped by the user, who asked to commit and push.
 
 ## Reasoning So Far
 
-Benchmark: 250 nm on event 0 = 6.4M voxels, 762 s. 125 nm for all 20 cases (~40 h) is not affordable, so it is cut to event 0 with the g4 chemistry. Detached because of the 2 h harness limit. IRT_syn at the handover matches the old plain IRT within 0.5 %, which supports reusing the old reference.
+Results (pooled e0-4, deaerated, 10 µs): IRT e_aq 2.02 / OH 2.23. radkin from 10 ns: 2.69/2.82 (500 nm), 2.50/2.69 (250 nm). From 50 ns: 2.37/2.55 (500), 2.25/2.46 (250). The handover time matters most. The voxel size is not converged (500 -> 250 nm moves e_aq by -0.13; 125 nm is extrapolated to ~2.18). IRT_syn at the handover matches the old IRT within 0.5 %. Aerated: e_aq is fully scavenged by 10 µs, H2O2 is 1.06-1.13. Note: stopping the parent shell of a detached sweep kills the python child when it next prints; launch sweeps with Start-Process and direct file redirection.
 
 ## Next Step
 
-Check that both logs show `exit 0` for every case, then run `python -I tools/plot_gt.py` in the scratch dir. Write report.md (G tables at 10 ns / 50 ns / 100 ns / 1 µs / 10 µs vs the old IRT, runtimes, the 125 nm cut, the dose-rate follow-up), fill the ticket 03 commit-log, `ticket-complete.js 3 --commit HEAD`, then `/gps finish` (PR into perf/background-voxels).
+Wait for the user to release the 125 nm runs: `Start-Process python -ArgumentList '-I','toolsun_sweep.py','--only','fine' -RedirectStandardOutput runsine_sweep.log` in the scratch dir. Then plot_gt.py, write report.md, fill the ticket 03 log, `ticket-complete.js 3 --commit HEAD`, `/gps finish` (PR chore/radkin-irt-syn-gvalues -> perf/background-voxels).
 
 ## Open Questions
 
-None blocking.
+When to run the 125 nm runs (approved for both 10 and 50 ns, then held by the user).
 
 ## Settled Decisions (do not re-litigate)
 
-Stacked branch chore/radkin-irt-syn-gvalues (user). 150 µm box, IRT_syn, seeds at 10 and 50 ns, Geant4-exported chemistry plus aerated, old IRT G(t) as the reference, events 0–4 pooled, previous session's sweep killed (user). The Geant4 project and study files stay outside git.
+Stacked branch chore/radkin-irt-syn-gvalues (user). 150 µm box, IRT_syn, seeds at 10/50 ns, Geant4-exported chemistry plus aerated, old IRT reference, events 0-4 pooled. 125 nm limited to e0 with g4 chemistry. Study files in .scratch; the Geant4 project at D:/DEV/GEANT4/SIM/radkin is outside git.
 
 ## Uncommitted Work
 
 - **Git status (project):** clean
-- **Git status (session dir):**  M .work/sessions/2026-11-14__geant4-radkin-irt-syn-gvalues/.session-config.json, ?? .work/sessions/2026-11-14__geant4-radkin-irt-syn-gvalues/03-implement/03-sweeps-and-report/commit-log.md
-- **Why not committed:** Only the session record; the study files are in .scratch by design and the Geant4 project is outside the repo.
+- **Git status (session dir):** clean
+- **Why not committed:** n/a
 
 ## Machine State (auto-filled)
 
