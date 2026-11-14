@@ -62,6 +62,30 @@
       "detail": {
         "tickets": 4
       }
+    },
+    {
+      "at": "2026-11-14T13:16:10.677Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-voxel-bench-and-gate.md",
+        "03-implement/01-voxel-bench-and-gate/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-voxel-bench-and-gate"
+      }
+    },
+    {
+      "at": "2026-11-14T13:20:17.897Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-voxel-bench-and-gate/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-voxel-bench-and-gate",
+        "commit": "ea03246"
+      }
     }
   ],
   "current_phase": "ship",
@@ -70,5 +94,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-14T13:16:06.515Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "delegate"
 }
