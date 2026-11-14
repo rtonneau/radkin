@@ -15,6 +15,7 @@ pub mod poly;
 pub mod pyfloat;
 pub mod result;
 pub mod solver;
+pub mod ssa;
 pub mod unit_cell;
 pub mod voxel;
 
