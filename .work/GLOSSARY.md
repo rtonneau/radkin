@@ -37,6 +37,32 @@ _Avoid_: structure, mask
 A grouping of Jacobian columns that share no nonzero row, so one finite-difference RHS call per group estimates all of its columns (Curtis-Powell-Reid).
 _Avoid_: column grouping, compression
 
+### Stochastic solver
+
+**SSA**:
+The exact stochastic simulation of the reaction network on integer molecule counts (Gillespie), selected by `solver = "ssa"`; the reference that tau-leaping and the LSODA comparison are checked against.
+_Avoid_: Gillespie solver (also used loosely for tau-leaping), Monte Carlo
+
+**Propensity**:
+The probability per unit time that one reaction (or one hop) fires, computed from the molecule counts and the volume; the stochastic counterpart of a reaction rate.
+_Avoid_: rate (means the mol/L/s rate of the LSODA path), hazard
+
+**Trajectory**:
+One stochastic realisation of a run, drawn from its own random stream (config seed, stream index = trajectory index).
+_Avoid_: replica, sample, run (a run is the whole ensemble)
+
+**Ensemble**:
+The N trajectories of one run; outputs are its mean and standard deviation on the output time grid.
+_Avoid_: batch, population
+
+**Tau-leaping**:
+The opt-in approximate stepping that fires many reactions (and hops) per step tau with Poisson counts, with critical reactions still fired one at a time (Cao-Gillespie-Petzold 2006).
+_Avoid_: leaping SSA, approximate SSA
+
+**Hop**:
+The move of one molecule to a face-neighbouring voxel, an event of propensity `D/h²` per molecule and face; it replaces the diffusion step in stochastic voxel runs.
+_Avoid_: jump, diffusion event
+
 ### Voxel model
 
 **Voxel grid**:

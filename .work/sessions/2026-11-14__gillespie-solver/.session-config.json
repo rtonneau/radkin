@@ -1,0 +1,77 @@
+{
+  "session_id": "2026-11-14__gillespie-solver",
+  "feature_name": "gillespie-solver",
+  "scratch_dir": ".scratch/tests/2026-11-14__gillespie-solver",
+  "created_at": "2026-11-14T19:57:02.938Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-14T19:57:02.938Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T20:05:09.636Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T20:06:01.091Z",
+      "event": "auto_started",
+      "phase": "plan-not-started",
+      "detail": {
+        "target": "finish",
+        "steps": "plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-14T20:06:01.200Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T20:10:42.866Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/gillespie-solver",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-14T20:10:42.900Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-unit-cell-exact-ssa.md",
+        "02-plan/tickets/02-beam-sources.md",
+        "02-plan/tickets/03-ensemble-output-cli.md",
+        "02-plan/tickets/04-lsoda-validation.md",
+        "02-plan/tickets/05-tau-leaping.md",
+        "02-plan/tickets/06-voxel-rdme-exact.md",
+        "02-plan/tickets/07-rdme-coarsening.md",
+        "02-plan/tickets/08-rdme-tau-leaping.md"
+      ],
+      "detail": {
+        "tickets": 8
+      }
+    }
+  ],
+  "current_phase": "ship",
+  "git": {
+    "branch": "feat/gillespie-solver",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-14T20:10:42.866Z",
+    "pr_url": null
+  }
+}
