@@ -110,6 +110,30 @@
         "ticket": "02-lean-voxel-solve",
         "commit": "3fed416"
       }
+    },
+    {
+      "at": "2026-11-14T13:55:11.041Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-fuse-half-reactions.md",
+        "03-implement/03-fuse-half-reactions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-fuse-half-reactions"
+      }
+    },
+    {
+      "at": "2026-11-14T13:58:21.515Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-fuse-half-reactions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-fuse-half-reactions",
+        "commit": "309ffe7"
+      }
     }
   ],
   "current_phase": "ship",
