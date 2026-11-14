@@ -88,6 +88,30 @@
         "ticket": "01-baseline",
         "commit": "0003f80"
       }
+    },
+    {
+      "at": "2026-11-14T15:22:20.203Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-config.md",
+        "03-implement/02-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-config"
+      }
+    },
+    {
+      "at": "2026-11-14T15:23:45.331Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-config",
+        "commit": "a07a91c"
+      }
     }
   ],
   "current_phase": "ship",
