@@ -133,6 +133,26 @@
         "ticket": "03-study-setup",
         "commit": "802e52b"
       }
+    },
+    {
+      "at": "2026-11-13T23:49:42.974Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-sweeps-and-report.md",
+        "03-implement/04-sweeps-and-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-sweeps-and-report"
+      }
+    },
+    {
+      "at": "2026-11-14T01:27:32.760Z",
+      "event": "handoff_saved",
+      "phase": "ship",
+      "files": [
+        "HANDOFF.md"
+      ]
     }
   ],
   "current_phase": "ship",

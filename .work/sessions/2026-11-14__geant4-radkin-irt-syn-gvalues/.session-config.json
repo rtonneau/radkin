@@ -1,0 +1,182 @@
+{
+  "session_id": "2026-11-14__geant4-radkin-irt-syn-gvalues",
+  "feature_name": "geant4-radkin-irt-syn-gvalues",
+  "scratch_dir": ".scratch/tests/2026-11-14__geant4-radkin-irt-syn-gvalues",
+  "created_at": "2026-11-14T07:23:44.655Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-14T07:23:44.655Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T07:29:13.602Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-14T07:29:43.215Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T07:29:50.285Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T07:30:58.960Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "chore/radkin-irt-syn-gvalues",
+        "base": "perf/background-voxels"
+      }
+    },
+    {
+      "at": "2026-11-14T07:30:58.976Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-geant4-irt-syn-project.md",
+        "02-plan/tickets/02-chemistry-export-and-tooling.md",
+        "02-plan/tickets/03-sweeps-and-report.md"
+      ],
+      "detail": {
+        "tickets": 3
+      }
+    },
+    {
+      "at": "2026-11-14T07:31:05.963Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-geant4-irt-syn-project.md",
+        "03-implement/01-geant4-irt-syn-project/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-geant4-irt-syn-project"
+      }
+    },
+    {
+      "at": "2026-11-14T08:38:56.430Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-geant4-irt-syn-project/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-geant4-irt-syn-project",
+        "commit": "5fceb89"
+      }
+    },
+    {
+      "at": "2026-11-14T08:39:02.054Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-chemistry-export-and-tooling.md",
+        "03-implement/02-chemistry-export-and-tooling/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-chemistry-export-and-tooling"
+      }
+    },
+    {
+      "at": "2026-11-14T08:40:19.564Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-chemistry-export-and-tooling/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-chemistry-export-and-tooling",
+        "commit": "2112de0"
+      }
+    },
+    {
+      "at": "2026-11-14T12:47:04.579Z",
+      "event": "handoff_saved",
+      "phase": "ship",
+      "files": [
+        "HANDOFF.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T12:51:32.517Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-sweeps-and-report.md",
+        "03-implement/03-sweeps-and-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-sweeps-and-report"
+      }
+    },
+    {
+      "at": "2026-11-14T12:51:43.233Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-sweeps-and-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-sweeps-and-report",
+        "commit": "4a22fa7"
+      }
+    },
+    {
+      "at": "2026-11-14T12:51:55.144Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/10"
+      }
+    },
+    {
+      "at": "2026-11-14T12:51:50.123Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T12:51:55.177Z",
+      "event": "scratch_cleaned",
+      "phase": "finished",
+      "detail": {
+        "policy": "build-artifacts",
+        "removed": [
+          ".scratch/tests/2026-11-14__geant4-radkin-irt-syn-gvalues/tools/__pycache__"
+        ],
+        "freedBytes": 9081
+      }
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "chore/radkin-irt-syn-gvalues",
+    "base_branch": "perf/background-voxels",
+    "branch_created_at": "2026-11-14T07:30:58.960Z",
+    "pr_url": "https://github.com/rtonneau/radkin/pull/10"
+  },
+  "ship_mode": "inline",
+  "finished_at": "2026-11-14T12:51:50.123Z"
+}
