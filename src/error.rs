@@ -39,6 +39,9 @@ pub enum RadkinError {
     /// G-value lookup failure (e.g. LET out of range).
     #[error("G-values: {0}")]
     GValue(String),
+    /// Unreadable or incompatible voxel checkpoint.
+    #[error("CHECKPOINT::{0}")]
+    Checkpoint(String),
     /// Invalid value given to a function.
     #[error("{0}")]
     Value(String),

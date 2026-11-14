@@ -13,7 +13,7 @@ use crate::matrices::SimMatrices;
 use crate::solver::SolveOptions;
 use crate::voxel::diffusion::{Diffusion, Scheme};
 use crate::voxel::grid::VoxelState;
-use crate::voxel::reaction::reaction_step;
+use crate::voxel::reaction::{integrate_one, reaction_step_background};
 
 /// Step-size control of the splitting.
 #[derive(Debug, Clone, PartialEq)]
@@ -72,6 +72,21 @@ pub struct VoxelRun {
     /// When `Some`, the domain sum of every species [µmol/L summed over
     /// voxels] after each accepted step, as `(t, sums)`.
     pub totals: Option<Vec<(f64, Vec<f64>)>>,
+    /// With `totals` and a background: the background vector times the
+    /// number of voxels at the same records (what the domain would hold
+    /// without seeds).
+    pub background_totals: Option<Vec<Vec<f64>>>,
+    /// Background vector [µmol/L]: the uniform solution without seeds,
+    /// advanced with the state. With `skip_background`, voxels that match it
+    /// share its integration (see [`reaction_step_background`]).
+    pub background: Option<Vec<f64>>,
+    /// Advance background voxels with the shared integration (default true).
+    pub skip_background: bool,
+    /// Background voxels summed over all reaction half-steps (rejected
+    /// attempts included).
+    pub background_voxel_steps: u64,
+    /// Voxels summed over all reaction half-steps.
+    pub voxel_steps: u64,
     dt: f64,
     rannacher_pending: bool,
 }
@@ -96,9 +111,24 @@ impl VoxelRun {
             steps: Vec::new(),
             rejected: 0,
             totals: None,
+            background_totals: None,
+            background: None,
+            skip_background: true,
+            background_voxel_steps: 0,
+            voxel_steps: 0,
             dt,
             rannacher_pending: true,
         }
+    }
+
+    /// Splitting step size proposed for the next attempt [s].
+    pub fn dt(&self) -> f64 {
+        self.dt
+    }
+
+    /// Set the next splitting step size [s] (e.g. when resuming a checkpoint).
+    pub fn set_dt(&mut self, dt: f64) {
+        self.dt = dt;
     }
 
     /// Add `amount` [µmol/L, same layout as the state] and damp the next
@@ -116,6 +146,7 @@ impl VoxelRun {
     /// Start recording domain sums (records the current state first).
     pub fn track_totals(&mut self) {
         self.totals = Some(Vec::new());
+        self.background_totals = self.background.as_ref().map(|_| Vec::new());
         self.record_totals();
     }
 
@@ -132,18 +163,73 @@ impl VoxelRun {
             if let Some(v) = self.totals.as_mut() {
                 v.push((self.t, sums));
             }
+            if let (Some(v), Some(bg)) = (self.background_totals.as_mut(), &self.background) {
+                let n = self.state.n_voxels as f64;
+                v.push(bg.iter().map(|b| b * n).collect());
+            }
         }
     }
 
-    fn strang(&mut self, state: &mut VoxelState, t: f64, dt: f64, damped: bool) -> Result<()> {
-        reaction_step(&self.mat, state, t, dt / 2.0, &self.solve)?;
+    fn strang(
+        &mut self,
+        state: &mut VoxelState,
+        bg: &mut Option<Vec<f64>>,
+        t: f64,
+        dt: f64,
+        damped: bool,
+    ) -> Result<()> {
+        self.half_reaction(state, bg, t, dt / 2.0)?;
+        let shift = if self.skip_background {
+            bg.as_deref()
+        } else {
+            None
+        };
+        self.diffuse(state, shift, dt, damped);
+        self.half_reaction(state, bg, t + dt / 2.0, dt / 2.0)
+    }
+
+    /// Diffusion over `dt`. With a background, the deviation from it is
+    /// diffused (zero-flux diffusion leaves a uniform field unchanged), so
+    /// background voxels stay exactly background instead of drifting by
+    /// round-off.
+    fn diffuse(&mut self, state: &mut VoxelState, bg: Option<&[f64]>, dt: f64, damped: bool) {
+        let shift = |state: &mut VoxelState, sign: f64| {
+            if let Some(bg) = bg {
+                for (s, b) in bg.iter().enumerate() {
+                    for x in state.field_mut(s) {
+                        *x += sign * b;
+                    }
+                }
+            }
+        };
+        shift(state, -1.0);
         if damped {
             self.diffusion
                 .step_rannacher(state, dt, self.control.rannacher_steps);
         } else {
             self.diffusion.step(state, dt, Scheme::CrankNicolson);
         }
-        reaction_step(&self.mat, state, t + dt / 2.0, dt / 2.0, &self.solve)
+        shift(state, 1.0);
+    }
+
+    fn half_reaction(
+        &mut self,
+        state: &mut VoxelState,
+        bg: &mut Option<Vec<f64>>,
+        t: f64,
+        h: f64,
+    ) -> Result<()> {
+        let n_bg = if self.skip_background {
+            reaction_step_background(&self.mat, state, bg.as_mut(), t, h, &self.solve)?
+        } else {
+            if let Some(b) = bg.as_mut() {
+                integrate_one(&self.mat, b, t, h, &self.solve)?;
+            }
+            reaction_step_background(&self.mat, state, None, t, h, &self.solve)?
+        };
+        self.background_voxel_steps += n_bg as u64;
+        self.voxel_steps += state.n_voxels as u64;
+        Ok(())
     }
 
     fn error_norm(&self, big: &VoxelState, small: &VoxelState) -> f64 {
@@ -166,10 +252,18 @@ impl VoxelRun {
             }
             let damped = self.rannacher_pending;
             let mut big = self.state.clone();
-            self.strang(&mut big, self.t, dt, damped)?;
+            let mut big_bg = self.background.clone();
+            self.strang(&mut big, &mut big_bg, self.t, dt, damped)?;
             let mut small = self.state.clone();
-            self.strang(&mut small, self.t, dt / 2.0, damped)?;
-            self.strang(&mut small, self.t + dt / 2.0, dt / 2.0, false)?;
+            let mut small_bg = self.background.clone();
+            self.strang(&mut small, &mut small_bg, self.t, dt / 2.0, damped)?;
+            self.strang(
+                &mut small,
+                &mut small_bg,
+                self.t + dt / 2.0,
+                dt / 2.0,
+                false,
+            )?;
             let err = self.error_norm(&big, &small);
             let c = &self.control;
             let factor = if err == 0.0 {
@@ -179,6 +273,7 @@ impl VoxelRun {
             };
             if err <= 1.0 {
                 self.state = small;
+                self.background = small_bg;
                 self.t = if landing { t_target } else { self.t + dt };
                 self.steps.push(StepRecord {
                     t: self.t,
@@ -326,5 +421,100 @@ mod tests {
         assert!((total - 100.0).abs() < 1e-3, "{total}");
         assert!(run.state.field(ih2).iter().all(|v| *v >= -1e-9));
         assert!(run.state.field(ih2)[grid.index(0, 0, 0)] > 0.0);
+    }
+
+    fn seeded_run(background: bool) -> VoxelRun {
+        let env = water_env();
+        let mat = SimMatrices::build(&env).unwrap();
+        let y0 = env.initial_values();
+        let n = y0.len();
+        let grid = VoxelGrid::new([10, 10, 3], [5e-9; 3], [0.0; 3]).unwrap();
+        let coeffs = vec![3e-9; n];
+        let control = StepControl {
+            rtol: 1e-3,
+            atol: 1e-6,
+            ..StepControl::default()
+        };
+        let mut run = VoxelRun::new(
+            mat,
+            Diffusion::new(grid.clone(), coeffs),
+            VoxelState::uniform(&y0, grid.n_voxels()),
+            0.0,
+            control,
+            opts(),
+        );
+        if background {
+            run.background = Some(y0.clone());
+        }
+        run.advance_to(1e-12).unwrap();
+        let mut add = VoxelState::zeros(n, grid.n_voxels());
+        for s in ["e_aq", "OH_r", "H3O_plus"] {
+            let i = env.species.index_of(s).unwrap();
+            add.field_mut(i)[grid.index(1, 1, 1)] = 50.0;
+            add.field_mut(i)[grid.index(2, 1, 1)] = 20.0;
+        }
+        run.inject(&add);
+        run.advance_to(2e-11).unwrap();
+        run
+    }
+
+    #[test]
+    fn background_voxels_match_full_integration() {
+        let full = seeded_run(false);
+        let skip = seeded_run(true);
+        assert_eq!(full.background_voxel_steps, 0);
+        assert!(
+            skip.background_voxel_steps > 0,
+            "no background voxel was skipped"
+        );
+        assert!(skip.background_voxel_steps < skip.voxel_steps);
+        assert_eq!(full.steps.len(), skip.steps.len());
+        for (a, b) in skip.state.data.iter().zip(&full.state.data) {
+            let tol = 1e-8 * b.abs() + 1e-10;
+            assert!((a - b).abs() <= tol, "{a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn unseeded_grid_is_all_background() {
+        let env = water_env();
+        let mat = SimMatrices::build(&env).unwrap();
+        let y0 = env.initial_values();
+        let grid = VoxelGrid::new([6, 5, 4], [5e-9; 3], [0.0; 3]).unwrap();
+        let mut run = VoxelRun::new(
+            mat,
+            Diffusion::new(grid.clone(), vec![2e-9; y0.len()]),
+            VoxelState::uniform(&y0, grid.n_voxels()),
+            0.0,
+            StepControl::default(),
+            opts(),
+        );
+        run.background = Some(y0);
+        run.advance_to(1e-6).unwrap();
+        assert!(run.voxel_steps > 0);
+        assert_eq!(run.background_voxel_steps, run.voxel_steps);
+    }
+
+    #[test]
+    fn diffusion_keeps_a_uniform_background_exact() {
+        // Magnitudes of an aerated background: O2, H3O+, OH-, a trace species.
+        let bg = vec![52.0, 0.1, 0.1, 1e-9, 0.0];
+        let grid = VoxelGrid::new([7, 9, 11], [3e-9, 5e-9, 4e-9], [0.0; 3]).unwrap();
+        let coeffs = vec![2.4e-9, 9.5e-9, 5.3e-9, 7e-9, 0.0];
+        let env = water_env();
+        let mut run = VoxelRun::new(
+            SimMatrices::build(&env).unwrap(),
+            Diffusion::new(grid.clone(), coeffs),
+            VoxelState::zeros(bg.len(), grid.n_voxels()),
+            0.0,
+            StepControl::default(),
+            opts(),
+        );
+        let mut st = VoxelState::uniform(&bg, grid.n_voxels());
+        run.diffuse(&mut st, Some(&bg), 1e-12, true);
+        for k in 0..40 {
+            run.diffuse(&mut st, Some(&bg), 1e-12 * 1.7f64.powi(k), false);
+        }
+        assert_eq!(st.data, VoxelState::uniform(&bg, grid.n_voxels()).data);
     }
 }

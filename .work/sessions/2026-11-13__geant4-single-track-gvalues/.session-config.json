@@ -1,0 +1,166 @@
+{
+  "session_id": "2026-11-13__geant4-single-track-gvalues",
+  "feature_name": "geant4-single-track-gvalues",
+  "scratch_dir": ".scratch/tests/2026-11-13__geant4-single-track-gvalues",
+  "created_at": "2026-11-13T22:57:00.828Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-13T22:57:00.828Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T23:05:01.151Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-13T23:05:29.590Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T23:05:34.672Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-13T23:06:27.106Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "perf/background-voxels",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-13T23:06:27.128Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-background-voxels.md",
+        "02-plan/tickets/02-geant4-reference.md",
+        "02-plan/tickets/03-study-setup.md",
+        "02-plan/tickets/04-sweeps-and-report.md"
+      ],
+      "detail": {
+        "tickets": 4
+      }
+    },
+    {
+      "at": "2026-11-13T23:06:27.657Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-background-voxels.md",
+        "03-implement/01-background-voxels/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-background-voxels"
+      }
+    },
+    {
+      "at": "2026-11-13T23:10:05.057Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-background-voxels/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-background-voxels",
+        "commit": "1d22775"
+      }
+    },
+    {
+      "at": "2026-11-13T23:49:12.193Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-geant4-reference.md",
+        "03-implement/02-geant4-reference/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-geant4-reference"
+      }
+    },
+    {
+      "at": "2026-11-13T23:49:21.215Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-geant4-reference/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-geant4-reference",
+        "commit": "dd8051d"
+      }
+    },
+    {
+      "at": "2026-11-13T23:49:37.103Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-study-setup.md",
+        "03-implement/03-study-setup/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-study-setup"
+      }
+    },
+    {
+      "at": "2026-11-13T23:49:37.540Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-study-setup/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-study-setup",
+        "commit": "802e52b"
+      }
+    },
+    {
+      "at": "2026-11-13T23:49:42.974Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-sweeps-and-report.md",
+        "03-implement/04-sweeps-and-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-sweeps-and-report"
+      }
+    },
+    {
+      "at": "2026-11-14T01:27:32.760Z",
+      "event": "handoff_saved",
+      "phase": "ship",
+      "files": [
+        "HANDOFF.md"
+      ]
+    }
+  ],
+  "current_phase": "ship",
+  "git": {
+    "branch": "perf/background-voxels",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-13T23:06:27.106Z",
+    "pr_url": null
+  },
+  "ship_mode": "inline"
+}

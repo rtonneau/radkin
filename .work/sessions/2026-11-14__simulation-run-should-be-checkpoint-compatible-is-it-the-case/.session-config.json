@@ -1,0 +1,178 @@
+{
+  "session_id": "2026-11-14__simulation-run-should-be-checkpoint-compatible-is-it-the-case",
+  "feature_name": "Simulation run should be checkpoint compatible. Is it the case?",
+  "scratch_dir": ".scratch/tests/2026-11-14__simulation-run-should-be-checkpoint-compatible-is-it-the-case",
+  "created_at": "2026-11-14T11:25:43.563Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-14T11:25:43.563Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T11:32:43.478Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-14T11:33:01.932Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T11:33:08.420Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T11:33:43.732Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/voxel-checkpoint",
+        "base": "chore/radkin-irt-syn-gvalues"
+      }
+    },
+    {
+      "at": "2026-11-14T11:33:43.748Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-checkpoint-format.md",
+        "02-plan/tickets/02-sim-checkpoint-resume.md",
+        "02-plan/tickets/03-cli-resume-tests-docs.md"
+      ],
+      "detail": {
+        "tickets": 3
+      }
+    },
+    {
+      "at": "2026-11-14T11:33:48.794Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-checkpoint-format.md",
+        "03-implement/01-checkpoint-format/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-checkpoint-format"
+      }
+    },
+    {
+      "at": "2026-11-14T11:36:44.888Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-checkpoint-format/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-checkpoint-format",
+        "commit": "a645a3f"
+      }
+    },
+    {
+      "at": "2026-11-14T11:36:52.364Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-sim-checkpoint-resume.md",
+        "03-implement/02-sim-checkpoint-resume/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-sim-checkpoint-resume"
+      }
+    },
+    {
+      "at": "2026-11-14T11:43:19.593Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-sim-checkpoint-resume/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-sim-checkpoint-resume",
+        "commit": "9979269"
+      }
+    },
+    {
+      "at": "2026-11-14T11:43:26.562Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-cli-resume-tests-docs.md",
+        "03-implement/03-cli-resume-tests-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-cli-resume-tests-docs"
+      }
+    },
+    {
+      "at": "2026-11-14T11:44:33.924Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-cli-resume-tests-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-cli-resume-tests-docs",
+        "commit": "92415ae"
+      }
+    },
+    {
+      "at": "2026-11-14T11:44:50.447Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-11-14T11:45:58.697Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/9"
+      }
+    },
+    {
+      "at": "2026-11-14T11:44:50.712Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/voxel-checkpoint",
+    "base_branch": "chore/radkin-irt-syn-gvalues",
+    "branch_created_at": "2026-11-14T11:33:43.732Z",
+    "pr_url": "https://github.com/rtonneau/radkin/pull/9"
+  },
+  "ship_mode": "inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 3,
+    "path": ".work/changelog/2026-11-14__simulation-run-should-be-checkpoint-compatible-is-it-the-case.md",
+    "written_at": "2026-11-14T11:44:50.442Z"
+  },
+  "finished_at": "2026-11-14T11:44:50.712Z"
+}

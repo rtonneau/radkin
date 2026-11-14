@@ -116,6 +116,13 @@ Strang: reaction(dt/2), diffusion(dt), reaction(dt/2) (ADR 0002 in `.work/adr/`)
 - Diffusion uses Crank-Nicolson ADI with zero-flux boundaries. After each injection,
   backward-Euler substeps (Rannacher start) keep the concentrations non-negative.
 - dt is adaptive by step doubling and lands exactly on seed and snapshot times.
+- G-values in `yields.csv` are net of the background chemistry: the seedless uniform
+  solution is integrated alongside, so a background that drifts (e.g. a pH slightly off
+  equilibrium) does not show up as yield.
+- Background voxels, which still hold only the uniform initial solution (within
+  `1e-3 * solver_atol + 1e-12 * |c|`), share one rsoda run per half-step, so untouched
+  voxels cost almost nothing. Diffusion then acts on the deviation from that background.
+  Set `background_voxels = false` in `[voxel.run]` to integrate every voxel.
 
 ```toml
 [includes]
@@ -148,6 +155,8 @@ t_end = 1e-7
 snapshots = [1e-12, 1e-9, 1e-7]
 rtol = 1e-2                  # splitting error control (atol in µmol/L)
 atol = 1e-3
+# background_voxels = true   # share one integration for untouched voxels
+# checkpoint_every = 2       # checkpoint every 2 snapshot times (default: end only)
 ```
 
 The background species come from the chemistry's initial concentrations, uniform over the
@@ -163,13 +172,34 @@ Outputs:
 | `snapshots/t<k>_<sp>.npy` | concentration field [mol/L], C order, shape `(nz, ny, nx)` |
 | `snapshots.json` | grid, species, snapshot times and files, step counts |
 
+**Checkpoints.** Every voxel run writes `DIR/checkpoint.npz` at `t_end`, and every
+`checkpoint_every` snapshot times if set (each write replaces the file atomically).
+`radkin voxel CONFIG --resume OLD/checkpoint.npz --out NEW` starts from it instead of
+`t_start`, for three uses:
+
+- recovery: rerun the same configuration after a crash or a kill;
+- extension: raise `t_end` and continue a finished run;
+- new conditions: change the beam, solver settings or seeds. Seeds already injected are
+  skipped; new seeds must come at or after the checkpoint time.
+
+The grid (dims, spacing, origin) and the species order must match the checkpoint. Other
+differences are logged as warnings. The resumed run restarts its step control from the
+saved dt, so it agrees with an uninterrupted run within the splitting tolerance, not bit
+for bit. It writes only the part after the checkpoint into `NEW` (`N(t_start)` of its
+G-values is taken at the checkpoint time); joining the outputs is left to the user. The
+checkpoint is a NumPy archive: `np.load("checkpoint.npz")` gives `state` (µmol/L, shape
+`(n_species, nz, ny, nx)`), `time` (`[t, dt]`), `grid`, `seeds`, `background` and
+`meta.json` (species, dims, settings summary).
+
 `python -I tools/compare_geant4.py DIR [--geant4 g4.csv]` plots G(t), optionally against
 Geant4-DNA chemistry yields (a CSV with columns `t,species,G`).
 
 **Mean-field caveat.** Each voxel is well mixed, so one molecule in a (5 nm)^3 voxel is
 about 13 mM, and second-order terms such as `e_aq + e_aq` act even on a lone molecule.
-Voxels larger than the spur size (a few nm) mix a spur too early and overestimate
-recombination. Voxels much smaller than the mean distance between molecules make
+Voxels larger than the spur size (a few nm) dilute a spur over the voxel and
+underestimate recombination: on a 100 keV electron track (Geant4-DNA option3 seeds at
+1 ps), G(OH) at 10 µs is 5.2 with 1 µm voxels, 4.3 with 250 nm and 4.2 with 40 nm on a
+track segment, against 2.1–3.3 for Geant4-DNA IRT. Voxels much smaller than the mean distance between molecules make
 the continuum description meaningless. Check that the results are stable as the voxel
 size changes, and compare against Geant4-DNA step-by-step chemistry before trusting
 absolute G-values. The example (`data/voxel_example.toml`, a synthetic track) shows the
