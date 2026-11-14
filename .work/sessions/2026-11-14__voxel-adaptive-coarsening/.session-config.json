@@ -1,0 +1,76 @@
+{
+  "session_id": "2026-11-14__voxel-adaptive-coarsening",
+  "feature_name": "voxel-adaptive-coarsening",
+  "scratch_dir": ".scratch/tests/2026-11-14__voxel-adaptive-coarsening",
+  "created_at": "2026-11-14T15:12:33.720Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-14T15:12:33.720Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T15:17:14.921Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T15:17:51.582Z",
+      "event": "auto_started",
+      "phase": "plan-not-started",
+      "detail": {
+        "target": "finish",
+        "steps": "plan → write:plan → ship → finish",
+        "shipMode": "delegate"
+      }
+    },
+    {
+      "at": "2026-11-14T15:17:51.682Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T15:18:35.626Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/voxel-global-coarsening",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-14T15:18:35.649Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-baseline.md",
+        "02-plan/tickets/02-config.md",
+        "02-plan/tickets/03-coarsen-primitives.md",
+        "02-plan/tickets/04-driver-levels.md",
+        "02-plan/tickets/05-io-resume.md",
+        "02-plan/tickets/06-acceptance.md"
+      ],
+      "detail": {
+        "tickets": 6
+      }
+    }
+  ],
+  "current_phase": "ship",
+  "git": {
+    "branch": "feat/voxel-global-coarsening",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-14T15:18:35.626Z",
+    "pr_url": null
+  }
+}
