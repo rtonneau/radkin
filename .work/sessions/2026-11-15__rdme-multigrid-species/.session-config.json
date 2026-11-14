@@ -64,6 +64,30 @@
       "detail": {
         "tickets": 6
       }
+    },
+    {
+      "at": "2026-11-14T23:38:22.825Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-species-levels-config.md",
+        "03-implement/01-species-levels-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-species-levels-config"
+      }
+    },
+    {
+      "at": "2026-11-14T23:44:21.002Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-species-levels-config/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-species-levels-config",
+        "commit": "0286a80"
+      }
     }
   ],
   "git": {
@@ -73,5 +97,6 @@
     "pr_url": null,
     "worktree_path": "D:\\DEV\\RUST\\radkin-worktrees\\2026-11-15__rdme-multigrid-species"
   },
-  "current_phase": "ship"
+  "current_phase": "ship",
+  "ship_mode": "inline"
 }
