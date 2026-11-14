@@ -84,6 +84,30 @@
         "ticket": "01-geant4-irt-syn-project",
         "commit": "5fceb89"
       }
+    },
+    {
+      "at": "2026-11-14T08:39:02.054Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-chemistry-export-and-tooling.md",
+        "03-implement/02-chemistry-export-and-tooling/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-chemistry-export-and-tooling"
+      }
+    },
+    {
+      "at": "2026-11-14T08:40:19.564Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-chemistry-export-and-tooling/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-chemistry-export-and-tooling",
+        "commit": "2112de0"
+      }
     }
   ],
   "current_phase": "ship",
