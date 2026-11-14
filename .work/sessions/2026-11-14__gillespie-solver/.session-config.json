@@ -65,6 +65,30 @@
       "detail": {
         "tickets": 8
       }
+    },
+    {
+      "at": "2026-11-14T20:10:47.990Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-unit-cell-exact-ssa.md",
+        "03-implement/01-unit-cell-exact-ssa/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-unit-cell-exact-ssa"
+      }
+    },
+    {
+      "at": "2026-11-14T20:17:27.358Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-unit-cell-exact-ssa/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-unit-cell-exact-ssa",
+        "commit": "dca3a07"
+      }
     }
   ],
   "current_phase": "ship",
@@ -73,5 +97,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-14T20:10:42.866Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "inline"
 }
