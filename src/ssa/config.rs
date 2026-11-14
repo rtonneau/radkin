@@ -9,7 +9,12 @@
 //! seed = 0              # trajectory i draws from stream i of this seed
 //! tau_leap = false      # opt-in tau-leaping
 //! tau_epsilon = 0.03    # accuracy of a leap (smaller: closer to the exact SSA)
+//! rate_correction = "hellander"  # voxel runs: "hellander" (default) or "none"
 //! ```
+//!
+//! `rate_correction` scales the bimolecular propensities of a voxel run for
+//! the voxel size (mesh correction, `docs/ssa.md`). Unit-cell runs have no
+//! grid: an explicit `"hellander"` there is an error.
 //!
 //! Both are read from the run file itself, not from its includes.
 
@@ -54,6 +59,37 @@ pub const DEFAULT_TRAJECTORIES: usize = 100;
 /// (Cao, Gillespie and Petzold 2006).
 pub const DEFAULT_TAU_EPSILON: f64 = 0.03;
 
+/// Correction of the bimolecular propensities of the RDME for the voxel
+/// size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RateCorrection {
+    /// Macroscopic rate constants in every voxel.
+    None,
+    /// `c / (1 - h*/h)` on a level of spacing `h` above the critical spacing
+    /// `h*` (Hellander and Hellander 2020, eq. 6).
+    Hellander,
+}
+
+impl RateCorrection {
+    /// `"none"` or `"hellander"`.
+    pub fn parse(name: &str) -> Result<Self> {
+        match name {
+            "none" => Ok(Self::None),
+            "hellander" => Ok(Self::Hellander),
+            other => Err(RadkinError::Config(format!(
+                "ssa.rate_correction must be \"hellander\" or \"none\", got \"{other}\""
+            ))),
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Hellander => "hellander",
+        }
+    }
+}
+
 /// `[ssa]` table.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SsaConfig {
@@ -68,6 +104,9 @@ pub struct SsaConfig {
     /// Bound on the relative change of a propensity over a leap, in (0, 1).
     /// The error of tau-leaping on the mean is proportional to it.
     pub tau_epsilon: f64,
+    /// Mesh correction of a voxel run; `None`: not set, the default
+    /// (Hellander where the grid allows it).
+    pub rate_correction: Option<RateCorrection>,
 }
 
 impl Default for SsaConfig {
@@ -78,6 +117,7 @@ impl Default for SsaConfig {
             seed: 0,
             tau_leap: false,
             tau_epsilon: DEFAULT_TAU_EPSILON,
+            rate_correction: None,
         }
     }
 }
@@ -132,9 +172,18 @@ impl SsaConfig {
                         )));
                     }
                 },
+                "rate_correction" => match value.as_str() {
+                    Some(name) => out.rate_correction = Some(RateCorrection::parse(name)?),
+                    None => {
+                        return Err(RadkinError::Config(format!(
+                            "ssa.rate_correction must be \"hellander\" or \"none\", got {value}"
+                        )));
+                    }
+                },
                 other => {
                     return Err(RadkinError::Config(format!(
-                        "unknown key ssa.{other} (known: volume, trajectories, seed, tau_leap, tau_epsilon)"
+                        "unknown key ssa.{other} (known: volume, trajectories, seed, tau_leap, \
+                         tau_epsilon, rate_correction)"
                     )));
                 }
             }
@@ -142,8 +191,15 @@ impl SsaConfig {
         Ok(out)
     }
 
-    /// The unit-cell volume [L], an error if `volume` is absent.
+    /// The unit-cell volume [L], an error if `volume` is absent or if the
+    /// run asks for a mesh correction (a unit cell has no grid).
     pub fn require_volume(&self) -> Result<f64> {
+        if self.rate_correction == Some(RateCorrection::Hellander) {
+            return Err(RadkinError::Config(
+                "ssa.rate_correction = \"hellander\" needs a voxel run: a unit cell has no grid"
+                    .into(),
+            ));
+        }
         self.volume.ok_or_else(|| {
             RadkinError::Config(
                 "ssa.volume (litres) is required by a unit-cell run with solver = \"ssa\"".into(),
@@ -208,7 +264,7 @@ mod tests {
     fn parses_solver_and_ssa_table() {
         let c = SolverConfig::from_toml_str(
             "solver = \"ssa\"\n[ssa]\nvolume = 2e-15\ntrajectories = 8\nseed = 42\ntau_leap = true
-tau_epsilon = 0.01",
+tau_epsilon = 0.01\nrate_correction = \"none\"",
         )
         .unwrap();
         assert_eq!(c.solver, SolverKind::Ssa);
@@ -220,6 +276,7 @@ tau_epsilon = 0.01",
                 seed: 42,
                 tau_leap: true,
                 tau_epsilon: 0.01,
+                rate_correction: Some(RateCorrection::None),
             }
         );
         assert_eq!(c.ssa.require_volume().unwrap(), 2e-15);
@@ -237,9 +294,31 @@ tau_epsilon = 0.01",
             "[ssa]\nseed = -1",
             "[ssa]\ntau_leap = 1",
             "[ssa]\nvolumes = 1e-15",
+            "[ssa]\nrate_correction = \"fange\"",
+            "[ssa]\nrate_correction = true",
         ] {
             let e = SolverConfig::from_toml_str(bad).unwrap_err().to_string();
             assert!(e.contains("solver") || e.contains("ssa"), "{bad}: {e}");
         }
+    }
+
+    #[test]
+    fn unit_cell_refuses_an_explicit_mesh_correction() {
+        let parse = |extra: &str| {
+            SolverConfig::from_toml_str(&format!("[ssa]\nvolume = 1e-15\n{extra}"))
+                .unwrap()
+                .ssa
+        };
+        assert_eq!(parse("").require_volume().unwrap(), 1e-15);
+        assert_eq!(
+            parse("rate_correction = \"none\"")
+                .require_volume()
+                .unwrap(),
+            1e-15
+        );
+        let e = parse("rate_correction = \"hellander\"")
+            .require_volume()
+            .unwrap_err();
+        assert!(e.to_string().contains("rate_correction"), "{e}");
     }
 }
