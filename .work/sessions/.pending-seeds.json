@@ -1,22 +1,4 @@
 {
-  "rdme-multigrid-species": {
-    "strength": "Worth exploring",
-    "severity": null,
-    "files": [
-      "src/ssa/rdme.rs",
-      "src/ssa/rdme_coarsen.rs",
-      "src/ssa/rdme_tau.rs",
-      "src/voxel/config.rs",
-      "src/ssa/voxel_output.rs"
-    ],
-    "problem": "RDME cost is dominated by hops (6 D/h^2 per molecule), and coarsening is global (rdme_coarsen.rs): one numerous fast species keeps the whole grid fine, or the whole grid coarsens and loses the radical structure.",
-    "solution": "Multi-grid RDME (Erban & Winkelmann 2024; Hellander & Hellander 2020): each species lives on a fixed level of the existing 2^L hierarchy. Cross-level bimolecular reactions use the rate of the coarser voxel (hRDME III.C.4); a product whose level is finer than the reaction's goes uniformly to a child voxel (mgRDME eq. 20/25). Choose levels from the hRDME tolerance W(h) = (k/D) G(h,sigma) < eps or from gamma ~ sqrt(D_A/D_B); allow a manual per-species override. Open: it pays only where a species is numerous and fast (aerated runs, voxels of 100 nm and up), so measure first; interaction with global coarsening and tau-leaping; deterministic ADI per species is a possible later extension.",
-    "benefits": "Fewer hops for background species (O2, H3O+, OH-) while the seeded radicals keep fine resolution.",
-    "sourceDirection": "read '_lite.md' version of scientific papers in 'radkin\\docs\\literature\\md_mistral\\'. How could these papers benefit radkin repo?",
-    "sourceReport": "scout-reports/architecture-review-2026-11-14T23-17-51-122Z.html",
-    "sourcePath": null,
-    "createdAt": "2026-11-14T23:17:51.122Z"
-  },
   "rdme-hierarchical-transfer": {
     "strength": "Speculative",
     "severity": null,

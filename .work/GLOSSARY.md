@@ -112,5 +112,9 @@ Solve time divided by the number of RHS evaluations (nfev), solver overhead incl
 _Avoid_: RHS time (that is the kernel's share only)
 
 **Coarsening level**:
-The global resolution of the voxel grid relative to the configured fine grid: level L merges every 2^L×2^L×2^L block of fine voxels into one uniform voxel. The whole grid is always at one level.
+The global resolution of the voxel grid relative to the configured fine grid: level L merges every 2^L×2^L×2^L block of fine voxels into one uniform voxel. The whole grid is at one coarsening level; under the RDME it is a floor for every species level.
 _Avoid_: AMR level, refinement level, octree depth
+
+**Species level**:
+The fixed level of the 2^L hierarchy on which one species lives in a stochastic voxel run (`[ssa.species_levels]`, default 0); its molecules hop and react on that level's voxels, and a species sits at the larger of its species level and the current coarsening level.
+_Avoid_: species grid, species resolution, multi-grid level
