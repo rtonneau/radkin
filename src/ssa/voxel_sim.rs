@@ -412,13 +412,6 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let max_levels = setup.max_levels();
     let model = if multigrid {
         let mg = MultigridSetup::new(setup, &levels)?;
-        if let Some(j) = mg.cross_level_reaction() {
-            return Err(RadkinError::Config(format!(
-                "ssa.species_levels: reaction '{}' links species on different levels, \
-                 which is not implemented yet",
-                sim.env.reaction_strings()[j]
-            )));
-        }
         Model::Multi(Box::new(mg))
     } else {
         Model::Single(setup)

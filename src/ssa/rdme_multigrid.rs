@@ -616,7 +616,7 @@ impl<'a> Multigrid<'a> {
 
     /// Fire the next event if it happens before `t_stop`. Returns whether
     /// one did.
-    fn step(&mut self, t_stop: f64) -> bool {
+    pub fn step(&mut self, t_stop: f64) -> bool {
         let (i, t_next) = self.queue.top();
         if t_next >= t_stop {
             return false;
