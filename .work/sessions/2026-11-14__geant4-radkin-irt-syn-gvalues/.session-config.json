@@ -108,6 +108,14 @@
         "ticket": "02-chemistry-export-and-tooling",
         "commit": "2112de0"
       }
+    },
+    {
+      "at": "2026-11-14T12:47:04.579Z",
+      "event": "handoff_saved",
+      "phase": "ship",
+      "files": [
+        "HANDOFF.md"
+      ]
     }
   ],
   "current_phase": "ship",
