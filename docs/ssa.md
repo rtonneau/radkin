@@ -264,30 +264,73 @@ with `tau_leap = true`, 2000 trajectories).
 
 ### Small voxels
 
-At small voxels the two do not agree, and are not expected to. On
-`data/voxel_example.toml` (6 nm voxels, a synthetic 6-spur track, 100 ns; 64
+At small voxels the plain RDME is biased. Two molecules can only react once they share
+a voxel, and on a fine grid finding the same voxel takes longer than the macroscopic
+encounter time. Each bimolecular reaction has a **critical spacing**
+
+```text
+h* = C₃ κ / (6 D) ≈ 0.2527 κ / D
+```
+
+where `κ` [m³/s] is the pair rate constant the RDME sees and `D` the summed
+diffusion coefficient of the pair. `C₃ = 1.5164` is the mean number of lattice steps
+to reach a target, divided by the number of voxels (Hellander, Hellander and Petzold,
+Phys. Rev. E 85, 042901, 2012). `κ = k / N_A` for `A + B`; `κ = 2k / N_A` for `2 A`,
+whose propensity `k/(N_A V) n (n − 1)` is `2k/(N_A V)` per pair, with `D = 2 D_A`.
+radiopyo stores `k = k_value / 2` for `2 A`, so there `κ = k_value / N_A`. A fixed
+reactant enters through `κ`: `e_aq + O_minus + H2O` has `κ = k [H2O] / N_A`. With the
+macroscopic propensity, the mean encounter time of a pair at spacing `h` is
+`(1 + h*/h)` times the macroscopic one. Below `h*` no propensity can match it.
+
+**Mesh correction.** `[ssa] rate_correction = "hellander"` (the default) scales every
+bimolecular propensity of a grid level of spacing `h > h*` by
+
+```text
+1 / (1 − h*/h)
+```
+
+This is eq. 6 of Hellander and Hellander (J. Chem. Phys. 152, 034104, 2020) with
+`1/k = 1/k_r + 1/(4π σ D)`. It needs no reaction radius, and the mean encounter time
+becomes the macroscopic one. Each coarsening level uses its own spacing. The factor is
+applied when the propensity model of a level is built, so it costs nothing at run time.
+
+- A reaction with `h ≤ h*` keeps the macroscopic propensity on that level. radkin warns
+  once per such reaction on the fine grid. For diffusion-limited radical reactions `h*`
+  is 1 to 4 nm. Reactions written with H2O have a large `k [H2O]`, so their `h*` is
+  large: `e_aq + O_minus + H2O` gives 75 nm with the bundled chemistry. These stay
+  uncorrected on nm grids.
+- Reactions with a non-diffusing pair, first-order reactions and Michaelis–Menten
+  reactions are not corrected.
+- The formula assumes cubic voxels. An anisotropic grid runs uncorrected, with a
+  warning, when the key is unset. An explicit `"hellander"` on an anisotropic grid is an
+  error, and so is an explicit `"hellander"` on a unit-cell run, which has no grid.
+- `rate_correction = "none"` gives the plain RDME. `snapshots.json` records which model
+  ran.
+
+Validation (`ssa::rdme::tests::mesh_correction_matches_the_association_time`): one
+immobile A in the centre voxel and one B with a uniform start, `A + B → C`, on an
+11³ grid with `h = 2 h*`. Over 4000 trajectories, the mean reaction time divided by
+`V/κ` is 0.966 ± 0.015 with the correction and 1.458 ± 0.023 without; theory gives 1
+and 1.5. The test runs 2000 trajectories. The few per cent left come from the finite,
+zero-flux grid; Theorem 1 of Hellander et al. is for a periodic domain as N → ∞.
+
+On `data/voxel_example.toml` (6 nm voxels, a synthetic 6-spur track, 100 ns; 64
 trajectories, seed 1):
 
-| G at 100 ns [/100 eV] | RDME (± SEM) | Deterministic |
-|---|---|---|
-| e_aq | 1.13 ± 0.06 | 0.84 |
-| OH_r | 2.53 ± 0.07 | 2.10 |
-| H3O_plus | 2.57 ± 0.06 | 2.02 |
-| H2O2 | 1.77 ± 0.04 | 2.02 |
-| H2 | 0.68 ± 0.05 | 0.80 |
+| G at 100 ns [/100 eV] | RDME, corrected (± SEM) | RDME, `"none"` (± SEM) | Deterministic |
+|---|---|---|---|
+| e_aq | 0.92 ± 0.05 | 1.13 ± 0.06 | 0.84 |
+| OH_r | 2.18 ± 0.08 | 2.53 ± 0.07 | 2.10 |
+| H3O_plus | 2.06 ± 0.06 | 2.57 ± 0.06 | 2.02 |
+| H2O2 | 1.75 ± 0.04 | 1.77 ± 0.04 | 2.01 |
+| H2 | 0.64 ± 0.04 | 0.68 ± 0.05 | 0.80 |
 
-With about one molecule per voxel, the rate equations let a fraction of a molecule
-react with itself (`k [A]²` is not zero for one molecule, `n (n − 1)` is), so they
-recombine radicals faster than the stochastic model.
-
-The RDME has its own limit at small voxels. A bimolecular reaction of rate constant `k`
-between species of summed diffusion coefficient `D` can only be represented on a grid
-of spacing above `h* ≈ 0.25 k / (N_A D)` (Hellander, Hellander and Petzold, Phys. Rev.
-E 85, 042901, 2012); below it the reaction is too slow, whatever the propensity. radkin
-logs a warning with the worst reaction when the spacing is below `h*`. For
-diffusion-limited radical reactions `h*` is 1 to 4 nm. Reactions written with H2O as a
-reactant have an effective bimolecular constant `k [H2O]`, which can be far above the
-diffusion limit: `e_aq + O_minus + H2O` gives `h*` = 75 nm with the bundled chemistry.
+Most of the radical excess of the plain RDME came from this bias. With the correction,
+e_aq, OH_r and H3O_plus are within 2 SEM of the deterministic run. H2O2 and H2, the
+products of `2 A` recombinations, stay below it. With about one molecule per voxel, the
+rate equations let a fraction of a molecule react with itself (`k [A]²` is not zero
+for one molecule, `n (n − 1)` is). In this example four reactions with H2O stay
+uncorrected (`h*` of 12 to 75 nm).
 
 ## Cost
 

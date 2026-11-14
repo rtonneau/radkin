@@ -912,4 +912,71 @@ mod tests {
         assert!(RdmeSetup::new(&mat, &grid, vec![5e-9; mat.n_dyn], 0, true).is_err());
         assert!(RdmeSetup::new(&mat, &grid, vec![5e-9; mat.n_dyn], 0, false).is_ok());
     }
+
+    /// Mean time until one immobile A (centre voxel) and one B (uniform
+    /// start, diffusion `D`) react, over `runs` trajectories, divided by the
+    /// macroscopic `V / kappa`; and its standard error. The grid has
+    /// `h = 2 h*`.
+    fn association_time(correct: bool, runs: u64) -> (f64, f64) {
+        let (h, d_b, n) = (6e-9, 5e-9, 11);
+        let kappa = (h / 2.0) * d_b / CRITICAL_FACTOR;
+        let k = kappa * 1e3 * crate::consts::AVOGADRO;
+        let toml = format!(
+            "[[reactions.k_reaction]]\nreaction = \"e_aq + OH_r -> OH_minus\"\nk_value = {k:e}"
+        );
+        let env = SimEnv::from_config(&Config::from_toml_str(&toml, None).unwrap()).unwrap();
+        let mat = SimMatrices::build(&env).unwrap();
+        let grid = VoxelGrid::new([n; 3], [h; 3], [0.0; 3]).unwrap();
+        let (a, b) = (
+            env.species.index_of("e_aq").unwrap(),
+            env.species.index_of("OH_r").unwrap(),
+        );
+        let mut diffusion = vec![0.0; mat.n_dyn];
+        diffusion[b] = d_b;
+        let s = RdmeSetup::new(&mat, &grid, diffusion, 0, correct).unwrap();
+        let (h_star, _) = s.validity_bound().unwrap();
+        assert!((h_star - h / 2.0).abs() < 1e-12 * h);
+        let nv = grid.n_voxels();
+        let tau = grid.voxel_volume_l() * 1e-3 * nv as f64 / kappa;
+        let mut start = SsaRng::new(99, 0);
+        let (mut sum, mut sum_sq) = (0.0, 0.0);
+        for i in 0..runs {
+            let vb = ((start.uniform() * nv as f64) as usize).min(nv - 1);
+            let mut r = Rdme::new(&s, 0.0, SsaRng::new(7, i));
+            r.inject(&[(nv / 2, a, 1), (vb, b, 1)]);
+            while r.n_reactions == 0 {
+                assert!(r.step(f64::INFINITY));
+            }
+            sum += r.t / tau;
+            sum_sq += (r.t / tau).powi(2);
+        }
+        let mean = sum / runs as f64;
+        let sem = ((sum_sq / runs as f64 - mean * mean) / runs as f64).sqrt();
+        (mean, sem)
+    }
+
+    #[test]
+    fn mesh_correction_matches_the_association_time() {
+        // Hellander, Hellander and Petzold 2012, eq. 1 with N_steps =
+        // 1.5164 N: the uncorrected RDME takes V/kappa (1 + h*/h) = 1.5 V/kappa
+        // at h = 2 h*, the corrected one V/kappa. The 11^3 zero-flux grid
+        // differs from the periodic, N -> infinity derivation by a few per
+        // cent (measured with 4000 trajectories: 0.966 +- 0.015 and
+        // 1.458 +- 0.023), hence the 5 % allowance on top of the noise.
+        let runs = 2000;
+        let (fixed, sem) = association_time(true, runs);
+        assert!(
+            (fixed - 1.0).abs() < 0.05 + 3.0 * sem,
+            "corrected: {fixed} +- {sem}"
+        );
+        let (plain, sem_plain) = association_time(false, runs);
+        assert!(
+            (plain - 1.5).abs() < 0.05 + 3.0 * sem_plain,
+            "uncorrected: {plain} +- {sem_plain}"
+        );
+        assert!(
+            plain - fixed > 0.05 + 3.0 * (sem + sem_plain),
+            "{fixed} vs {plain}"
+        );
+    }
 }
