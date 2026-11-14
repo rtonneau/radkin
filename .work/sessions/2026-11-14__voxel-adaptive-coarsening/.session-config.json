@@ -160,6 +160,30 @@
         "ticket": "04-driver-levels",
         "commit": "c369f5e"
       }
+    },
+    {
+      "at": "2026-11-14T15:46:52.180Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-io-resume.md",
+        "03-implement/05-io-resume/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-io-resume"
+      }
+    },
+    {
+      "at": "2026-11-14T15:58:26.562Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-io-resume/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-io-resume",
+        "commit": "584767a"
+      }
     }
   ],
   "current_phase": "ship",
