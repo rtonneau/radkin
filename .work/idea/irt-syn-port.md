@@ -1,9 +1,9 @@
 ---
-status: planned
+status: promoted
 scope: project
 created: 2026-11-15
 reviews: 0
-promoted_to: null
+promoted_to: radkin:2026-11-15__irt-syn-port
 ---
 
 ## Problem
@@ -87,3 +87,4 @@ radkin gets its own IRT solver (new `src/irt/`), starting from the 1 ps molecule
 - 2026-11-15 — capture — Port Geant4-DNA IRT_syn into radkin, from the 1 ps molecules (radkin @ main)
 - 2026-11-15 — grill
 - 2026-11-15 — plan
+- 2026-11-15 — promote
