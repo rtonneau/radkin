@@ -81,7 +81,7 @@ pub fn check_divisible(dims: [usize; 3], levels: u32, key: &str) -> Result<()> {
     Ok(())
 }
 
-fn num(v: &toml::Value, what: &str) -> Result<f64> {
+pub(crate) fn num(v: &toml::Value, what: &str) -> Result<f64> {
     match v {
         toml::Value::Float(f) => Ok(*f),
         toml::Value::Integer(i) => Ok(*i as f64),
@@ -89,7 +89,11 @@ fn num(v: &toml::Value, what: &str) -> Result<f64> {
     }
 }
 
-fn triple(v: Option<&toml::Value>, default: Option<f64>, what: &str) -> Result<[f64; 3]> {
+pub(crate) fn triple(
+    v: Option<&toml::Value>,
+    default: Option<f64>,
+    what: &str,
+) -> Result<[f64; 3]> {
     match v {
         None => default
             .map(|d| [d; 3])
@@ -110,8 +114,8 @@ fn strings(v: &toml::Value, what: &str) -> Result<Vec<String>> {
         .ok_or_else(|| RadkinError::Config(format!("{what} must be a list of strings")))
 }
 
-fn seed_spec(t: &toml::Table, base: &Path, i: usize) -> Result<SeedSpec> {
-    let what = format!("voxel.seed[{i}]");
+/// A seed entry (`[[voxel.seed]]`, `[[irt.seed]]`); `what` names it in errors.
+pub(crate) fn seed_spec(t: &toml::Table, base: &Path, what: &str) -> Result<SeedSpec> {
     let file = t
         .get("file")
         .and_then(|v| v.as_str())
@@ -151,6 +155,41 @@ fn seed_spec(t: &toml::Table, base: &Path, i: usize) -> Result<SeedSpec> {
         offset,
         energy_ev,
     })
+}
+
+/// `clip` and the `[<section>.geant4]` aliases and ignore list of a section.
+pub(crate) fn seed_policy(table: &toml::Table, section: &str) -> Result<SeedPolicy> {
+    let mut policy = SeedPolicy {
+        clip: table
+            .get("clip")
+            .map(|v| {
+                v.as_bool()
+                    .ok_or_else(|| RadkinError::Config(format!("{section}.clip must be a boolean")))
+            })
+            .transpose()?
+            .unwrap_or(false),
+        ..SeedPolicy::default()
+    };
+    if let Some(g4) = table.get("geant4") {
+        let g4 = g4
+            .as_table()
+            .ok_or_else(|| RadkinError::Config(format!("{section}.geant4 must be a table")))?;
+        if let Some(a) = g4.get("aliases") {
+            let a = a.as_table().ok_or_else(|| {
+                RadkinError::Config(format!("{section}.geant4.aliases must be a table"))
+            })?;
+            for (k, v) in a {
+                let v = v.as_str().ok_or_else(|| {
+                    RadkinError::Config(format!("{section}.geant4.aliases.{k} must be a string"))
+                })?;
+                policy.aliases.insert(k.clone(), v.to_string());
+            }
+        }
+        if let Some(i) = g4.get("ignore") {
+            policy.ignore = strings(i, &format!("{section}.geant4.ignore"))?;
+        }
+    }
+    Ok(policy)
 }
 
 impl VoxelConfig {
@@ -252,7 +291,7 @@ impl VoxelConfig {
                     let t = v.as_table().ok_or_else(|| {
                         RadkinError::Config("voxel.seed entries must be tables".into())
                     })?;
-                    seed_spec(t, base, i)
+                    seed_spec(t, base, &format!("voxel.seed[{i}]"))
                 })
                 .collect::<Result<_>>()?,
             Some(_) => {
@@ -261,36 +300,7 @@ impl VoxelConfig {
                 ));
             }
         };
-        let mut policy = SeedPolicy {
-            clip: voxel
-                .get("clip")
-                .map(|v| {
-                    v.as_bool()
-                        .ok_or_else(|| RadkinError::Config("voxel.clip must be a boolean".into()))
-                })
-                .transpose()?
-                .unwrap_or(false),
-            ..SeedPolicy::default()
-        };
-        if let Some(g4) = voxel.get("geant4") {
-            let g4 = g4
-                .as_table()
-                .ok_or_else(|| RadkinError::Config("voxel.geant4 must be a table".into()))?;
-            if let Some(a) = g4.get("aliases") {
-                let a = a.as_table().ok_or_else(|| {
-                    RadkinError::Config("voxel.geant4.aliases must be a table".into())
-                })?;
-                for (k, v) in a {
-                    let v = v.as_str().ok_or_else(|| {
-                        RadkinError::Config(format!("voxel.geant4.aliases.{k} must be a string"))
-                    })?;
-                    policy.aliases.insert(k.clone(), v.to_string());
-                }
-            }
-            if let Some(i) = g4.get("ignore") {
-                policy.ignore = strings(i, "voxel.geant4.ignore")?;
-            }
-        }
+        let policy = seed_policy(voxel, "voxel")?;
         Ok(Self {
             grid,
             diffusion,

@@ -57,6 +57,36 @@ enum Command {
     /// Voxel reaction-diffusion run seeded by Geant4-DNA molecules
     /// (`[voxel]` sections of the configuration).
     Voxel(VoxelArgs),
+    /// IRT stage alone: particles with positions and independent reaction
+    /// times, from seed molecules (`[irt]` section of the configuration).
+    Irt(IrtArgs),
+}
+
+#[derive(clap::Args)]
+struct IrtArgs {
+    /// TOML configuration file with an `[irt]` section and its seeds.
+    config: PathBuf,
+    /// Output directory (`yields.csv`, `irt.json`).
+    #[arg(long)]
+    out: PathBuf,
+}
+
+/// `radkin irt`.
+fn irt(a: &IrtArgs) -> radkin::Result<()> {
+    let sim = radkin::irt::IrtSimulation::from_toml(&a.config)?;
+    let out = radkin::irt::run_irt(&sim)?;
+    radkin::irt::write_irt_dir(&a.out, &sim, &out)?;
+    eprintln!(
+        "radkin: irt run of {} molecules, {} trajectories, {} pair and {} contact reactions in {:.1} s; {} record times written to {}",
+        sim.seeds.iter().map(|s| s.molecules.len()).sum::<usize>(),
+        out.trajectories,
+        out.stats.pair_reactions,
+        out.stats.contact_reactions,
+        out.exec_time,
+        out.record_times.len(),
+        a.out.display()
+    );
+    Ok(())
 }
 
 #[derive(clap::Args)]
@@ -347,6 +377,7 @@ fn main() -> ExitCode {
     let result = match &cli.command {
         Command::Run(a) => run(a),
         Command::Voxel(a) => voxel(a),
+        Command::Irt(a) => irt(a),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

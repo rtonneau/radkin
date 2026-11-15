@@ -21,6 +21,8 @@
 
 use std::f64::consts::PI;
 
+use indexmap::IndexMap;
+
 use crate::chemistry::env::SimEnv;
 use crate::chemistry::parser::Operation;
 use crate::chemistry::reactions::IrtType;
@@ -120,6 +122,8 @@ pub struct IrtModel {
     pub skipped: Vec<(usize, String)>,
     /// Warnings raised while building (also logged).
     pub warnings: Vec<String>,
+    /// Number of mass-action reactions of the network.
+    n_reactions: usize,
     /// Pair reactions of each species pair, `a * n + b` with `a <= b`.
     by_pair: Vec<Vec<u32>>,
     /// Molecule reactions of each species.
@@ -201,6 +205,17 @@ impl IrtModel {
     /// absent from it does not diffuse and its pair reactions are fully
     /// diffusion-controlled (with a warning).
     pub fn new(env: &SimEnv, mat: &SimMatrices, table: &SpeciesTable) -> Result<Self> {
+        Self::with_diffusion(env, mat, table, &IndexMap::new())
+    }
+
+    /// As [`IrtModel::new`]; a species absent from `table` takes its
+    /// diffusion coefficient [m^2/s] from `extra`.
+    pub fn with_diffusion(
+        env: &SimEnv,
+        mat: &SimMatrices,
+        table: &SpeciesTable,
+        extra: &IndexMap<String, f64>,
+    ) -> Result<Self> {
         if !env.reactions.enzymatic.is_empty() {
             return Err(RadkinError::Config(
                 "irt: Michaelis-Menten reactions are not supported in the IRT stage".into(),
@@ -211,7 +226,11 @@ impl IrtModel {
         let props: Vec<_> = species.iter().map(|l| table.get(l).copied()).collect();
         let diffusion: Vec<f64> = props
             .iter()
-            .map(|p| p.map_or(0.0, |p| p.diffusion))
+            .zip(&species)
+            .map(|(p, label)| match p {
+                Some(p) => p.diffusion,
+                None => extra.get(label).copied().unwrap_or(0.0),
+            })
             .collect();
         let mut background = vec![0.0; n];
         for s in env.species.dyn_sp.values() {
@@ -225,6 +244,7 @@ impl IrtModel {
             molecule: Vec::new(),
             skipped: Vec::new(),
             warnings: Vec::new(),
+            n_reactions: mat.k.k_values.len(),
             by_pair: vec![Vec::new(); n * n],
             by_species: vec![Vec::new(); n],
         };
@@ -386,6 +406,12 @@ impl IrtModel {
 
     pub fn n_species(&self) -> usize {
         self.species.len()
+    }
+
+    /// Number of mass-action reactions of the network (the range of
+    /// `PairReaction::index` and `MoleculeReaction::index`).
+    pub fn n_reactions(&self) -> usize {
+        self.n_reactions
     }
 
     /// Pair reactions (indices in `pairs`) of the species `a` and `b`.
