@@ -24,7 +24,7 @@ pub use ensemble::{EnsembleOptions, SsaResult, run_ensemble};
 pub use exact::{Cell, Exact, Segment, Stepper, Trajectory, initial_counts, run_trajectory};
 pub use model::{Law, Reaction, Slot, Source, SsaModel};
 pub use output::{SsaRunMeta, write_ssa_dir};
-pub use rdme::{Rdme, RdmeSetup};
+pub use rdme::{Rdme, RdmeSetup, ReversiblePair};
 pub use rdme_coarsen::dispersion_threshold;
 pub use rdme_multigrid::{Multigrid, MultigridSetup};
 pub use rng::{SsaRng, det_ln, ln_factorial};

@@ -6,8 +6,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use radkin::consts::AVOGADRO;
-use radkin::ssa::{RdmeOutput, SsaConfig, run_rdme};
+use radkin::ssa::{Rdme, RdmeOutput, SsaConfig, SsaRng, run_rdme};
 use radkin::voxel::{VoxelOutput, VoxelSimulation};
+
+mod common;
+use common::{Background, T_END, assert_pooled, par_map};
 
 const K: f64 = 4.0;
 
@@ -720,4 +723,24 @@ fn ssa_rdme_multigrid_tau_leaping_matches_the_exact_multigrid() {
     );
     assert!((events(&tau) / events(&exact) - 1.0).abs() < 0.05);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn ssa_rdme_background_keeps_the_water_equilibrium() {
+    // Without the shared factor of the water autoionisation pair (ADR 0006)
+    // the ions drift down by 1.5-6 % over 10 us: -3.6, -3.6 and -3.0 SEM
+    // here, -5.9 pooled.
+    let mut z = Vec::new();
+    for (h_nm, runs) in [(5.0, 1200), (10.0, 1000), (20.0, 500)] {
+        let bg = Background::new(h_nm, 0);
+        let changes = par_map(runs, |i| {
+            let mut r = Rdme::new(&bg.setup, 0.0, SsaRng::new(31, i as u64));
+            r.fill_poisson(&bg.y0);
+            let start = r.totals();
+            r.advance_to(T_END);
+            bg.change(&start, &r.totals())
+        });
+        z.push(bg.compare("single grid", &changes));
+    }
+    assert_pooled("single grid", &z);
 }

@@ -18,7 +18,7 @@ use crate::error::{RadkinError, Result};
 use crate::matrices::SimMatrices;
 use crate::ssa::config::{RateCorrection, SsaConfig, hierarchy_depth, suggested_level};
 use crate::ssa::ensemble::{Moments, map_ordered};
-use crate::ssa::rdme::{Rdme, RdmeSetup, is_cubic};
+use crate::ssa::rdme::{Rdme, RdmeSetup, ReversiblePair, is_cubic};
 use crate::ssa::rdme_coarsen::dispersion_threshold;
 use crate::ssa::rdme_multigrid::{Multigrid, MultigridSetup};
 use crate::ssa::rng::SsaRng;
@@ -349,6 +349,43 @@ fn species_levels(
     Ok(levels)
 }
 
+/// Log how the mesh correction treats every reversible pair whose
+/// bimolecular direction it corrects (ADR 0006), with the factors of the
+/// fine grid.
+fn log_reversible_pairs(setup: &RdmeSetup, reactions: &[String]) {
+    let factor = |j: usize| 1.0 / setup.pole_distance(0, j);
+    for p in setup.reversible_pairs() {
+        match *p {
+            ReversiblePair::Shared {
+                bimolecular,
+                follower,
+            } if setup.pole_distance(0, bimolecular) < 1.0 => log::info!(
+                "rdme: reversible pair '{}': both directions take the mesh correction of \
+                 '{}' (x{:.3} on the fine grid), so K_eq is kept",
+                // The forward direction, as declared.
+                reactions[follower.min(bimolecular)],
+                reactions[bimolecular],
+                factor(bimolecular)
+            ),
+            ReversiblePair::BothBimolecular { forward, backward }
+                if setup.critical_spacing(forward).is_some()
+                    || setup.critical_spacing(backward).is_some() =>
+            {
+                log::warn!(
+                    "rdme: reversible pair '{}' is bimolecular in both directions: each keeps \
+                     its own mesh correction (x{:.3} forward, x{:.3} backward on the fine \
+                     grid), so its K_eq shifts by x{:.3}",
+                    reactions[forward],
+                    factor(forward),
+                    factor(backward),
+                    factor(forward) / factor(backward)
+                )
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Run the RDME ensemble of `sim`.
 pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let started = Instant::now();
@@ -364,6 +401,7 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let smallest = grid.spacing.iter().copied().fold(f64::INFINITY, f64::min);
     let reactions = sim.env.reaction_strings();
     if correct {
+        log_reversible_pairs(&setup, &reactions);
         for &(j, h) in setup.critical_spacings() {
             if smallest <= h {
                 log::warn!(
