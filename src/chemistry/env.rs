@@ -2,7 +2,9 @@
 //! radiopyo `simulation/environment_build.py`).
 
 use crate::chemistry::parser::{parse_reaction, parse_species};
-use crate::chemistry::reactions::{BiReaction, KReaction, MichaelisMenten, RadiolyticReaction};
+use crate::chemistry::reactions::{
+    BiReaction, IrtType, KReaction, MichaelisMenten, RadiolyticReaction,
+};
 use crate::chemistry::species::ListSpecies;
 use crate::config::{Config, Section};
 use crate::consts::H2O_CC;
@@ -124,6 +126,17 @@ fn require<'a>(r: &'a toml::Table, key: &str, what: &str) -> Result<&'a toml::Va
         .ok_or_else(|| RadkinError::Config(format!("{what}: missing '{key}' ({})", r)))
 }
 
+/// Optional `irt_type` key of a reaction entry.
+fn irt_type(r: &toml::Table) -> Result<Option<IrtType>> {
+    match r.get("irt_type") {
+        None => Ok(None),
+        Some(toml::Value::String(s)) => IrtType::parse(s).map(Some),
+        Some(v) => Err(RadkinError::Config(format!(
+            "irt_type must be a string, got {v}"
+        ))),
+    }
+}
+
 fn add_species_of(sp: &mut ListSpecies, labels: impl IntoIterator<Item = String>) {
     for l in labels {
         sp.get_or_create_dyn(&l);
@@ -217,7 +230,9 @@ impl SimEnv {
                 &mut sp,
                 g.reactants.keys().chain(g.products.keys()).cloned(),
             );
-            k_list.push(KReaction::new_k(&g, Some(k)));
+            let mut kr = KReaction::new_k(&g, Some(k));
+            kr.irt_type = irt_type(r)?;
+            k_list.push(kr);
         }
         let mut cst_list = Vec::new();
         for r in rx(Section::Constant) {
@@ -235,7 +250,9 @@ impl SimEnv {
                 &mut sp,
                 g.reactants.keys().chain(g.products.keys()).cloned(),
             );
-            arr_list.push(KReaction::new_arrhenius(&g, a, ea));
+            let mut kr = KReaction::new_arrhenius(&g, a, ea);
+            kr.irt_type = irt_type(r)?;
+            arr_list.push(kr);
         }
         reactions.k = k_list.into_iter().chain(arr_list).chain(cst_list).collect();
         for r in rx(Section::Enzymatic) {

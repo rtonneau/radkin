@@ -1,0 +1,310 @@
+# Geant4-DNA chemistry (11.4.3, option3) exported from the reaction table Geant4
+# used at run time: g4_chemistry_dump.txt by tools/export_g4_chem.py.
+# Deaerated, pH 7 background. Rates are the observed rate constants k_obs;
+# a self-reaction holds 2 k_obs (radkin divides it by 2).
+# irt_type is the Geant4 reaction type: "full" (0) or "partial" (1).
+
+[parameters]
+pH = 7
+force_cst_pH = false
+
+[concentrations.initial]
+
+[[reactions.k_reaction]]
+reaction = "2 H_r -> H2"
+k_value = 1.006e+10   # G4 reaction 1 (M-1 s-1, 2 x k_obs 5.03e+09)
+irt_type = "full"
+
+[[reactions.k_reaction]]
+reaction = "e_aq + H_r -> OH_minus + H2"
+k_value = 2.5e+10   # G4 reaction 2 (M-1 s-1)
+irt_type = "full"
+
+[[reactions.k_reaction]]
+reaction = "H_r + O_atom -> OH_r"
+k_value = 2.02e+10   # G4 reaction 3 (M-1 s-1)
+irt_type = "full"
+
+[[reactions.k_reaction]]
+reaction = "H_r + O_minus -> OH_minus"
+k_value = 2e+10   # G4 reaction 4 (M-1 s-1)
+irt_type = "full"
+
+[[reactions.k_reaction]]
+reaction = "OH_r + O_atom -> HO2"
+k_value = 2.02e+10   # G4 reaction 5 (M-1 s-1)
+irt_type = "full"
+
+[[reactions.k_reaction]]
+reaction = "HO2 + O_atom -> O2 + OH_r"
+k_value = 2.02e+10   # G4 reaction 6 (M-1 s-1)
+irt_type = "full"
+
+[[reactions.k_reaction]]
+reaction = "O_atom + O_atom -> O2"
+k_value = 4.4e+10   # G4 reaction 7 (M-1 s-1, 2 x k_obs 2.2e+10)
+irt_type = "full"
+
+[[reactions.k_reaction]]
+reaction = "2 e_aq -> 2 OH_minus + H2"
+k_value = 1.272e+10   # G4 reaction 8 (M-1 s-1, 2 x k_obs 6.36e+09)
+irt_type = "full"
+
+[[reactions.k_reaction]]
+reaction = "H3O_plus + OH_minus -> H2O"
+k_value = 1.13e+11   # G4 reaction 9 (M-1 s-1)
+irt_type = "full"
+
+[[reactions.k_reaction]]
+reaction = "H3O_plus + O3_minus -> OH_r + O2"
+k_value = 9e+10   # G4 reaction 10 (M-1 s-1)
+irt_type = "full"
+
+[[reactions.k_reaction]]
+reaction = "OH_r + H_r -> H2O"
+k_value = 1.55e+10   # G4 reaction 11 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H_r + H2O2 -> OH_r"
+k_value = 3.5e+07   # G4 reaction 12 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H_r + OH_minus -> e_aq"
+k_value = 2.51e+07   # G4 reaction 13 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H_r + O2 -> HO2"
+k_value = 2.1e+10   # G4 reaction 14 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H_r + HO2 -> H2O2"
+k_value = 1e+10   # G4 reaction 15 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H_r + O2_minus -> HO2_minus"
+k_value = 1e+10   # G4 reaction 16 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "2 OH_r -> H2O2"
+k_value = 1.1e+10   # G4 reaction 17 (M-1 s-1, 2 x k_obs 5.5e+09)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "OH_r + H2O2 -> HO2"
+k_value = 2.88e+07   # G4 reaction 18 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "OH_r + H2 -> H_r"
+k_value = 3.28e+07   # G4 reaction 19 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "e_aq + OH_r -> OH_minus"
+k_value = 2.95e+10   # G4 reaction 20 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "OH_r + OH_minus -> O_minus"
+k_value = 6.3e+09   # G4 reaction 21 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "OH_r + HO2 -> O2"
+k_value = 7.9e+09   # G4 reaction 22 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "OH_r + O2_minus -> O2 + OH_minus"
+k_value = 1.07e+10   # G4 reaction 23 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "OH_r + HO2_minus -> HO2 + OH_minus"
+k_value = 8.32e+09   # G4 reaction 24 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "OH_r + O_minus -> HO2_minus"
+k_value = 1e+09   # G4 reaction 25 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "OH_r + O3_minus -> O2_minus + HO2"
+k_value = 8.5e+09   # G4 reaction 26 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "e_aq + H2O2 -> OH_minus + OH_r"
+k_value = 1.1e+10   # G4 reaction 27 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H2O2 + OH_minus -> HO2_minus"
+k_value = 4.71e+08   # G4 reaction 28 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H2O2 + O_atom -> HO2 + OH_r"
+k_value = 1.6e+09   # G4 reaction 29 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H2O2 + O_minus -> HO2 + OH_minus"
+k_value = 5.55e+08   # G4 reaction 30 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H2 + O_atom -> H_r + OH_r"
+k_value = 4770   # G4 reaction 31 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H2 + O_minus -> H_r + OH_minus"
+k_value = 1.21e+08   # G4 reaction 32 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "e_aq + O2 -> O2_minus"
+k_value = 1.74e+10   # G4 reaction 33 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "e_aq + HO2 -> HO2_minus"
+k_value = 1.29e+10   # G4 reaction 34 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "OH_minus + HO2 -> O2_minus"
+k_value = 6.3e+09   # G4 reaction 35 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "OH_minus + O_atom -> HO2_minus"
+k_value = 4.2e+08   # G4 reaction 36 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "O2 + O_atom -> O3"
+k_value = 4e+09   # G4 reaction 37 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "O2 + O_minus -> O3_minus"
+k_value = 3.7e+09   # G4 reaction 38 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "2 HO2 -> H2O2 + O2"
+k_value = 1.96e+06   # G4 reaction 39 (M-1 s-1, 2 x k_obs 980000)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "HO2 + O2_minus -> HO2_minus + O2"
+k_value = 9.7e+07   # G4 reaction 40 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "HO2_minus + O_atom -> O2_minus + OH_r"
+k_value = 5.3e+09   # G4 reaction 41 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "e_aq + H3O_plus -> H_r"
+k_value = 2.11e+10   # G4 reaction 42 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "e_aq + O2_minus -> H2O2 + 2 OH_minus"
+k_value = 1.29e+10   # G4 reaction 43 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "e_aq + HO2_minus -> O_minus + OH_minus"
+k_value = 3.51e+09   # G4 reaction 44 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "e_aq + O_minus -> 2 OH_minus"
+k_value = 2.31e+10   # G4 reaction 45 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H3O_plus + O2_minus -> HO2"
+k_value = 4.78e+10   # G4 reaction 46 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H3O_plus + HO2_minus -> H2O2"
+k_value = 5e+10   # G4 reaction 47 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "H3O_plus + O_minus -> OH_r"
+k_value = 4.78e+10   # G4 reaction 48 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "O2_minus + O_minus -> O2 + 2 OH_minus"
+k_value = 6e+08   # G4 reaction 49 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "HO2_minus + O_minus -> O2_minus + OH_minus"
+k_value = 3.5e+08   # G4 reaction 50 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "2 O_minus -> H2O2 + 2 OH_minus"
+k_value = 2e+08   # G4 reaction 51 (M-1 s-1, 2 x k_obs 1e+08)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "O_minus + O3_minus -> 2 O2_minus"
+k_value = 7e+08   # G4 reaction 52 (M-1 s-1)
+irt_type = "partial"
+
+[[reactions.k_reaction]]
+reaction = "O3_minus -> H3O_plus + O2_minus"
+k_value = 2660   # G4 reaction 53 (first order, s-1)
+
+[[reactions.k_reaction]]
+reaction = "HO2 + H2O -> H3O_plus + O2_minus"
+k_value = 12783.8   # G4 reaction 54 (7.15e+05 s-1 / [H2O] 55.93)
+
+[[reactions.k_reaction]]
+reaction = "H_r + H2O -> e_aq + H3O_plus"
+k_value = 0.106204   # G4 reaction 55 (5.94 s-1 / [H2O] 55.93)
+
+[[reactions.k_reaction]]
+reaction = "e_aq + H2O -> H_r + OH_minus"
+k_value = 0.282496   # G4 reaction 56 (15.8 s-1 / [H2O] 55.93)
+
+[[reactions.k_reaction]]
+reaction = "O2_minus + H2O -> HO2 + OH_minus"
+k_value = 0.00268192   # G4 reaction 57 (0.15 s-1 / [H2O] 55.93)
+
+[[reactions.k_reaction]]
+reaction = "HO2_minus + H2O -> H2O2 + OH_minus"
+k_value = 24316.1   # G4 reaction 58 (1.36e+06 s-1 / [H2O] 55.93)
+
+[[reactions.k_reaction]]
+reaction = "O_atom + H2O -> 2 OH_r"
+k_value = 17.8795   # G4 reaction 59 (1000 s-1 / [H2O] 55.93)
+
+[[reactions.k_reaction]]
+reaction = "O_minus + H2O -> OH_r + OH_minus"
+k_value = 24316.1   # G4 reaction 60 (1.36e+06 s-1 / [H2O] 55.93)
+
+# not in Geant4 (its bulk ions are constant): keeps pH 7 against H3O+ + OH-
+[[reactions.k_reaction]]
+reaction = "H2O -> H3O_plus + OH_minus"
+k_value = 2.02038e-05
+
+# Bulk (B) ion reactions dropped (track twins kept): 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72
