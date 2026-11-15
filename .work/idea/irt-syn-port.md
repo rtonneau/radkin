@@ -1,5 +1,5 @@
 ---
-status: grilled
+status: planned
 scope: project
 created: 2026-11-15
 reviews: 0
@@ -58,9 +58,20 @@ radkin gets its own IRT solver (new `src/irt/`), starting from the 1 ps molecule
 
 ## Open questions
 
-- The threshold on the rate constant that separates fully from partially diffusion-controlled reactions.
-- The wall rule for a sampled reaction time: Geant4's formulas are free-space.
-- How many overlapping tracks the solver must handle in reasonable time.
+- The threshold on the rate constant that separates fully from partially diffusion-controlled reactions (settled in milestone 1, against Geant4's types).
+- The wall rule for a sampled reaction time: Geant4's formulas are free-space (settled in milestone 5).
+- How many overlapping tracks the solver must handle in reasonable time (measured in milestone 6).
+
+## Plan
+
+1. **Species table and reaction typing.** Every reaction of `chem_g4.toml` resolves to a type and a reaction radius equal to Geant4's own values. The rate-constant rule is compared with Geant4's types on that network, which fixes the threshold.
+2. **Pair sampling kernel.** The sampled reaction times (fully and partially diffusion-controlled, ion pairs, contact pairs) reproduce the analytic survival probabilities in unit tests.
+3. **Single-track solver, full resampling.** In free space, deaerated, G(t) of all species from 1 ps to 10 µs agrees with Geant4 IRT_syn on the same 100 events within statistical error. This is the acceptance test.
+4. **Background reactions.** A first-order decay follows its exponential, and a uniform well-mixed box matches the unit-cell SSA or LSODA result.
+5. **Walls and scheduled tracks.** A uniform distribution stays uniform between reflective walls, and widely spaced tracks injected at scheduled times reproduce the single-track G(t). This milestone settles the wall rule for sampled reaction times.
+6. **Incremental resampling.** It agrees with the full mode on the same seeds, and the run time against the number of overlapping tracks is measured and recorded.
+7. **Handover to the RDME.** One run goes from the IRT stage to the RDME at the configured handover time with molecule counts conserved, and a track scheduled after the handover is a config error.
+8. **Docs.** An ADR and `docs/irt.md` describe the solver, its config and the provisional status of multi-track aerated results.
 
 ## Risks
 
@@ -75,3 +86,4 @@ radkin gets its own IRT solver (new `src/irt/`), starting from the 1 ps molecule
 
 - 2026-11-15 — capture — Port Geant4-DNA IRT_syn into radkin, from the 1 ps molecules (radkin @ main)
 - 2026-11-15 — grill
+- 2026-11-15 — plan
