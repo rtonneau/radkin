@@ -66,6 +66,12 @@ origin_nm = [-24.0, -24.0, -36.0]
 # [voxel.diffusion]   # m^2/s, overrides the Geant4-DNA defaults
 # O2 = 2.4e-9
 
+# With solver = "ssa": a numerous background species can hop and react on a
+# coarser grid level (2^L voxels per axis), here O2 on 12 nm voxels. The grid
+# dimensions must be divisible by 2^L. See docs/ssa.md, "Species levels".
+# [ssa.species_levels]
+# O2 = 1
+
 [[voxel.seed]]
 file = "voxel_example_molecules.csv"
 time = 1e-12

@@ -332,6 +332,85 @@ rate equations let a fraction of a molecule react with itself (`k [A]²` is not 
 for one molecule, `n (n − 1)` is). In this example four reactions with H2O stay
 uncorrected (`h*` of 12 to 75 nm).
 
+### Species levels
+
+Hops dominate the cost of the RDME, and global coarsening keeps the whole grid fine as
+long as any species is clustered. A numerous, fast background species, such as O2 in
+aerated water (about 150 molecules per 100 nm voxel), then hops on the fine grid of
+the radicals. `[ssa.species_levels]` puts a species on a coarser level of the same
+2^L hierarchy (multi-grid RDME, ADR 0005; Cao and Erban 2014, Erban and Winkelmann
+2024):
+
+```toml
+[ssa.species_levels]
+O2 = 2      # O2 lives on 4x4x4 blocks of fine voxels; unset species stay on 0
+```
+
+- **Levels.** A species of level `L` holds its counts on the voxels of level `L` and
+  hops there with `D / h_L²` per molecule and face. The hierarchy has as many levels as
+  the deeper of `voxel.max_coarsen_levels` and the species levels; the grid dimensions
+  must be divisible by `2^depth`. The key needs a voxel run with `solver = "ssa"`: unit
+  cells and deterministic voxel runs refuse it. With every species on level 0 the run is
+  the plain RDME, draw for draw.
+- **Reactions.** A reaction belongs to the level of its coarsest reactant and fires in a
+  voxel of that level, with that level's propensity, mesh correction included. The
+  count of a finer reactant is summed over the fine voxels the coarse voxel contains:
+  the pair reacts as if both occupied the coarse voxel (Hellander and Hellander 2020,
+  III.C.4). A consumed molecule of the finer reactant is taken from one of the
+  contained voxels, in proportion to their counts.
+- **Products.** A product goes where the finest consumed molecule was: into the voxel
+  of its own level that contains that spot or, if the product lives on a finer level
+  than that molecule, uniformly into one of its voxels inside it (Erban and Winkelmann
+  2024, eq. 20). For `e_aq + O2 → O2_minus` with O2 on level 2, O2_minus appears in the
+  electron's voxel. Without a consumed molecule the reaction's voxel is the spot.
+- **Global coarsening** is a floor: a species lives on the larger of its own level and
+  the current global level. The dispersion test reads only the species that would merge
+  (those on the current global level), and a seed refines the grid back to every
+  species' own level. Initial solutions are drawn per voxel of each species' level;
+  seeds land in the voxel of the species' level that contains the molecule; snapshots
+  spread a coarse voxel evenly over its fine voxels. `snapshots.json` records the
+  levels.
+- **Tau-leaping** works with species levels (`src/ssa/rdme_multigrid_tau.rs`): the
+  populations are the counts of each species on its level, cross-level reactions fire
+  one firing at a time inside a leap with the rules above.
+- **Suggestion.** For every background species (non-zero initial concentration, not
+  seeded) the run logs `floor(log2 sqrt(D / D_slowest seeded))`, the level at which its
+  hops per molecule match those of the slowest seeded species. It is a hint and is never
+  applied.
+
+Validation (`tests/ssa_rdme_multigrid.rs`, `tests/ssa_rdme_aerated.rs`, fixed seeds):
+
+| Case | Compared | Result |
+|---|---|---|
+| A on level 1 converting into B on level 0 (8x2x2 grid) | mean of the 4 A and 32 B counts against the mean equations of the mgRDME (eq. 21-22), RK4 | worst 2.2 SEM, 400 runs |
+| One e_aq on a 2 nm grid, one OH_r on level 2 (a single 8 nm voxel) | mean association time against `1 / c` of the level-2 voxel, mesh-corrected | 0.2 SEM, 4000 runs; the uncorrected `1 / c` is more than 10 SEM away |
+| `large_count_case`, OH_r on level 1, `tau_epsilon = 0.03` | tau-leaping against the exact multi-grid run | 0.14 % of the species peak, 16 runs |
+| Homogenising pure-water case, H2 on level 1, `max_coarsen_levels = 3` | species totals against the fine grid | worst 1.6 SEM, 24 runs |
+
+Measured on an aerated track (pure water, 250 µmol/L O2, 8x8x8 grid of 100 nm voxels,
+2 µs, 96 trajectories; `cargo test --release --test ssa_rdme_aerated -- --ignored
+--nocapture`), against O2 on level 0, as the worst difference of the species totals over
+about 1700 checks (15 species, 113 record times):
+
+| Track | O2 level | Hops per trajectory | Fewer hops | Wall time | Worst difference |
+|---|---|---|---|---|---|
+| sparse: 300 each of e_aq, OH, H3O+, H in a 540 nm cube | 0 | 200 270 | | 0.93 s | |
+| sparse | 1 | 48 584 | 4.1x | 0.30 s | 3.4 SEM |
+| sparse | 2 | 14 121 | 14.2x | 0.14 s | 2.2 SEM |
+| dense: 1500 each in a 140 nm cube | 0 | 205 682 | | 0.87 s | |
+| dense | 1 | 54 642 | 3.8x | 0.42 s | 22 SEM |
+| dense | 2 | 20 412 | 10.1x | 0.24 s | 28 SEM |
+
+On the sparse track a few radicals per voxel meet 150 O2: O2 stays a background, and
+the worst differences are those of noise over 1700 checks. On the dense track the
+radicals outnumber the O2 of their voxels. The fine grid depletes O2 locally, a coarse
+O2 voxel spreads the depletion over 8 or 64 times the volume, and e_aq and H react
+with O2 too fast (HO2 6 molecules high at 20 ns). The level is therefore a choice of
+accuracy against cost: a coarse species must stay close to uniform at the scale of its
+voxels throughout the run. A track species is the worst case: OH- on level 1 in the
+homogenising case leaves 40 % too much H3O+ at 1 µs, because its near
+diffusion-limited recombination with H3O+ is spread over 8 times the volume.
+
 ## Cost
 
 The cost is proportional to the number of events. On one core the exact SSA fires about
