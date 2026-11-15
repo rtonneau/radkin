@@ -157,14 +157,43 @@
         "ticket": "04-analysis-report",
         "commit": "826bd31"
       }
+    },
+    {
+      "at": "2026-11-15T05:37:13.474Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/18"
+      }
+    },
+    {
+      "at": "2026-11-15T05:37:08.348Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    },
+    {
+      "at": "2026-11-15T05:37:13.568Z",
+      "event": "scratch_cleaned",
+      "phase": "finished",
+      "detail": {
+        "policy": "build-artifacts",
+        "removed": [
+          ".scratch/tests/2026-11-15__geant4-single-track-gvalues-10us/tools/__pycache__"
+        ],
+        "freedBytes": 19909
+      }
     }
   ],
-  "current_phase": "finish-pending",
+  "current_phase": "finished",
   "git": {
     "branch": "test/rdme-single-track-gvalues",
     "base_branch": "main",
     "branch_created_at": "2026-11-15T00:36:04.796Z",
-    "pr_url": null
+    "pr_url": "https://github.com/rtonneau/radkin/pull/18"
   },
-  "ship_mode": "inline"
+  "ship_mode": "inline",
+  "finished_at": "2026-11-15T05:37:08.348Z"
 }
