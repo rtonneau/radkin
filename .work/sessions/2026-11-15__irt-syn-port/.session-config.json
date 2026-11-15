@@ -161,6 +161,30 @@
         "ticket": "04-background-reactions",
         "commit": "ab5985f"
       }
+    },
+    {
+      "at": "2026-11-15T18:26:57.853Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-walls-and-scheduled-tracks.md",
+        "03-implement/05-walls-and-scheduled-tracks/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-walls-and-scheduled-tracks"
+      }
+    },
+    {
+      "at": "2026-11-15T18:36:34.516Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-walls-and-scheduled-tracks/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-walls-and-scheduled-tracks",
+        "commit": "3a480a7"
+      }
     }
   ],
   "current_phase": "ship",
