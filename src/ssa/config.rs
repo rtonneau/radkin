@@ -10,11 +10,17 @@
 //! tau_leap = false      # opt-in tau-leaping
 //! tau_epsilon = 0.03    # accuracy of a leap (smaller: closer to the exact SSA)
 //! rate_correction = "hellander"  # voxel runs: "hellander" (default) or "none"
+//!
+//! [ssa.species_levels]  # voxel runs: grid level of a species (default 0, fine)
+//! O2 = 2                # O2 hops and reacts on 4x4x4 blocks of fine voxels
 //! ```
 //!
 //! `rate_correction` scales the bimolecular propensities of a voxel run for
 //! the voxel size (mesh correction, `docs/ssa.md`). Unit-cell runs have no
 //! grid: an explicit `"hellander"` there is an error.
+//!
+//! `species_levels` puts a species on a coarser level of the 2^L voxel
+//! hierarchy (multi-grid RDME, ADR 0005). It needs a stochastic voxel run.
 //!
 //! Both are read from the run file itself, not from its includes.
 
@@ -107,7 +113,12 @@ pub struct SsaConfig {
     /// Mesh correction of a voxel run; `None`: not set, the default
     /// (Hellander where the grid allows it).
     pub rate_correction: Option<RateCorrection>,
+    /// `[ssa.species_levels]`: `(species label, level)` in file order.
+    pub species_levels: Vec<(String, u32)>,
 }
+
+/// Largest accepted species level: 2^16 fine voxels per coarse voxel along an axis.
+pub const MAX_SPECIES_LEVEL: u32 = 16;
 
 impl Default for SsaConfig {
     fn default() -> Self {
@@ -118,6 +129,7 @@ impl Default for SsaConfig {
             tau_leap: false,
             tau_epsilon: DEFAULT_TAU_EPSILON,
             rate_correction: None,
+            species_levels: Vec::new(),
         }
     }
 }
@@ -180,10 +192,11 @@ impl SsaConfig {
                         )));
                     }
                 },
+                "species_levels" => out.species_levels = parse_species_levels(value)?,
                 other => {
                     return Err(RadkinError::Config(format!(
                         "unknown key ssa.{other} (known: volume, trajectories, seed, tau_leap, \
-                         tau_epsilon, rate_correction)"
+                         tau_epsilon, rate_correction, species_levels)"
                     )));
                 }
             }
@@ -192,8 +205,10 @@ impl SsaConfig {
     }
 
     /// The unit-cell volume [L], an error if `volume` is absent or if the
-    /// run asks for a mesh correction (a unit cell has no grid).
+    /// run asks for a mesh correction or species levels (a unit cell has no
+    /// grid).
     pub fn require_volume(&self) -> Result<f64> {
+        self.refuse_species_levels("a unit-cell run")?;
         if self.rate_correction == Some(RateCorrection::Hellander) {
             return Err(RadkinError::Config(
                 "ssa.rate_correction = \"hellander\" needs a voxel run: a unit cell has no grid"
@@ -206,6 +221,74 @@ impl SsaConfig {
             )
         })
     }
+}
+
+impl SsaConfig {
+    /// An error naming `run` if `[ssa.species_levels]` is set: only the
+    /// stochastic voxel run keeps species on their own grid level.
+    pub fn refuse_species_levels(&self, run: &str) -> Result<()> {
+        match self.species_levels.first() {
+            None => Ok(()),
+            Some((name, _)) => Err(RadkinError::Config(format!(
+                "ssa.species_levels ({name}) needs a voxel run with solver = \"ssa\", not {run}"
+            ))),
+        }
+    }
+
+    /// The level of every dynamic species, in state order (0 where not
+    /// set). An unknown label is an error.
+    pub fn resolve_species_levels(&self, species: &[String]) -> Result<Vec<u32>> {
+        let mut out = vec![0; species.len()];
+        for (name, level) in &self.species_levels {
+            let Some(s) = species.iter().position(|x| x == name) else {
+                return Err(RadkinError::Config(format!(
+                    "ssa.species_levels.{name}: no dynamic species of that name (known: {})",
+                    species.join(", ")
+                )));
+            };
+            out[s] = *level;
+        }
+        Ok(out)
+    }
+}
+
+/// `[ssa.species_levels]`: a table of integer levels in `0..=MAX_SPECIES_LEVEL`.
+fn parse_species_levels(value: &toml::Value) -> Result<Vec<(String, u32)>> {
+    let Some(t) = value.as_table() else {
+        return Err(RadkinError::Config(format!(
+            "ssa.species_levels must be a table of species = level, got {value}"
+        )));
+    };
+    t.iter()
+        .map(|(name, v)| match v.as_integer() {
+            Some(l) if (0..=MAX_SPECIES_LEVEL as i64).contains(&l) => Ok((name.clone(), l as u32)),
+            _ => Err(RadkinError::Config(format!(
+                "ssa.species_levels.{name} must be an integer in 0..={MAX_SPECIES_LEVEL}, got {v}"
+            ))),
+        })
+        .collect()
+}
+
+/// Levels of the voxel hierarchy a stochastic run needs: those of the
+/// global coarsening and those of the species.
+pub fn hierarchy_depth(max_coarsen_levels: u32, species_levels: &[u32]) -> u32 {
+    species_levels
+        .iter()
+        .copied()
+        .fold(max_coarsen_levels, u32::max)
+}
+
+/// Suggested level of a background species of diffusion coefficient `d`,
+/// `d_slowest` being the smallest nonzero coefficient of the seeded
+/// species: `floor(log2 sqrt(d / d_slowest))`, between 0 and `depth`. The
+/// spacing ratio `sqrt(D_A / D_B)` equalizes the hop rates per molecule
+/// (Erban and Winkelmann 2024). `None` unless both are positive.
+pub fn suggested_level(d: f64, d_slowest: f64, depth: u32) -> Option<u32> {
+    if !(d > 0.0 && d_slowest > 0.0 && d.is_finite() && d_slowest.is_finite()) {
+        return None;
+    }
+    let l = (0.5 * (d / d_slowest).log2()).floor();
+    Some(l.clamp(0.0, depth as f64) as u32)
 }
 
 /// `solver` and `[ssa]` of a run file.
@@ -277,6 +360,7 @@ tau_epsilon = 0.01\nrate_correction = \"none\"",
                 tau_leap: true,
                 tau_epsilon: 0.01,
                 rate_correction: Some(RateCorrection::None),
+                species_levels: Vec::new(),
             }
         );
         assert_eq!(c.ssa.require_volume().unwrap(), 2e-15);
@@ -296,6 +380,11 @@ tau_epsilon = 0.01\nrate_correction = \"none\"",
             "[ssa]\nvolumes = 1e-15",
             "[ssa]\nrate_correction = \"fange\"",
             "[ssa]\nrate_correction = true",
+            "[ssa]\nspecies_levels = 2",
+            "[ssa.species_levels]\nO2 = -1",
+            "[ssa.species_levels]\nO2 = 1.5",
+            "[ssa.species_levels]\nO2 = \"2\"",
+            "[ssa.species_levels]\nO2 = 17",
         ] {
             let e = SolverConfig::from_toml_str(bad).unwrap_err().to_string();
             assert!(e.contains("solver") || e.contains("ssa"), "{bad}: {e}");
@@ -320,5 +409,65 @@ tau_epsilon = 0.01\nrate_correction = \"none\"",
             .require_volume()
             .unwrap_err();
         assert!(e.to_string().contains("rate_correction"), "{e}");
+    }
+
+    #[test]
+    fn parses_species_levels() {
+        let c = SolverConfig::from_toml_str("[ssa.species_levels]\nO2 = 2\nH3O_plus = 0")
+            .unwrap()
+            .ssa;
+        assert_eq!(
+            c.species_levels,
+            [("O2".to_string(), 2), ("H3O_plus".to_string(), 0)]
+        );
+        let species = ["e_aq", "O2", "OH_r"].map(String::from);
+        let e = c.resolve_species_levels(&species).unwrap_err().to_string();
+        assert!(e.contains("ssa.species_levels.H3O_plus"), "{e}");
+        let c = SolverConfig::from_toml_str("[ssa.species_levels]\nO2 = 2")
+            .unwrap()
+            .ssa;
+        assert_eq!(c.resolve_species_levels(&species).unwrap(), [0, 2, 0]);
+        let e = SolverConfig::from_toml_str("[ssa.species_levels]\nO2 = -1")
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("ssa.species_levels.O2"), "{e}");
+    }
+
+    #[test]
+    fn species_levels_need_a_stochastic_voxel_run() {
+        let c = SolverConfig::from_toml_str("[ssa]\nvolume = 1e-15\n[ssa.species_levels]\nO2 = 1")
+            .unwrap()
+            .ssa;
+        let e = c.require_volume().unwrap_err().to_string();
+        assert!(
+            e.contains("species_levels") && e.contains("unit-cell"),
+            "{e}"
+        );
+        let e = c
+            .refuse_species_levels("a deterministic voxel run")
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("deterministic"), "{e}");
+        assert!(SsaConfig::default().refuse_species_levels("x").is_ok());
+    }
+
+    #[test]
+    fn depth_covers_coarsening_and_species() {
+        assert_eq!(hierarchy_depth(0, &[]), 0);
+        assert_eq!(hierarchy_depth(2, &[0, 1]), 2);
+        assert_eq!(hierarchy_depth(1, &[0, 3, 2]), 3);
+    }
+
+    #[test]
+    fn suggestion_follows_the_square_root_of_the_diffusion_ratio() {
+        // sqrt(16) = 4 = 2^2.
+        assert_eq!(suggested_level(16e-9, 1e-9, 5), Some(2));
+        // sqrt(15) < 4: one level.
+        assert_eq!(suggested_level(15e-9, 1e-9, 5), Some(1));
+        // Capped by the depth, never below 0.
+        assert_eq!(suggested_level(1e-6, 1e-9, 2), Some(2));
+        assert_eq!(suggested_level(1e-10, 1e-9, 2), Some(0));
+        assert_eq!(suggested_level(0.0, 1e-9, 2), None);
+        assert_eq!(suggested_level(1e-9, 0.0, 2), None);
     }
 }

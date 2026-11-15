@@ -313,12 +313,12 @@ pub struct Rdme<'a> {
 }
 
 /// Stride of every axis in the flat voxel index.
-fn strides(grid: &VoxelGrid) -> [usize; 3] {
+pub(crate) fn strides(grid: &VoxelGrid) -> [usize; 3] {
     [1, grid.dims[0], grid.dims[0] * grid.dims[1]]
 }
 
 /// `sum over the faces of voxel v of 1 / h^2`.
-fn face_weight(grid: &VoxelGrid, inv_h2: &[f64; 3], v: usize) -> f64 {
+pub(crate) fn face_weight(grid: &VoxelGrid, inv_h2: &[f64; 3], v: usize) -> f64 {
     let c = grid.coords(v);
     let mut w = 0.0;
     for a in 0..3 {

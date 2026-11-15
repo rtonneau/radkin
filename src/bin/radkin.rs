@@ -103,6 +103,9 @@ fn voxel(a: &VoxelArgs) -> radkin::Result<()> {
     if solver_of(a.solver, &solver) == SolverKind::Ssa {
         return voxel_ssa(a, &solver.ssa);
     }
+    solver
+        .ssa
+        .refuse_species_levels("a deterministic voxel run")?;
     let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
     let checkpoint = a.out.join("checkpoint.npz");
     let resume = match &a.resume {
@@ -281,6 +284,7 @@ fn run_ssa(a: &RunArgs, cfg: &SsaConfig) -> radkin::Result<()> {
 
 fn run(a: &RunArgs) -> radkin::Result<()> {
     let solver = SolverConfig::from_toml_file(&a.config)?;
+    solver.ssa.refuse_species_levels("a unit-cell run")?;
     if solver_of(a.solver, &solver) == SolverKind::Ssa {
         return run_ssa(a, &solver.ssa);
     }

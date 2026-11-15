@@ -53,6 +53,7 @@ fn ensemble(
         tau_leap: tau.is_some(),
         tau_epsilon: tau.unwrap_or(0.03),
         rate_correction: None,
+        ..Default::default()
     };
     let options = EnsembleOptions {
         t_eval: Some(thinned_times(t_span.0, t_span.1, 20)),

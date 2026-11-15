@@ -90,6 +90,9 @@ seed = 0              # default 0
 tau_leap = false      # default false: exact SSA
 tau_epsilon = 0.03    # accuracy of a leap when tau_leap = true
 rate_correction = "hellander"  # voxel runs only: "hellander" (default) or "none"
+
+[ssa.species_levels]  # voxel runs only: grid level of a species (default 0, fine)
+O2 = 2
 ```
 
 ```bash
@@ -148,6 +151,15 @@ reaction-diffusion master equation, in place of the Strang splitting).
   (`coarsen_tol_factor` sets the threshold; the default 0.1 gave 7 times fewer hops on a
   homogenising case with no measurable change of the results). It refines back to the
   fine grid before each seed.
+- `[ssa.species_levels]` puts a species on a coarser level of the grid hierarchy (level
+  `L`: blocks of `2^L` voxels per axis), where it hops and reacts. A reaction fires in
+  the voxel of its coarsest reactant, and its products go where the finest consumed
+  molecule was. It cuts the hops of a numerous fast background species: O2 on level 2
+  of a 100 nm grid in aerated water gave 14 times fewer hops with no measurable change,
+  as long as the track does not deplete O2 at the scale of the coarse voxels (a dense
+  track does, and then the result is biased). Global coarsening (`max_coarsen_levels`)
+  acts as a floor, and tau-leaping works with it. The run logs a suggested level for
+  each background species; it is never applied. See `docs/ssa.md`.
 - `tau_leap = true` leaps reactions and hops together. It pays on smooth grids with
   thousands of molecules per voxel (5x to 38x measured); on a track at nm voxels no
   leap is taken and the run stays exact.

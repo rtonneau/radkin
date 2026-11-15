@@ -66,7 +66,8 @@ Python with `-I`.
   (`radkin voxel`).
 - `src/ssa/`: stochastic solver (`solver = "ssa"`, ADR 0003, `docs/ssa.md`). Propensity
   model built from `SimMatrices`, exact SSA and tau-leaping on the unit cell, the ensemble
-  and its outputs; on the voxel grid the RDME (hop events, coarsening, tau-leaping). Its
+  and its outputs; on the voxel grid the RDME (hop events, coarsening, tau-leaping) and
+  its multi-grid form with species levels (`rdme_multigrid*.rs`, ADR 0005). Its
   integration tests are named `ssa_*` so that `cargo test --release ssa` runs them all.
 - `tests/golden/*.json`: radiopyo reference data exported by `tools/export_golden.py`.
 - `data/`: radiopyo's config TOMLs and the Boscolo CSV.
