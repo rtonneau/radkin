@@ -79,7 +79,8 @@ fn reference() -> Reference {
 fn event_irt(r: &Reference, event: i64, t_end: f64) -> String {
     let records: Vec<String> = TIMES[1..].iter().map(|t| format!("{t:e}")).collect();
     format!(
-        "[irt]\nt_end = {t_end:e}\nstart_contact = false\nboundary = \"outflow\"\n\
+        "[irt]\nt_end = {t_end:e}\nstart_contact = false\nbackground_reactions = false\n\
+         boundary = \"outflow\"\n\
          record_times = [{}]\n[irt.box]\nlo_nm = -1000\nhi_nm = 1000\n\
          [[irt.seed]]\nfile = \"{}\"\ntime = {T_SEED:e}\nevents = [{event}]\nenergy_ev = {}\n",
         records.join(", "),
@@ -277,8 +278,8 @@ fn irt_single_track_contact_rule_at_the_start() {
     let left = out.totals_mean.last().unwrap()[idx("H3O_plus")];
     assert!((0.3..0.8).contains(&left), "{left}");
     assert_eq!(
-        out.stats.pair_reactions as f64,
-        200.0 * (1.0 - left),
+        out.stats.pair_reactions,
+        (200.0 * (1.0 - left)).round() as u64,
         "{:?}",
         out.stats
     );

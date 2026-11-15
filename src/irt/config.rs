@@ -11,6 +11,9 @@
 //!                          # with the contact probability; false for seeds taken from a
 //!                          # chemistry stage that has already started (Geant4 at 1.001 ps)
 //! boundary = "none"        # "none" (free space) or "outflow" (needs a box)
+//! background_reactions = true  # reactions of one particle: first order, with a fixed
+//!                          # species (water), or with a background species (a species
+//!                          # with an initial concentration); the background is not consumed
 //! cutoff_probability = 0.01
 //! record_times = [1e-9]    # s (default: 100 log-spaced times)
 //! clip = false             # drop seed molecules outside the box instead of failing
@@ -48,7 +51,7 @@ use crate::voxel::seed::{SeedPolicy, SeedSpec};
 const NM: f64 = 1e-9;
 
 /// Keys of `[irt]`.
-const KEYS: [&str; 14] = [
+const KEYS: [&str; 15] = [
     "t_end",
     "t_start",
     "trajectories",
@@ -63,6 +66,7 @@ const KEYS: [&str; 14] = [
     "geant4",
     "species",
     "seed",
+    "background_reactions",
 ];
 
 /// Pair rule of the IRT stage.
@@ -102,6 +106,9 @@ pub struct IrtConfig {
     pub start_contact: bool,
     pub boundary: BoundaryKind,
     pub cutoff_probability: f64,
+    /// Fire the reactions of one particle (first order, with a fixed or a
+    /// background species).
+    pub background_reactions: bool,
     pub record_times: Option<Vec<f64>>,
     /// Corners of the box [m].
     pub domain: Option<(Vec3, Vec3)>,
@@ -351,6 +358,7 @@ impl IrtConfig {
             seed: opt_count(irt, "random_seed", 0)?,
             resampling,
             start_contact: boolean(irt, "start_contact", true)?,
+            background_reactions: boolean(irt, "background_reactions", true)?,
             boundary,
             cutoff_probability,
             record_times,
@@ -446,6 +454,7 @@ mod tests {
         assert_eq!((c.trajectories, c.seed), (None, None));
         assert_eq!(c.resampling, Resampling::Full);
         assert!(c.start_contact);
+        assert!(c.background_reactions);
         assert_eq!(c.boundary, BoundaryKind::None);
         assert_eq!(c.cutoff_probability, 0.01);
         assert_eq!(c.record_times, None);
@@ -465,6 +474,7 @@ mod tests {
             random_seed = 3
             resampling = "full"
             start_contact = false
+            background_reactions = false
             boundary = "outflow"
             cutoff_probability = 0.001
             record_times = [1e-9, 1e-6]
@@ -493,6 +503,7 @@ mod tests {
         assert_eq!(c.t_start, Some(1.001e-12));
         assert_eq!((c.trajectories, c.seed), (Some(8), Some(3)));
         assert!(!c.start_contact);
+        assert!(!c.background_reactions);
         assert_eq!(c.boundary, BoundaryKind::Outflow);
         assert_eq!(c.record_times, Some(vec![1e-9, 1e-6]));
         let (lo, hi) = c.domain.unwrap();

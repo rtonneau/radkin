@@ -1,5 +1,11 @@
 //! Event loop of the IRT stage with full resampling.
 //!
+//! Two kinds of reactions fire: reactions of a pair of particles, and
+//! reactions of one particle (first order, with a fixed species such as
+//! water, or with a background species). The second kind has an exponential
+//! reaction time and consumes no background: the background keeps its
+//! concentration, and what it loses is only counted.
+//!
 //! The particles sit at their positions of the stage time `t`. One pass
 //! samples a reaction time for every pair inside the cutoff radius and keeps
 //! the earliest. Firing it moves the time to the reaction, puts the two
@@ -48,6 +54,9 @@ pub struct StageOptions {
     /// Pairs whose probability to meet before `t_stop` is below this times
     /// `r_eff / distance` are not sampled (Geant4: 0.01).
     pub cutoff_probability: f64,
+    /// Fire the reactions of one particle: first order, with a fixed
+    /// species, or with a background species.
+    pub molecule_reactions: bool,
 }
 
 /// Event counts of a stage.
@@ -57,6 +66,13 @@ pub struct StageStats {
     pub pair_reactions: u64,
     /// Reactions of pairs found in contact.
     pub contact_reactions: u64,
+    /// Reactions of one particle: first order, with a fixed species, or
+    /// with a background species.
+    pub molecule_reactions: u64,
+    /// Molecules of each background species consumed by these reactions.
+    /// They are counted, not removed: the background keeps its
+    /// concentration.
+    pub background_consumed: Vec<u64>,
     /// Firings of each network reaction.
     pub by_reaction: Vec<u64>,
     /// Particles that left the box (`Boundary::Outflow`), per species.
@@ -136,6 +152,9 @@ enum Next {
         j: usize,
         reaction: usize,
     },
+    /// Reaction `reaction` (index in `IrtModel::molecule`) of the particle
+    /// `i`, `dt` after the stage time.
+    Molecule { dt: f64, i: usize, reaction: usize },
     /// Pairs in contact that react now: `(i, j, reaction)`.
     Contacts(Vec<(usize, usize, usize)>),
     /// No reaction within `dt`, but a pair sits inside its effective radius:
@@ -156,6 +175,10 @@ pub struct Stage<'a> {
     stats: StageStats,
     grid: CellGrid,
     dead: Vec<bool>,
+    /// Particles that have a reaction partner among the particles, and
+    /// their positions (scratch of the pair search).
+    active: Vec<u32>,
+    active_pos: Vec<Vec3>,
 }
 
 /// Whether `x` is outside the box `[lo, hi]` or on one of its faces.
@@ -177,10 +200,13 @@ impl<'a> Stage<'a> {
             stats: StageStats {
                 by_reaction: vec![0; model.n_reactions()],
                 absorbed: vec![0; n],
+                background_consumed: vec![0; n],
                 ..StageStats::default()
             },
             grid: CellGrid::new(),
             dead: Vec::new(),
+            active: Vec::new(),
+            active_pos: Vec::new(),
         }
     }
 
@@ -223,6 +249,9 @@ impl<'a> Stage<'a> {
                 Some(Next::Pair { dt, i, j, reaction }) if self.t + dt <= t => {
                     self.fire_pair(dt, i, j, reaction)
                 }
+                Some(Next::Molecule { dt, i, reaction }) if self.t + dt <= t => {
+                    self.fire_molecule(dt, i, reaction)
+                }
                 Some(Next::Move { dt }) if self.t + dt <= t => {
                     self.stats.moves += 1;
                     self.sync(self.t + dt);
@@ -262,7 +291,7 @@ impl<'a> Stage<'a> {
     /// One sampling pass: the earliest reaction, or the contact reactions.
     fn sample(&mut self) -> Next {
         let horizon = self.opt.t_stop - self.t;
-        if horizon.is_nan() || horizon <= 0.0 || self.particles.len() < 2 {
+        if horizon.is_nan() || horizon <= 0.0 || self.particles.is_empty() {
             return Next::Nothing;
         }
         self.stats.passes += 1;
@@ -274,16 +303,41 @@ impl<'a> Stage<'a> {
             grid,
             stats,
             opt,
+            active,
+            active_pos,
             ..
         } = self;
         let species = &particles.species;
         let fresh = &particles.fresh;
+        // Only the particles of a species that has a partner present can
+        // react in a pair: the others are left out of the search.
+        let mut partner = vec![false; model.n_species()];
+        for p in &model.pairs {
+            let present = if p.a == p.b {
+                particles.counts[p.a] >= 2
+            } else {
+                particles.counts[p.a] >= 1 && particles.counts[p.b] >= 1
+            };
+            if present {
+                partner[p.a] = true;
+                partner[p.b] = true;
+            }
+        }
+        active.clear();
+        active_pos.clear();
+        for (i, s) in species.iter().enumerate() {
+            if partner[*s as usize] {
+                active.push(i as u32);
+                active_pos.push(particles.pos[i]);
+            }
+        }
         let mut best = Next::Nothing;
         let mut best_dt = horizon;
         let mut contacts: Vec<(usize, usize, usize)> = Vec::new();
         // Time for the closest overlapping pair to diffuse over its radius.
         let mut look_again = f64::INFINITY;
-        grid.for_each_pair(&particles.pos, cutoff, |i, j, d2| {
+        grid.for_each_pair(active_pos, cutoff, |i, j, d2| {
+            let (i, j) = (active[i] as usize, active[j] as usize);
             let reactions = model.pairs_of(species[i] as usize, species[j] as usize);
             if reactions.is_empty() {
                 return;
@@ -315,8 +369,49 @@ impl<'a> Stage<'a> {
         });
         particles.fresh.fill(false);
         if !contacts.is_empty() {
-            Next::Contacts(contacts)
-        } else if look_again < best_dt {
+            return Next::Contacts(contacts);
+        }
+        // The reactions of single particles: one exponential time for the
+        // sum of their rates, then the particle and its reaction.
+        if opt.molecule_reactions {
+            let weight = |s: usize| particles.counts[s] as f64 * model.molecule_rate(s);
+            let total: f64 = (0..model.n_species()).map(weight).sum();
+            if total > 0.0 {
+                let dt = rng.exp1() / total;
+                if dt < best_dt && dt < look_again {
+                    let mut u = rng.uniform() * total;
+                    let mut chosen = 0;
+                    for s in 0..model.n_species() {
+                        let w = weight(s);
+                        if w > 0.0 {
+                            chosen = s;
+                            if u < w {
+                                break;
+                            }
+                            u -= w;
+                        }
+                    }
+                    let k = rng.below(particles.counts[chosen] as u64) as usize;
+                    let i = (0..species.len())
+                        .filter(|i| species[*i] as usize == chosen)
+                        .nth(k)
+                        .expect("a particle of the chosen species");
+                    let list = model.molecule_of(chosen);
+                    let mut v = rng.uniform() * model.molecule_rate(chosen);
+                    let mut reaction = list[list.len() - 1] as usize;
+                    for &r in list {
+                        let rate = model.molecule[r as usize].rate;
+                        if v < rate {
+                            reaction = r as usize;
+                            break;
+                        }
+                        v -= rate;
+                    }
+                    return Next::Molecule { dt, i, reaction };
+                }
+            }
+        }
+        if look_again < best_dt {
             Next::Move { dt: look_again }
         } else {
             best
@@ -378,6 +473,33 @@ impl<'a> Stage<'a> {
         self.add_products(reaction, site, false);
         self.stats.pair_reactions += 1;
         self.stats.by_reaction[p.index] += 1;
+    }
+
+    /// React the particle `i` alone, `dt` after the stage time: every
+    /// particle moves over `dt`, then the products replace `i` where it is.
+    fn fire_molecule(&mut self, dt: f64, i: usize, reaction: usize) {
+        let model = self.model;
+        let m = &model.molecule[reaction];
+        self.dead.clear();
+        self.dead.resize(self.particles.len(), false);
+        self.diffuse_all(dt, usize::MAX, usize::MAX);
+        self.t += dt;
+        // A particle that left the box on the way does not react.
+        if self.dead[i] {
+            self.particles.remove(&self.dead);
+            return;
+        }
+        let site = self.particles.pos[i];
+        self.dead[i] = true;
+        self.particles.remove(&self.dead);
+        for &s in &m.products {
+            self.particles.push(s as u32, site, false);
+        }
+        self.stats.molecule_reactions += 1;
+        self.stats.by_reaction[m.index] += 1;
+        if let Some(b) = m.background {
+            self.stats.background_consumed[b] += 1;
+        }
     }
 
     /// React the pairs in contact, in the order they were found; a pair one

@@ -3,7 +3,7 @@
 //! | file | content |
 //! |---|---|
 //! | `yields.csv` | `t`, `N_<sp>` (mean particles), `G_<sp>` when seeds give `energy_ev` (`N / (E / 100 eV)`, E the energy of the seeds injected so far), then `N_<sp>_std` and `G_<sp>_std` (standard deviation over the trajectories): the columns of the RDME `yields.csv` |
-//! | `irt.json` | settings, event counts, firings of each reaction, particles that left the box, warnings |
+//! | `irt.json` | settings, event counts, firings of each reaction, molecules of the background consumed, particles that left the box, warnings |
 
 use std::fmt::Write as _;
 use std::path::Path;
@@ -85,6 +85,15 @@ struct Meta<'a> {
     /// Event counts summed over the trajectories.
     pair_reactions: u64,
     contact_reactions: u64,
+    /// Reactions of one particle (first order, with a fixed or a background
+    /// species).
+    molecule_reactions: u64,
+    background_reactions: bool,
+    /// Molecules of each background species these reactions consumed,
+    /// summed over the trajectories. The background is not debited.
+    background_consumed: IndexMap<&'a str, u64>,
+    /// Concentration of each background species [mol/L].
+    background: IndexMap<&'a str, f64>,
     sampling_passes: u64,
     /// Moves made to look again at a pair inside its effective radius.
     look_again_moves: u64,
@@ -133,6 +142,22 @@ pub fn irt_meta_json(sim: &IrtSimulation, out: &IrtOutput) -> Result<String> {
         seed_energy_ev: out.seed_energies.iter().map(|(_, e)| e).sum(),
         pair_reactions: out.stats.pair_reactions,
         contact_reactions: out.stats.contact_reactions,
+        molecule_reactions: out.stats.molecule_reactions,
+        background_reactions: sim.config.background_reactions,
+        background_consumed: out
+            .species
+            .iter()
+            .zip(&out.stats.background_consumed)
+            .filter(|(_, n)| **n > 0)
+            .map(|(s, n)| (s.as_str(), *n))
+            .collect(),
+        background: out
+            .species
+            .iter()
+            .zip(&sim.model.background)
+            .filter(|(_, c)| **c > 0.0)
+            .map(|(s, c)| (s.as_str(), *c))
+            .collect(),
         sampling_passes: out.stats.passes,
         look_again_moves: out.stats.moves,
         pairs_sampled: out.stats.pairs_sampled,

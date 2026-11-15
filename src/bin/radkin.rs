@@ -77,11 +77,12 @@ fn irt(a: &IrtArgs) -> radkin::Result<()> {
     let out = radkin::irt::run_irt(&sim)?;
     radkin::irt::write_irt_dir(&a.out, &sim, &out)?;
     eprintln!(
-        "radkin: irt run of {} molecules, {} trajectories, {} pair and {} contact reactions in {:.1} s; {} record times written to {}",
+        "radkin: irt run of {} molecules, {} trajectories, {} pair, {} contact and {} single-molecule reactions in {:.1} s; {} record times written to {}",
         sim.seeds.iter().map(|s| s.molecules.len()).sum::<usize>(),
         out.trajectories,
         out.stats.pair_reactions,
         out.stats.contact_reactions,
+        out.stats.molecule_reactions,
         out.exec_time,
         out.record_times.len(),
         a.out.display()

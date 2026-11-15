@@ -78,6 +78,7 @@ def write_config(path, args, event, energy, times, t_start, t_end):
         "[irt]", f"t_end = {t_end!r}", f"trajectories = {args.trajectories}",
         f"random_seed = {args.seed + event}", f"start_contact = {str(args.start_contact).lower()}",
         f'boundary = "{args.boundary}"',
+        "background_reactions = false",
         "record_times = [" + ", ".join(repr(t) for t in times) + "]",
     ] + args.irt_key + [
         "", "[irt.box]", f"lo_nm = {-args.half_box}", f"hi_nm = {args.half_box}",
@@ -183,7 +184,7 @@ def main():
     out = []
     out.append(f"# radkin IRT stage against Geant4-DNA IRT_syn: {len(events)} events\n")
     out.append(f"- Geant4 reference: `{os.path.relpath(args.g4, ROOT)}`; chemistry `data/chem_g4.toml`.")
-    out.append(f"- radkin: full resampling, {T} trajectories per event, boundary `{args.boundary}`"
+    out.append(f"- radkin: full resampling, no background reaction (Geant4's run has no scavenger process), {T} trajectories per event, boundary `{args.boundary}`"
                + (f" (box of half edge {args.half_box:g} nm)" if args.boundary != "none" else "")
                + f", start_contact = {str(args.start_contact).lower()}"
                + ("".join(f", `{k}`" for k in args.irt_key)) + ".")

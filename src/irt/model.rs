@@ -128,6 +128,8 @@ pub struct IrtModel {
     by_pair: Vec<Vec<u32>>,
     /// Molecule reactions of each species.
     by_species: Vec<Vec<u32>>,
+    /// Sum of the rates of the molecule reactions of each species [1/s].
+    molecule_rates: Vec<f64>,
 }
 
 /// Onsager radius [m] of two charges (Geant4: 293.15 K, permittivity 80.1).
@@ -247,6 +249,7 @@ impl IrtModel {
             n_reactions: mat.k.k_values.len(),
             by_pair: vec![Vec::new(); n * n],
             by_species: vec![Vec::new(); n],
+            molecule_rates: vec![0.0; n],
         };
         let mut missing: Vec<usize> = Vec::new();
         for (j, r) in env.reactions.iter_all_k().enumerate() {
@@ -401,6 +404,7 @@ impl IrtModel {
 
     fn push_molecule(&mut self, m: MoleculeReaction) {
         self.by_species[m.species].push(self.molecule.len() as u32);
+        self.molecule_rates[m.species] += m.rate;
         self.molecule.push(m);
     }
 
@@ -423,6 +427,11 @@ impl IrtModel {
     /// Molecule reactions (indices in `molecule`) of a species.
     pub fn molecule_of(&self, species: usize) -> &[u32] {
         &self.by_species[species]
+    }
+
+    /// Sum of the rates of the molecule reactions of a species [1/s].
+    pub fn molecule_rate(&self, species: usize) -> f64 {
+        self.molecule_rates[species]
     }
 
     /// Largest effective radius of the pair reactions [m].

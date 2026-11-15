@@ -223,6 +223,7 @@ impl IrtSimulation {
                 _ => Boundary::None,
             },
             cutoff_probability: self.config.cutoff_probability,
+            molecule_reactions: self.config.background_reactions,
         }
     }
 
@@ -266,12 +267,21 @@ impl IrtSimulation {
 fn add_stats(sum: &mut StageStats, s: &StageStats) {
     sum.pair_reactions += s.pair_reactions;
     sum.contact_reactions += s.contact_reactions;
+    sum.molecule_reactions += s.molecule_reactions;
     sum.passes += s.passes;
     sum.moves += s.moves;
     sum.pairs_sampled += s.pairs_sampled;
     if sum.by_reaction.is_empty() {
         sum.by_reaction = vec![0; s.by_reaction.len()];
         sum.absorbed = vec![0; s.absorbed.len()];
+        sum.background_consumed = vec![0; s.background_consumed.len()];
+    }
+    for (a, b) in sum
+        .background_consumed
+        .iter_mut()
+        .zip(&s.background_consumed)
+    {
+        *a += b;
     }
     for (a, b) in sum.by_reaction.iter_mut().zip(&s.by_reaction) {
         *a += b;
