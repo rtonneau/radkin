@@ -1,0 +1,61 @@
+{
+  "session_id": "2026-11-15__rdme-one-way-reverse-pairs",
+  "feature_name": "rdme-one-way-reverse-pairs",
+  "scratch_dir": ".scratch/tests/2026-11-15__rdme-one-way-reverse-pairs",
+  "created_at": "2026-11-15T14:38:22.859Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-15T14:38:22.859Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-15T14:51:49.245Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-15T14:51:49.351Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-15T14:52:15.755Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "fix/rdme-one-way-reverse-pairs",
+        "base": "fix/rdme-reversible-mesh-correction"
+      }
+    },
+    {
+      "at": "2026-11-15T14:52:15.766Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-infer-one-way-pairs.md"
+      ],
+      "detail": {
+        "tickets": 1
+      }
+    }
+  ],
+  "current_phase": "ship",
+  "git": {
+    "branch": "fix/rdme-one-way-reverse-pairs",
+    "base_branch": "fix/rdme-reversible-mesh-correction",
+    "branch_created_at": "2026-11-15T14:52:15.755Z",
+    "pr_url": null
+  }
+}
