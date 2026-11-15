@@ -1,5 +1,5 @@
 ---
-status: grilled
+status: planned
 scope: project
 created: 2026-11-15
 reviews: 0
@@ -27,6 +27,15 @@ RDME mesh correction breaks detailed balance for reversible pairs. RDME yields a
 - Pairs whose product is not fixed, or that have more than one product: are they matched, and how?
 - The multi-grid species-level form (ADR 0005): does it need any extra handling for the scaled reverse rate?
 
+## Plan
+
+1. A failing `ssa_*` test: a small seedless box at a fine voxel size loses H3O+/OH- compared with the unit-cell SSA.
+2. Reversible pairs are detected in `SimMatrices` (fixed species ignored) and logged. Unit tests on the radiopyo network cover the detection.
+3. Each matched reverse propensity gets its forward reaction's Hellander factor, in both the single-grid and the multi-grid RDME. The test from step 1 passes at 20, 10 and 5 nm.
+4. Subtracting a seedless RDME companion run gives background-net `yields.csv`. The output records the companion run.
+5. The single-track 10 us G-value report is rerun and compared with the deterministic voxel run.
+6. `docs/ssa.md` and an ADR describe the reverse scaling and the background subtraction.
+
 ## Risks
 
 - Matching pairs automatically can give a false or missed match in other networks. Logging the pairs found makes this visible.
@@ -36,3 +45,4 @@ RDME mesh correction breaks detailed balance for reversible pairs. RDME yields a
 
 - 2026-11-15 — capture — RDME mesh correction breaks detailed balance of reversible pairs (radkin @ test/rdme-single-track-gvalues)
 - 2026-11-15 — grill
+- 2026-11-15 — plan
