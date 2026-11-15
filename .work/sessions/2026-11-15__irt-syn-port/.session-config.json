@@ -113,6 +113,30 @@
         "ticket": "02-pair-sampling-kernel",
         "commit": "f5d86ef"
       }
+    },
+    {
+      "at": "2026-11-15T17:50:08.495Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-single-track-solver.md",
+        "03-implement/03-single-track-solver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-single-track-solver"
+      }
+    },
+    {
+      "at": "2026-11-15T18:19:37.797Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-single-track-solver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-single-track-solver",
+        "commit": "19d52db"
+      }
     }
   ],
   "current_phase": "ship",
