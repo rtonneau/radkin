@@ -417,7 +417,7 @@ fn irt_single_track_cli_writes_yields_and_meta() {
     let meta: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(out.join("irt.json")).unwrap()).unwrap();
     assert_eq!(meta["solver"], "irt");
-    assert_eq!(meta["resampling"], "full");
+    assert_eq!(meta["resampling"], "incremental");
     assert_eq!(meta["trajectories"], 32);
     assert_eq!(meta["seed_molecules"], 66);
     assert!(meta["pair_reactions"].as_u64().unwrap() > 100);

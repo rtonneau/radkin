@@ -24,6 +24,14 @@ The variance has a floor of one molecule.
 
   python -I tools/compare_irt_geant4.py --events 100 --boundary outflow
 
+With --same-pass the seeds were written by the G(t) pass itself (seeds.csv of a g4radkin
+run with /rs/chem/seedDump true, next to gt.csv and edep.csv): the molecules of each
+event at its first time step after the start of the chemistry. radkin then starts each
+event at its own time from the very state Geant4 carries on from, so the initial-state
+term is zero; before that time the event counts as Geant4's own.
+
+  python -I tools/compare_irt_geant4.py --g4 <run dir> --same-pass
+
 The chemistry is data/chem_g4.toml. The report is printed and written to OUT/report.md.
 """
 
@@ -52,32 +60,43 @@ MAIN = ["e_aq", "OH_r", "H_r", "H3O_plus", "OH_minus", "H2O2", "H2"]
 DECADES = [1e-11, 1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5]
 
 
-def read_geant4(g4):
+def seeds_file(args):
+    if args.same_pass:
+        return os.path.join(args.g4, "seeds.csv")
+    return os.path.join(args.g4, "1ps", "molecules.csv")
+
+
+def read_geant4(args):
+    """Deposited energies, counts, checkpoint times, and the seed time of every event."""
+    gt = args.g4 if args.same_pass else os.path.join(args.g4, "gt")
     edep = {}
-    with open(os.path.join(g4, "gt", "edep.csv"), encoding="utf-8") as f:
+    with open(os.path.join(gt, "edep.csv"), encoding="utf-8") as f:
         for r in csv.DictReader(f):
             edep[int(r["event_id"])] = float(r["edep_eV"])
     counts = {}  # (event, label, time) -> count
     times = set()
-    with open(os.path.join(g4, "gt", "gt.csv"), encoding="utf-8") as f:
+    with open(os.path.join(gt, "gt.csv"), encoding="utf-8") as f:
         for r in csv.DictReader(f):
             t = float(r["time_s"])
             times.add(t)
             counts[(int(r["event_id"]), NAMES[r["species"]], t)] = int(r["count"])
-    t_start = None
-    with open(os.path.join(g4, "1ps", "molecules.csv"), encoding="utf-8") as f:
-        t_start = float(next(csv.DictReader(f))["time_ps"]) * 1e-12
-    return edep, counts, sorted(times), t_start
+    starts, molecules = {}, {}
+    with open(seeds_file(args), encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            e = int(r["event_id"])
+            starts.setdefault(e, float(r["time_ps"]) * 1e-12)
+            molecules[e] = molecules.get(e, 0) + 1
+    return edep, counts, sorted(times), starts, molecules
 
 
 def write_config(path, args, event, energy, times, t_start, t_end):
-    mol = os.path.join(args.g4, "1ps", "molecules.csv").replace("\\", "/")
+    mol = seeds_file(args).replace("\\", "/")
     chem = os.path.join(ROOT, "data", "chem_g4.toml").replace("\\", "/")
     lines = [
         "[includes]", f'toml = ["{chem}"]', "",
         "[irt]", f"t_end = {t_end!r}", f"trajectories = {args.trajectories}",
         f"random_seed = {args.seed + event}", f"start_contact = {str(args.start_contact).lower()}",
-        f'boundary = "{args.boundary}"',
+        f'boundary = "{args.boundary}"', f'resampling = "{args.resampling}"',
         "background_reactions = false",
         "record_times = [" + ", ".join(repr(t) for t in times) + "]",
     ] + args.irt_key + [
@@ -116,6 +135,8 @@ def main():
     ap.add_argument("--trajectories", type=int, default=16)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--boundary", choices=["none", "outflow"], default="none")
+    ap.add_argument("--resampling", choices=["incremental", "full"], default="incremental",
+                    help="pair rule of the IRT stage")
     ap.add_argument("--half-box", type=float, default=1000.0,
                     help="half edge of the Geant4 water box [nm]")
     ap.add_argument("--start-contact", action="store_true",
@@ -124,46 +145,66 @@ def main():
                     help='extra line of the [irt] table, e.g. --irt-key "cutoff_probability = 0.001"')
     ap.add_argument("--t-max", type=float, default=None,
                     help="compare up to this time only [s]")
+    ap.add_argument("--same-pass", action="store_true",
+                    help="--g4 is one g4radkin run directory whose seeds.csv was written by "
+                         "the G(t) pass itself (/rs/chem/seedDump true)")
     ap.add_argument("--limit", type=float, default=3.0, help="allowed |z|")
     ap.add_argument("--trace", action="append", default=[],
                     help="also print every compared time of this species (radkin label)")
     args = ap.parse_args()
+    # the run configurations are written elsewhere: they need absolute paths
+    args.g4 = os.path.abspath(args.g4)
+    args.out = os.path.abspath(args.out)
 
-    edep, g4, times, t_start = read_geant4(args.g4)
+    edep, g4, times, starts, n_seed = read_geant4(args)
     events = sorted(edep)[: args.events]
     t_end = max(times)
-    rec = [t for t in times if t_start < t < t_end]
+    # An event without seeds, or whose chemistry never left its start, has nothing to run.
+    idle = [e for e in events if starts.get(e, t_end) >= t_end]
+    active = [e for e in events if e not in idle]
+    t_start = min(starts[e] for e in active)
+
+    def records(e):
+        return [t for t in times if starts[e] < t < t_end]
+
     os.makedirs(args.out, exist_ok=True)
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
-        runs = list(pool.map(lambda e: run_event(args, e, edep[e], rec, t_start, t_end), events))
+        runs = list(pool.map(
+            lambda e: run_event(args, e, edep[e], records(e), starts[e], t_end), active))
 
     energy = sum(edep[e] for e in events) / 100.0
     species = [k[2:] for k in runs[0][1][0] if k.startswith("N_") and not k.endswith("_std")]
     T = args.trajectories
-    cmp_times = [t for t in rec + [t_end] if args.t_max is None or t <= args.t_max]
+    cmp_times = [t for t in times if t > t_start and (args.t_max is None or t <= args.t_max)]
     table = {}  # (species, t) -> (N_radkin, N_g4, sd)
-    for _, rows, _ in runs:
-        by_t = {float(r["t"]): r for r in rows}
-        missing = [t for t in cmp_times if t not in by_t]
+    indexed = {event: {float(r["t"]): r for r in rows} for event, rows, _ in runs}
+    for event in active:
+        missing = [t for t in cmp_times if t > starts[event] and t not in indexed[event]]
         if missing:
-            raise SystemExit(f"record times missing from a radkin run: {missing[:3]}")
+            raise SystemExit(f"record times missing from the radkin run of event {event}: "
+                             f"{missing[:3]}")
     t_first = min(times)
-    indexed = [(event, {float(r["t"]): r for r in rows}) for event, rows, _ in runs]
     for sp in species:
         # Difference of the two initial states: Geant4's first checkpoint against the
-        # seed molecules radkin starts from.
+        # seed molecules radkin starts from (zero when the seeds are those of the pass).
         init_var = n0 = 0.0
-        for event, by_t in indexed:
+        for event in events:
             g0 = g4.get((event, sp, t_first), 0)
-            init_var += (g0 - float(by_t[t_start]["N_" + sp])) ** 2
             n0 += g0
+            if not args.same_pass and event in indexed:
+                init_var += (g0 - float(indexed[event][starts[event]]["N_" + sp])) ** 2
         for t in cmp_times:
             n_rk = var = n_g4 = 0.0
-            for event, by_t in indexed:
-                r = by_t[t]
+            for event in events:
+                count = g4.get((event, sp, t), 0)
+                n_g4 += count
+                r = indexed.get(event, {}).get(t)
+                if r is None:
+                    # before the seeds of this event (or an idle event): Geant4's own state
+                    n_rk += count
+                    continue
                 n_rk += float(r["N_" + sp])
                 var += float(r["N_" + sp + "_std"]) ** 2 * (1.0 + 1.0 / T)
-                n_g4 += g4.get((event, sp, t), 0)
             survive = min(1.0, n_g4 / n0) if n0 > 0 else 1.0
             var += init_var * survive ** 2
             table[(sp, t)] = (n_rk, n_g4, math.sqrt(max(var, 1.0)))
@@ -180,16 +221,25 @@ def main():
         for k, v in meta["reactions"].items():
             reactions[k] = reactions.get(k, 0) + v / T
     seeded = sum(m["seed_molecules"] for _, _, m in runs)
+    late = sorted(starts[e] for e in active)
 
     out = []
     out.append(f"# radkin IRT stage against Geant4-DNA IRT_syn: {len(events)} events\n")
     out.append(f"- Geant4 reference: `{os.path.relpath(args.g4, ROOT)}`; chemistry `data/chem_g4.toml`.")
-    out.append(f"- radkin: full resampling, no background reaction (Geant4's run has no scavenger process), {T} trajectories per event, boundary `{args.boundary}`"
+    out.append(f"- radkin: {args.resampling} resampling, no background reaction (Geant4's run has no scavenger process), {T} trajectories per event, boundary `{args.boundary}`"
                + (f" (box of half edge {args.half_box:g} nm)" if args.boundary != "none" else "")
                + f", start_contact = {str(args.start_contact).lower()}"
                + ("".join(f", `{k}`" for k in args.irt_key)) + ".")
-    out.append(f"- {seeded} molecules at {t_start:.4g} s, {energy * 100:.1f} eV deposited; "
-               f"compared at {len(cmp_times)} times up to {max(cmp_times):.3g} s.")
+    if args.same_pass:
+        out.append(f"- Seeds of the G(t) pass itself: {seeded} molecules in {len(active)} events, "
+                   f"each event at its first time step after the start of the chemistry "
+                   f"({late[0]:.4g} to {late[-1]:.4g} s, median {late[len(late) // 2]:.4g} s); "
+                   f"{len(idle)} events without a time step.")
+        out.append(f"- {energy * 100:.1f} eV deposited; compared at {len(cmp_times)} times "
+                   f"up to {max(cmp_times):.3g} s.")
+    else:
+        out.append(f"- {seeded} molecules at {t_start:.4g} s, {energy * 100:.1f} eV deposited; "
+                   f"compared at {len(cmp_times)} times up to {max(cmp_times):.3g} s.")
     out.append(f"- Reactions per run of all events: {sum(reactions.values()):.1f}; "
                f"molecules that left the box: {sum(absorbed.values()):.1f}.\n")
     out.append("G in molecules / 100 eV: radkin / Geant4 (z).\n")

@@ -277,7 +277,7 @@ fn irt_handover_cli() {
         serde_json::from_str(&std::fs::read_to_string(out.join("snapshots.json")).unwrap())
             .unwrap();
     assert_eq!(meta["irt_stage"]["handover_time"], 1e-7);
-    assert_eq!(meta["irt_stage"]["resampling"], "full");
+    assert_eq!(meta["irt_stage"]["resampling"], "incremental");
     assert!(meta["irt_stage"]["molecules_handed_over"].as_u64().unwrap() > 300);
     assert_eq!(meta["snapshots"].as_array().unwrap().len(), 2);
     assert!(out.join("snapshots/t000_e_aq.npy").exists());

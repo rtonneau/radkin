@@ -107,42 +107,53 @@ diffusion-controlled pairs and for ion pairs (`tests/irt_sample.rs`, 400 000 pai
 
 ## The two pair rules
 
-### Full resampling (default)
+### Incremental resampling (default)
 
-`src/irt/solver.rs`. One pass draws a reaction time for every pair inside the cutoff
-radius, and one time for the reactions of single particles, and keeps the earliest. The
-event moves the time, puts the reactants and products at sampled positions, moves every
-other particle by its free diffusion over the step, and discards every time: the next
-pass draws them all again.
+`src/irt/incremental.rs`. Every reaction time is kept in a queue. A time is drawn for a
+pair once, when the later of its two particles appears (injected or created), and for a
+particle alone when it appears. After a reaction only the pairs of its products are
+drawn.
 
-- The cutoff radius is `r_max + 2 sqrt(D_max t_left) erfcinv(p)`, with `p` =
-  `cutoff_probability` (0.01, as Geant4) and `t_left` the time to the end of the stage.
-  Only particles of a species that has a partner among the particles are searched.
-- Record times are not stops: particles move at reactions, and a record reads the
-  counts.
-- A pair that a move brought inside its effective radius gets no reaction time in that
-  pass: its sampled time said it had not reacted. It bounds the next step to
-  `r_eff² / D`, after which every particle is moved and looked at again.
-
-### Incremental resampling
-
-`src/irt/incremental.rs`, `resampling = "incremental"`. Every reaction time is kept in
-a queue. A time is drawn for a pair once, when the later of its two particles appears
-(injected or created), and for a particle alone when it appears. After a reaction only
-the pairs of its products are drawn.
-
+- The cutoff radius of the partner search is `r_max + 2 sqrt(D_max t_left) erfcinv(p)`,
+  with `p` = `cutoff_probability` (0.01, as Geant4) and `t_left` the time to the end of
+  the stage.
 - A particle keeps the position of the last time it was looked at. It is moved to the
   present when a new particle looks for partners around it, and when it reacts alone.
 - A pair that fires is put at its reaction positions from the two positions its time
   was drawn from.
+- A pair found inside its effective radius later than its injection gets no reaction
+  time: it is looked at again after `r_eff² / D`.
 - Between reflective walls every pair is drawn again at the look-ahead limit of the box
-  (below), as the full rule does.
+  (below).
+- Record times are not stops: a record reads the counts.
 
-The two rules agree on the same seeds, for every species at every record within 4
-standard errors: single tracks, five overlapping tracks with the pH 7 background, and a
-box with reflective walls (`tests/irt_incremental.rs`). Geant4's IRT_syn keeps its
+This is the rule that matches Geant4 (below), and Geant4's own: its IRT_syn keeps its
 reaction set between reaction steps and clears it only after a step limited by a
-process, so it is closer to the incremental rule.
+process.
+
+### Full resampling
+
+`src/irt/solver.rs`, `resampling = "full"`. One pass draws a reaction time for every
+pair inside the cutoff radius, and one time for the reactions of single particles, and
+keeps the earliest. The event moves the time, puts the reactants and products at
+sampled positions, moves every other particle by its free diffusion over the step, and
+discards every time: the next pass draws them all again.
+
+- Only particles of a species that has a partner among the particles are searched.
+- A pair that a move brought inside its effective radius gets no reaction time in that
+  pass. It bounds the next step to `r_eff² / D`, after which every particle is moved
+  and looked at again.
+
+**It reacts a spur slightly too fast.** Each pass draws a pair again from its present
+distance, as if the pair had just been put there: the depletion that builds up around a
+molecule that has not reacted yet is forgotten at every reaction of the track. Against
+Geant4 on 2000 events (below) this gives H2O2 +5.5 %, •OH −1.5 % and e_aq +1.5 % at
+10 us. It was the default of the first version; it stays as a cross-check, and costs
+about the cube of the number of molecules.
+
+The two rules agree within 4 standard errors on small ensembles (single tracks, five
+overlapping tracks with the pH 7 background, a box with reflective walls:
+`tests/irt_incremental.rs`); the difference above only shows with thousands of events.
 
 ## Background reactions
 
@@ -236,7 +247,7 @@ t_end = 1e-6             # s (required): end of the stage; the handover time in 
 t_start = 1e-12          # s (default: the earliest seed time)
 trajectories = 16        # default 1 (`radkin irt` only)
 random_seed = 1          # default 0 (`radkin irt` only)
-resampling = "full"      # "full" or "incremental"
+resampling = "incremental"  # "incremental" (default) or "full"
 start_contact = true     # contact rule for injected molecules
 background_reactions = true
 boundary = "none"        # "none", "reflective" or "outflow" (the last two need a box)
@@ -274,36 +285,64 @@ diffusion = 2.0e-9       # m^2/s
 
 ## Validation against Geant4-DNA IRT_syn
 
-`python -I tools/compare_irt_geant4.py --events 100 [--boundary outflow]` runs each of
-the 100 events of the reference (100 keV electrons through a 2 um water box, option4
-physics, option3 chemistry, 615 eV per event; 9491 molecules at 1.001 ps) with 16
-trajectories and compares the molecule counts at Geant4's 71 checkpoints. `z` is the
-difference over its standard error (the chemistry noise of both codes and the
-difference of their two initial states). Report of 2026-11-15:
-`.scratch/tests/2026-11-15__irt-syn-port/03-report.md`.
+`tools/compare_irt_geant4.py` runs each event of a Geant4 reference on its own with 16
+trajectories and compares the molecule counts at Geant4's 71 checkpoints (10 per
+decade). `z` is the difference over its standard error. The references are 100 keV
+electrons through a 2 um segment of water (Geant4-DNA 11.4.3, option4 physics, option3
+chemistry, IRT_syn), made with `${DEV_DIR}/GEANT4/SIM/radkin`. radkin runs the 52 pair
+reactions of `data/chem_g4.toml` without background reactions (the Geant4 run has no
+scavenger process) and `start_contact = false`.
 
-- **Free space, to 300 ns:** RMS of z = 0.93 over 825 values; every value of the decade
-  table within 3 standard errors.
-- **The Geant4 reference is not free space after 300 ns.** It loses molecules at the
-  faces of its box: its net charge drifts from −5 to −83 and its H2 decreases.
-- **With the same box (`boundary = "outflow"`), to 10 us:** RMS of z = 1.00 over 1065
-  values with the full rule and 1.05 with the incremental rule. Every value of the
-  decade table is within 3 standard errors, except H3O⁺ at the last record with the
-  full rule (−3.2).
+### Free space, 2000 events, the seeds of the G(t) pass
 
-G in molecules / 100 eV, radkin (full rule) / Geant4, with the outflow box:
+Reference of 2026-11-15 (`macros/seg2w_gt_2000.mac`): the segment is a region of a
+larger water box (5 um of water on every side, `/rs/det/segmentMargin`), the physical
+stage is stopped at the faces of the segment, and no molecule reaches a face of the
+water (the net charge of the 2000 events is constant). The seeds are written by the
+G(t) pass itself (`/rs/chem/seedDump`): the molecules of each event at its first time
+step after 1 ps (median 15 ps). radkin starts each event from the very state Geant4
+carries on from, so the test sees the chemistry noise only.
 
-| species | 10 ps | 1 ns | 100 ns | 1 us | 10 us |
-|---|---|---|---|---|---|
-| e_aq | 4.284 / 4.293 | 3.747 / 3.748 | 2.777 / 2.757 | 2.547 / 2.506 | 2.155 / 2.137 |
-| •OH | 5.256 / 5.281 | 3.925 / 3.987 | 2.869 / 2.939 | 2.693 / 2.752 | 2.400 / 2.497 |
-| H• | 1.081 / 1.061 | 0.892 / 0.917 | 0.897 / 0.930 | 0.884 / 0.925 | 0.750 / 0.793 |
-| H2O2 | 0.091 / 0.075 | 0.485 / 0.463 | 0.661 / 0.629 | 0.667 / 0.637 | 0.634 / 0.627 |
-| H2 | 0.127 / 0.130 | 0.193 / 0.197 | 0.324 / 0.323 | 0.354 / 0.348 | 0.338 / 0.338 |
+```bash
+python -I tools/compare_irt_geant4.py --g4 <run dir> --same-pass --events 2000
+```
 
-In free space the same tracks give, at 10 us: e_aq 2.51, •OH 2.66, H• 0.91, H2O2 0.68,
-H2 0.38. A Geant4 reference whose molecules cannot leave the water would allow the
-comparison in free space over the last decade.
+G in molecules / 100 eV, radkin / Geant4 (z), 229 620 molecules, 1.51 MeV deposited:
+
+| species | 100 ps | 1 ns | 10 ns | 100 ns | 1 us | 10 us |
+|---|---|---|---|---|---|---|
+| e_aq | 4.009 / 4.011 (−0.6) | 3.595 / 3.596 (−0.4) | 3.011 / 3.015 (−0.6) | 2.585 / 2.581 (+0.6) | 2.386 / 2.380 (+0.9) | 2.286 / 2.285 (+0.1) |
+| •OH | 4.779 / 4.798 (−3.1) | 3.835 / 3.860 (−3.1) | 3.109 / 3.116 (−0.9) | 2.757 / 2.767 (−1.1) | 2.601 / 2.616 (−1.8) | 2.519 / 2.535 (−1.9) |
+| H• | 1.071 / 1.075 (−1.0) | 0.963 / 0.969 (−1.3) | 0.937 / 0.930 (+1.3) | 0.931 / 0.923 (+1.4) | 0.925 / 0.918 (+1.3) | 0.921 / 0.913 (+1.3) |
+| H3O⁺ | 4.180 / 4.178 (+0.6) | 3.899 / 3.895 (+1.0) | 3.525 / 3.522 (+0.6) | 3.260 / 3.251 (+1.7) | 3.129 / 3.114 (+2.7) | 3.063 / 3.053 (+1.8) |
+| OH⁻ | 0.085 / 0.082 (+1.4) | 0.212 / 0.207 (+1.5) | 0.408 / 0.401 (+1.3) | 0.559 / 0.557 (+0.4) | 0.622 / 0.617 (+0.9) | 0.654 / 0.650 (+0.7) |
+| H2O2 | 0.266 / 0.256 (+3.7) | 0.533 / 0.521 (+3.0) | 0.676 / 0.669 (+1.4) | 0.706 / 0.695 (+2.3) | 0.716 / 0.703 (+2.6) | 0.722 / 0.711 (+2.2) |
+| H2 | 0.153 / 0.153 (+0.1) | 0.208 / 0.206 (+0.9) | 0.297 / 0.296 (+0.3) | 0.370 / 0.369 (+0.1) | 0.405 / 0.405 (−0.1) | 0.423 / 0.423 (−0.0) |
+
+- **Incremental rule (default):** every species of the table is within 1 % of Geant4
+  at every decade from 100 ps to 10 us, except H2O2 (+1.5 % at 10 us, +4 % at 100 ps).
+  RMS of z = 1.22 over 1065 values. The remaining difference is statistically visible
+  with 2000 events (z up to 4.9, for •OH and H2O2 between 100 ps and 1 ns): radkin
+  reacts •OH + •OH a little earlier than Geant4.
+- **Full rule:** RMS of z = 3.42. H2O2 0.750 against 0.711 (+5.5 %), •OH 2.497 against
+  2.535 (−1.5 %), e_aq 2.319 against 2.285 (+1.5 %) at 10 us.
+- At 10 ps few events have started and the comparison says little.
+
+Reports: `.scratch/tests/2026-11-15__irt-syn-port/09-report.md`, with the Geant4
+outputs under `g4/`.
+
+### Earlier reference: 100 events in a 2 um box, seeds of a separate pass
+
+The first reference (2026-11-15, `03-report.md`) ran the segment in vacuum: Geant4
+removes a molecule that a move puts outside the water, so its net charge drifts from −5
+to −83 and its H2 decreases after 300 ns. Its seeds came from a separate pass that
+stops at 1.001 ps, which is another realisation of the pre-chemical stage of each
+track; the test adds that difference to its error.
+
+- Free space, to 300 ns: RMS of z = 0.93 over 825 values (full rule).
+- With the same box (`boundary = "outflow"`), to 10 us: RMS of z = 1.00 with the full
+  rule and 1.05 with the incremental rule. With 100 events the two rules cannot be told
+  apart.
 
 `tests/irt_single_track.rs` runs ten of these events (`tests/data/irt/`) in the test
 suite.
@@ -319,8 +358,8 @@ suite.
 | 100 | 8 690 | 0.47 s | 281 s |
 | 1000 | 86 900 | 62 s | not run |
 
-The 100 single-track events of the comparison take 6 s with the full rule and 1.6 s
-with the incremental rule (16 trajectories each, 16 cores).
+The 2000 single-track events of the comparison take 50 s with the incremental rule and
+3 min 45 s with the full rule (16 trajectories each, 16 cores, one process per event).
 
 ## Limits
 
@@ -331,10 +370,12 @@ with the incremental rule (16 trajectories each, 16 cores).
   `geant4-uhdr-multi-track-reference`).
 - **Background.** The background is not consumed. A stage long or dense enough to
   deplete a scavenger needs an earlier handover to the grid.
-- **Full resampling** draws a pair again as if no depletion had built up around it. When
-  it is repeated many times before a reaction (a small box, with a move every
-  look-ahead limit) it raises a diffusion-limited rate by about
-  `r_eff / sqrt(π D Δt)`.
+- **Full resampling** draws a pair again as if no depletion had built up around it:
+  H2O2 +5.5 % against Geant4 on single tracks. When it is repeated many times before a
+  reaction (a small box, with a move every look-ahead limit) it raises a
+  diffusion-limited rate by about `r_eff / sqrt(π D Δt)`. The incremental rule does the
+  same at the look-ahead limit of a box with reflective walls, which only matters for
+  boxes of a few tens of nm.
 - **Networks that do not come from Geant4** run, with the type rule above, but have no
   reference at the particle level.
 - **One handover time per run.** A pulse longer than the handover time needs a later

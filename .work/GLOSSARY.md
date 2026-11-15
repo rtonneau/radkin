@@ -120,11 +120,11 @@ The part of a run where every molecule is a particle with a position, and reacti
 _Avoid_: particle stage, spur stage, microscopic stage, IRT_syn (the name of Geant4's implementation only)
 
 **Full resampling**:
-The pair rule of the IRT stage that discards every sampled reaction time after each reaction and draws them all again from the current positions; the default and the reference rule.
+The pair rule of the IRT stage that discards every sampled reaction time after each reaction and draws them all again from the current positions; a cross-check, which reacts a spur slightly too fast (H2O2 +5.5 % against Geant4).
 _Avoid_: synchronous mode, IRT_syn mode (Geant4's IRT_syn keeps its reaction set between reaction steps)
 
 **Incremental resampling**:
-The pair rule of the IRT stage that keeps the sampled reaction times and draws new ones only for pairs involving the molecules that reacted, were created or were injected; the working rule for many tracks.
+The pair rule of the IRT stage that keeps the sampled reaction times and draws new ones only for pairs involving the molecules that reacted, were created or were injected; the default and the reference rule, the one that matches Geant4.
 _Avoid_: classic IRT, lazy resampling
 
 **Pair reaction**:

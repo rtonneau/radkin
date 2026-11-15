@@ -34,12 +34,14 @@ cargo run --release --example irt_scaling -- --tracks 1,3,10,30,100
   minutes, is met by the incremental rule in half a second per trajectory.
 - Full resampling draws every pair again after each reaction: its time grows about
   as the cube of the number of molecules (4.1e9 reaction times drawn at 100 tracks,
-  against 4.0e6). It is the reference rule and stays usable up to about 30 tracks.
+  against 4.0e6). It is a cross-check (`docs/irt.md`) and stays usable up to about
+  30 tracks.
 - Incremental resampling grows about as the square: every new molecule looks at
   every other one, and the first injection pairs every molecule with every other.
   At 1000 tracks the run spends most of its time there.
-- The two rules give the same chemistry: 1500 and 1501 e_aq left at 100 tracks
-  (one trajectory each), and `tests/irt_incremental.rs` for the statistics.
+- The two rules give close chemistry: 1500 and 1501 e_aq left at 100 tracks (one
+  trajectory each). The incremental rule is the default; the full rule is a few per
+  cent off Geant4 on H2O2 (`docs/irt.md`).
 
 ## Other cases, incremental rule
 

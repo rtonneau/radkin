@@ -347,7 +347,7 @@ toml = ["radkin/chem_g4.toml"]   # Geant4-DNA option3 chemistry, with its reacti
 t_end = 1e-6             # s: end of the stage
 trajectories = 32        # independent trajectories of the same molecules (default 1)
 random_seed = 1
-resampling = "full"      # "full" (reference) or "incremental" (many tracks)
+resampling = "incremental"  # "incremental" (default) or "full" (cross-check, slower)
 start_contact = true     # false for molecules Geant4 wrote after its chemistry started
 background_reactions = true
 boundary = "none"        # "none", "reflective" or "outflow" (the last two need a box)
@@ -370,11 +370,13 @@ radkin irt data/irt_example.toml --out out/irt_example
   network, else from its rate constant against its diffusion limit. Any radkin network
   runs; the species table (radius, charge, diffusion coefficient) is Geant4's for the
   water species and can be extended in `[irt.species.<label>]`.
-- On 100 single-track events G(t) of every species matches Geant4-DNA IRT_syn within
-  its statistical error (`python -I tools/compare_irt_geant4.py --events 100 --boundary
-  outflow`).
-- `resampling = "incremental"` keeps the sampled reaction times and brings 100
-  overlapping tracks to 1 us in half a second per trajectory (`docs/perf/irt-scaling.md`).
+- On 2000 single-track events in free space G(t) is within 1 % of Geant4-DNA IRT_syn
+  for e_aq, •OH, H•, H3O⁺, OH⁻ and H2 from 100 ps to 10 us, and within 4 % for H2O2
+  (`python -I tools/compare_irt_geant4.py --g4 <run dir> --same-pass`).
+- The default pair rule, `resampling = "incremental"`, keeps the sampled reaction times
+  and brings 100 overlapping tracks to 1 us in half a second per trajectory
+  (`docs/perf/irt-scaling.md`). `"full"` draws every pair again after each reaction: a
+  cross-check, much slower and 5.5 % high on H2O2.
 - With an `[irt]` section `radkin voxel --solver ssa` runs the IRT stage first and hands
   its molecules over to the RDME at `irt.t_end` (the handover time). The stage then needs
   `boundary = "reflective"`: its walls are the faces of the grid.

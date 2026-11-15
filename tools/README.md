@@ -15,6 +15,8 @@
 - `compare_irt_geant4.py`: runs radkin's IRT stage (`radkin irt`) on every event of a
   Geant4-DNA IRT_syn reference and compares G(t) of every species at Geant4's checkpoint
   times, with the standard error of the difference. `python -I
-  tools/compare_irt_geant4.py --events 100 --boundary outflow`. It needs a release
-  build of radkin and the Geant4 reference directory (`--g4`); no radiopyo. See
-  `docs/irt.md`.
+  tools/compare_irt_geant4.py --g4 <run dir> --same-pass --events 2000` for a run whose
+  seeds were written by the G(t) pass itself (`/rs/chem/seedDump true`), or `--events 100
+  --boundary outflow` for the first reference (seeds of a separate pass, in a 2 um box).
+  It needs a release build of radkin and the Geant4 reference directory; no radiopyo.
+  See `docs/irt.md`.

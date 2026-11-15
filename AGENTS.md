@@ -50,12 +50,15 @@ Python with `-I`.
   `timing` cargo feature. Results and the keep rule for optimizations are in `docs/perf/`.
 
 Comparison of the IRT stage with Geant4-DNA needs no radiopyo, only a release build and the
-Geant4 reference run (100 events of IRT_syn, kept under `.scratch/`; ten of them are in
-`tests/data/irt/`).
+Geant4 reference runs (IRT_syn, made with `${DEV_DIR}/GEANT4/SIM/radkin` and kept under
+`.scratch/`; ten events are in `tests/data/irt/`).
 
-- `python -I tools/compare_irt_geant4.py --events 100 --boundary outflow`: G(t) of every
-  species against Geant4-DNA IRT_syn, event by event. The reference ran in a 2 um water box
-  that loses molecules at its faces, hence the outflow box. Results are in `docs/irt.md`.
+- `python -I tools/compare_irt_geant4.py --g4 <run dir> --same-pass --events 2000`: G(t)
+  of every species against Geant4-DNA IRT_syn, event by event, in free space, from the
+  seeds the G(t) pass wrote itself. Results are in `docs/irt.md`.
+- `python -I tools/compare_irt_geant4.py --events 100 --boundary outflow`: the same against
+  the first reference, which ran in a 2 um water box that loses molecules at its faces
+  (hence the outflow box) and took its seeds from a separate pass.
 - `python -I tools/export_g4_chem.py`: writes `data/chem_g4.toml` from Geant4's reaction
   table dump.
 - `cargo run --release --example irt_scaling -- --tracks 1,10,100`: run time against the
@@ -86,7 +89,8 @@ Geant4 reference run (100 events of IRT_syn, kept under `.scratch/`; ten of them
 - `src/irt/`: IRT stage (`radkin irt`, `[irt]`, ADR 0007, `docs/irt.md`). Every molecule
   is a particle; reactions are independent reaction times per pair and per molecule.
   Species table and typed reaction model, sampling kernel (Geant4-DNA's formulas), the
-  event loops of the two pair rules (`solver.rs` full resampling, `incremental.rs`),
+  event loops of the two pair rules (`incremental.rs`, the default; `solver.rs`, full
+  resampling),
   walls, seeds and outputs. The handover to the RDME is in `src/ssa/voxel_sim.rs`. Its
   integration tests are named `irt_*` so that `cargo test --release irt_` runs them all.
 - `tests/golden/*.json`: radiopyo reference data exported by `tools/export_golden.py`.
