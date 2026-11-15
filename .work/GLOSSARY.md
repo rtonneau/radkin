@@ -72,7 +72,7 @@ The scaling `1 / (1 - h*/h)` of a bimolecular propensity on a grid level of spac
 _Avoid_: rate correction (the config key only), mesoscopic rate, renormalisation
 
 **Reversible pair**:
-A forward/backward reaction pair declared with `<->` in the network. In a voxel SSA run, its two directions share one mesh-correction factor, taken from the direction that is bimolecular once fixed species are dropped.
+A forward/backward reaction pair, declared with `<->` in the network or inferred from two one-way mass-action reactions whose sides swap once fixed species are dropped (each the single candidate reverse of the other, neither a direction of a declared pair). In a voxel SSA run, its two directions share one mesh-correction factor, taken from the direction that is bimolecular once fixed species are dropped.
 _Avoid_: equilibrium reaction (only one parsed kind of pair), reverse reaction
 
 **Background run**:
