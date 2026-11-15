@@ -101,6 +101,10 @@ _Avoid_: empty voxel (it holds O2, H3O+, OH- in aerated runs), inactive voxel
 A Geant4-DNA run where only a small water region (2x2x10 um at the track entrance) holds the track, so its deposited energy, its molecules and its IRT G(t) all refer to that region; the fine-voxel radkin reference case.
 _Avoid_: cropped track (cutting a cube from a whole-track run is a different, inexact thing)
 
+**Handover time**:
+The time at which a Geant4-DNA run stops its chemistry (IRT_syn, so every molecule sits at that time) and its molecules become radkin seeds; radkin computes the chemistry from there on.
+_Avoid_: start time (ambiguous with the config's t0), seed time (a seed time is any injection time)
+
 ### Performance
 
 **Time breakdown**:
