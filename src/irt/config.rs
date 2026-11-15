@@ -10,7 +10,11 @@
 //! start_contact = true     # a pair injected inside its effective radius reacts at once
 //!                          # with the contact probability; false for seeds taken from a
 //!                          # chemistry stage that has already started (Geant4 at 1.001 ps)
-//! boundary = "none"        # "none" (free space) or "outflow" (needs a box)
+//! boundary = "none"        # "none" (free space), "reflective" (walls at the faces of
+//!                          # the box) or "outflow" (a molecule that a move puts outside
+//!                          # the box is removed); the last two need a box
+//! wall_images = true       # reflective walls: a pair near a wall also samples a reaction
+//!                          # time against the mirror image of its partner
 //! background_reactions = true  # reactions of one particle: first order, with a fixed
 //!                          # species (water), or with a background species (a species
 //!                          # with an initial concentration); the background is not consumed
@@ -51,7 +55,7 @@ use crate::voxel::seed::{SeedPolicy, SeedSpec};
 const NM: f64 = 1e-9;
 
 /// Keys of `[irt]`.
-const KEYS: [&str; 15] = [
+const KEYS: [&str; 16] = [
     "t_end",
     "t_start",
     "trajectories",
@@ -67,6 +71,7 @@ const KEYS: [&str; 15] = [
     "species",
     "seed",
     "background_reactions",
+    "wall_images",
 ];
 
 /// Pair rule of the IRT stage.
@@ -81,6 +86,7 @@ pub enum Resampling {
 pub enum BoundaryKind {
     None,
     Outflow,
+    Reflective,
 }
 
 /// Fields of an `[irt.species.<label>]` table.
@@ -109,6 +115,8 @@ pub struct IrtConfig {
     /// Fire the reactions of one particle (first order, with a fixed or a
     /// background species).
     pub background_reactions: bool,
+    /// Sample the mirror images of pairs near reflective walls.
+    pub wall_images: bool,
     pub record_times: Option<Vec<f64>>,
     /// Corners of the box [m].
     pub domain: Option<(Vec3, Vec3)>,
@@ -253,9 +261,10 @@ impl IrtConfig {
             None => BoundaryKind::None,
             Some(toml::Value::String(s)) if s == "none" => BoundaryKind::None,
             Some(toml::Value::String(s)) if s == "outflow" => BoundaryKind::Outflow,
+            Some(toml::Value::String(s)) if s == "reflective" => BoundaryKind::Reflective,
             Some(v) => {
                 return Err(RadkinError::Config(format!(
-                    "irt.boundary must be \"none\" or \"outflow\", got {v}"
+                    "irt.boundary must be \"none\", \"reflective\" or \"outflow\", got {v}"
                 )));
             }
         };
@@ -359,6 +368,7 @@ impl IrtConfig {
             resampling,
             start_contact: boolean(irt, "start_contact", true)?,
             background_reactions: boolean(irt, "background_reactions", true)?,
+            wall_images: boolean(irt, "wall_images", true)?,
             boundary,
             cutoff_probability,
             record_times,
@@ -455,6 +465,7 @@ mod tests {
         assert_eq!(c.resampling, Resampling::Full);
         assert!(c.start_contact);
         assert!(c.background_reactions);
+        assert!(c.wall_images);
         assert_eq!(c.boundary, BoundaryKind::None);
         assert_eq!(c.cutoff_probability, 0.01);
         assert_eq!(c.record_times, None);

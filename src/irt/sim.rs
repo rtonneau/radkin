@@ -150,7 +150,7 @@ impl IrtSimulation {
         let model = IrtModel::with_diffusion(&env, &mat, &table, &extra)?;
         let domain = match config.boundary {
             BoundaryKind::None => None,
-            BoundaryKind::Outflow => config.domain,
+            BoundaryKind::Outflow | BoundaryKind::Reflective => config.domain,
         };
         let seeds = config
             .seeds
@@ -220,10 +220,12 @@ impl IrtSimulation {
             start_contact: self.config.start_contact,
             boundary: match (self.config.boundary, self.config.domain) {
                 (BoundaryKind::Outflow, Some((lo, hi))) => Boundary::Outflow { lo, hi },
+                (BoundaryKind::Reflective, Some((lo, hi))) => Boundary::Reflective { lo, hi },
                 _ => Boundary::None,
             },
             cutoff_probability: self.config.cutoff_probability,
             molecule_reactions: self.config.background_reactions,
+            wall_images: self.config.wall_images,
         }
     }
 
@@ -270,6 +272,8 @@ fn add_stats(sum: &mut StageStats, s: &StageStats) {
     sum.molecule_reactions += s.molecule_reactions;
     sum.passes += s.passes;
     sum.moves += s.moves;
+    sum.box_moves += s.box_moves;
+    sum.image_reactions += s.image_reactions;
     sum.pairs_sampled += s.pairs_sampled;
     if sum.by_reaction.is_empty() {
         sum.by_reaction = vec![0; s.by_reaction.len()];

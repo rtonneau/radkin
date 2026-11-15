@@ -6,6 +6,14 @@
 //! reaction time and consumes no background: the background keeps its
 //! concentration, and what it loses is only counted.
 //!
+//! Between reflective walls every position is folded back into the box, and
+//! a pair near a wall also samples a reaction time against the mirror image
+//! of its partner, across every wall close enough, with the edge and corner
+//! images. The image is one more independent pair, as IRT treats every
+//! pair. Only the first image across each wall is used, so the look-ahead
+//! of a pass is limited to the time a pair needs to feel the opposite wall;
+//! past it every particle is moved and a new pass starts.
+//!
 //! The particles sit at their positions of the stage time `t`. One pass
 //! samples a reaction time for every pair inside the cutoff radius and keeps
 //! the earliest. Firing it moves the time to the reaction, puts the two
@@ -41,6 +49,8 @@ pub enum Boundary {
     /// within one move is not seen, so about half as many particles are
     /// lost as at an absorbing wall when the moves are long.
     Outflow { lo: Vec3, hi: Vec3 },
+    /// Reflective walls at the faces of the box `[lo, hi]`.
+    Reflective { lo: Vec3, hi: Vec3 },
 }
 
 /// Settings of a stage.
@@ -57,6 +67,9 @@ pub struct StageOptions {
     /// Fire the reactions of one particle: first order, with a fixed
     /// species, or with a background species.
     pub molecule_reactions: bool,
+    /// Between reflective walls, sample the mirror images of the partner
+    /// of a pair (off: a diagnostic, the walls then only fold positions).
+    pub wall_images: bool,
 }
 
 /// Event counts of a stage.
@@ -80,6 +93,12 @@ pub struct StageStats {
     /// Moves of every particle made to look again at a pair found inside
     /// its effective radius.
     pub moves: u64,
+    /// Reactions of a pair with a mirror image of its partner (counted in
+    /// `pair_reactions` too).
+    pub image_reactions: u64,
+    /// Moves of every particle made at the look-ahead limit of a box with
+    /// reflective walls.
+    pub box_moves: u64,
     /// Sampling passes.
     pub passes: u64,
     /// Pair reaction times drawn.
@@ -151,7 +170,13 @@ enum Next {
         i: usize,
         j: usize,
         reaction: usize,
+        /// Mirror image of `j` the reaction is with: per axis 0 (none),
+        /// -1 (across the lower wall) or 1 (across the upper wall).
+        image: [i8; 3],
     },
+    /// No reaction within the look-ahead limit `dt` of a box with
+    /// reflective walls: move every particle over `dt` and look again.
+    BoxMove { dt: f64 },
     /// Reaction `reaction` (index in `IrtModel::molecule`) of the particle
     /// `i`, `dt` after the stage time.
     Molecule { dt: f64, i: usize, reaction: usize },
@@ -184,6 +209,25 @@ pub struct Stage<'a> {
 /// Whether `x` is outside the box `[lo, hi]` or on one of its faces.
 fn outside(lo: Vec3, hi: Vec3, x: Vec3) -> bool {
     (0..3).any(|a| x[a] <= lo[a] || x[a] >= hi[a])
+}
+
+/// `x` folded back into the box `[lo, hi]` by reflections at its faces.
+pub fn fold(lo: Vec3, hi: Vec3, x: Vec3) -> Vec3 {
+    std::array::from_fn(|a| {
+        let l = hi[a] - lo[a];
+        let y = (x[a] - lo[a]).rem_euclid(2.0 * l);
+        lo[a] + if y > l { 2.0 * l - y } else { y }
+    })
+}
+
+/// Mirror image of `x` across the walls named by `image` (per axis 0, -1 for
+/// the lower wall, 1 for the upper wall).
+fn mirror(lo: Vec3, hi: Vec3, x: Vec3, image: [i8; 3]) -> Vec3 {
+    std::array::from_fn(|a| match image[a] {
+        -1 => 2.0 * lo[a] - x[a],
+        1 => 2.0 * hi[a] - x[a],
+        _ => x[a],
+    })
 }
 
 impl<'a> Stage<'a> {
@@ -246,8 +290,16 @@ impl<'a> Stage<'a> {
             }
             match self.next.take() {
                 Some(Next::Contacts(list)) => self.fire_contacts(&list),
-                Some(Next::Pair { dt, i, j, reaction }) if self.t + dt <= t => {
-                    self.fire_pair(dt, i, j, reaction)
+                Some(Next::Pair {
+                    dt,
+                    i,
+                    j,
+                    reaction,
+                    image,
+                }) if self.t + dt <= t => self.fire_pair(dt, i, j, reaction, image),
+                Some(Next::BoxMove { dt }) if self.t + dt <= t => {
+                    self.stats.box_moves += 1;
+                    self.sync(self.t + dt);
                 }
                 Some(Next::Molecule { dt, i, reaction }) if self.t + dt <= t => {
                     self.fire_molecule(dt, i, reaction)
@@ -295,6 +347,18 @@ impl<'a> Stage<'a> {
             return Next::Nothing;
         }
         self.stats.passes += 1;
+        // Between reflective walls a pass looks ahead no further than the
+        // time for which the first mirror images are enough: its cutoff
+        // radius is then the shortest edge of the box.
+        let full_horizon = horizon;
+        let horizon = match self.opt.boundary {
+            Boundary::Reflective { lo, hi } if self.model.max_d_sum() > 0.0 => {
+                let edge = (0..3).map(|a| hi[a] - lo[a]).fold(f64::INFINITY, f64::min);
+                let reach = edge / (2.0 * erfc_inv(self.opt.cutoff_probability));
+                horizon.min(reach * reach / self.model.max_d_sum())
+            }
+            _ => horizon,
+        };
         let cutoff = self.cutoff(horizon);
         let model = self.model;
         let Self {
@@ -363,10 +427,71 @@ impl<'a> Stage<'a> {
                         i,
                         j,
                         reaction: r as usize,
+                        image: [0; 3],
                     };
                 }
             }
+            // The mirror images of `j` across the walls both particles are
+            // close to: an image is further than `j` itself, so every image
+            // pair inside the cutoff is among the pairs found here.
+            let Boundary::Reflective { lo, hi } = opt.boundary else {
+                return;
+            };
+            if !opt.wall_images {
+                return;
+            }
+            let (xi, xj) = (particles.pos[i], particles.pos[j]);
+            // Per axis: the images worth looking at (0 is always one).
+            let mut choices = [[0i8; 3]; 3];
+            let mut n_choices = [1usize; 3];
+            for a in 0..3 {
+                if (xi[a] - lo[a]) + (xj[a] - lo[a]) < cutoff {
+                    choices[a][n_choices[a]] = -1;
+                    n_choices[a] += 1;
+                }
+                if (hi[a] - xi[a]) + (hi[a] - xj[a]) < cutoff {
+                    choices[a][n_choices[a]] = 1;
+                    n_choices[a] += 1;
+                }
+            }
+            for &ix in &choices[0][..n_choices[0]] {
+                for &iy in &choices[1][..n_choices[1]] {
+                    for &iz in &choices[2][..n_choices[2]] {
+                        let image = [ix, iy, iz];
+                        if image == [0; 3] {
+                            continue;
+                        }
+                        let m = mirror(lo, hi, xj, image);
+                        let d2 = (0..3).map(|a| (xi[a] - m[a]).powi(2)).sum::<f64>();
+                        if d2 >= cutoff * cutoff {
+                            continue;
+                        }
+                        let distance = d2.sqrt();
+                        for &r in reactions {
+                            let p = &model.pairs[r as usize];
+                            if d2 < p.r_eff * p.r_eff {
+                                look_again = look_again.min(p.r_eff * p.r_eff / p.d_sum);
+                                continue;
+                            }
+                            stats.pairs_sampled += 1;
+                            if let Some(dt) = pair_time(rng, p, distance)
+                                && dt < best_dt
+                            {
+                                best_dt = dt;
+                                best = Next::Pair {
+                                    dt,
+                                    i,
+                                    j,
+                                    reaction: r as usize,
+                                    image,
+                                };
+                            }
+                        }
+                    }
+                }
+            }
         });
+        let n_active = active.len();
         particles.fresh.fill(false);
         if !contacts.is_empty() {
             return Next::Contacts(contacts);
@@ -413,6 +538,8 @@ impl<'a> Stage<'a> {
         }
         if look_again < best_dt {
             Next::Move { dt: look_again }
+        } else if best == Next::Nothing && horizon < full_horizon && n_active >= 2 {
+            Next::BoxMove { dt: horizon }
         } else {
             best
         }
@@ -428,11 +555,15 @@ impl<'a> Stage<'a> {
             let s = self.particles.species[k] as usize;
             let d = self.model.diffusion[s];
             diffuse(&mut self.rng, d, dt, &mut self.particles.pos[k]);
-            if let Boundary::Outflow { lo, hi } = self.opt.boundary
-                && outside(lo, hi, self.particles.pos[k])
-            {
-                self.dead[k] = true;
-                self.stats.absorbed[s] += 1;
+            match self.opt.boundary {
+                Boundary::Outflow { lo, hi } if outside(lo, hi, self.particles.pos[k]) => {
+                    self.dead[k] = true;
+                    self.stats.absorbed[s] += 1;
+                }
+                Boundary::Reflective { lo, hi } => {
+                    self.particles.pos[k] = fold(lo, hi, self.particles.pos[k]);
+                }
+                _ => {}
             }
         }
     }
@@ -448,19 +579,32 @@ impl<'a> Stage<'a> {
             }
             return;
         }
+        let site = match self.opt.boundary {
+            Boundary::Reflective { lo, hi } => fold(lo, hi, site),
+            _ => site,
+        };
         for &s in &model.pairs[reaction].products {
             self.particles.push(s as u32, site, fresh);
         }
     }
 
-    fn fire_pair(&mut self, dt: f64, i: usize, j: usize, reaction: usize) {
+    fn fire_pair(&mut self, dt: f64, i: usize, j: usize, reaction: usize, image: [i8; 3]) {
         let model = self.model;
         let p = &model.pairs[reaction];
         let d = (
             model.diffusion[self.particles.species[i] as usize],
             model.diffusion[self.particles.species[j] as usize],
         );
-        let at = (self.particles.pos[i], self.particles.pos[j]);
+        // A reaction with a mirror image happens where the image is: the
+        // products are folded back into the box.
+        let partner = match self.opt.boundary {
+            Boundary::Reflective { lo, hi } if image != [0; 3] => {
+                self.stats.image_reactions += 1;
+                mirror(lo, hi, self.particles.pos[j], image)
+            }
+            _ => self.particles.pos[j],
+        };
+        let at = (self.particles.pos[i], partner);
         let met = reaction_positions(&mut self.rng, p.r_eff, d, at, dt);
         let site = product_position(&mut self.rng, d, met);
         self.dead.clear();

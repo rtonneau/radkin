@@ -97,6 +97,10 @@ struct Meta<'a> {
     sampling_passes: u64,
     /// Moves made to look again at a pair inside its effective radius.
     look_again_moves: u64,
+    /// Reactions with a mirror image of the partner (reflective walls).
+    image_reactions: u64,
+    /// Moves made at the look-ahead limit of a box with reflective walls.
+    box_moves: u64,
     pairs_sampled: u64,
     /// Firings of each reaction that fired, summed over the trajectories.
     reactions: IndexMap<&'a str, u64>,
@@ -131,6 +135,7 @@ pub fn irt_meta_json(sim: &IrtSimulation, out: &IrtOutput) -> Result<String> {
         boundary: match sim.config.boundary {
             BoundaryKind::None => "none",
             BoundaryKind::Outflow => "outflow",
+            BoundaryKind::Reflective => "reflective",
         },
         box_nm: sim
             .config
@@ -160,6 +165,8 @@ pub fn irt_meta_json(sim: &IrtSimulation, out: &IrtOutput) -> Result<String> {
             .collect(),
         sampling_passes: out.stats.passes,
         look_again_moves: out.stats.moves,
+        image_reactions: out.stats.image_reactions,
+        box_moves: out.stats.box_moves,
         pairs_sampled: out.stats.pairs_sampled,
         reactions: out
             .reactions
