@@ -136,6 +136,30 @@
         "ticket": "03-cross-level-reactions",
         "commit": "e1c9cbc"
       }
+    },
+    {
+      "at": "2026-11-14T23:58:38.797Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-coarsening-floor.md",
+        "03-implement/04-coarsening-floor/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-coarsening-floor"
+      }
+    },
+    {
+      "at": "2026-11-15T00:04:33.200Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-coarsening-floor/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-coarsening-floor",
+        "commit": "984929b"
+      }
     }
   ],
   "git": {
