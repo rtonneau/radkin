@@ -209,6 +209,30 @@
         "ticket": "06-incremental-resampling",
         "commit": "1d88b4c"
       }
+    },
+    {
+      "at": "2026-11-15T18:49:08.464Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/07-rdme-handover.md",
+        "03-implement/07-rdme-handover/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "07-rdme-handover"
+      }
+    },
+    {
+      "at": "2026-11-15T18:56:03.526Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/07-rdme-handover/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "07-rdme-handover",
+        "commit": "180b4fe"
+      }
     }
   ],
   "current_phase": "ship",
