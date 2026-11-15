@@ -30,11 +30,10 @@ use crate::ssa::model::{Law, Slot};
 use crate::ssa::rdme::{EventQueue, RdmeSetup, face_weight, strides};
 use crate::ssa::rng::SsaRng;
 
-/// The levels of species and reactions, shared by the trajectories.
+/// The levels of species and reactions at one global coarsening level.
 #[derive(Debug, Clone)]
-pub struct MultigridSetup {
-    pub(crate) base: RdmeSetup,
-    /// Species level of every dynamic species.
+pub(crate) struct Layout {
+    /// Level every species lives on: `max(global level, species level)`.
     pub(crate) level: Vec<usize>,
     /// Highest level whose reactions read each species (at least its own).
     top: Vec<usize>,
@@ -46,8 +45,17 @@ pub struct MultigridSetup {
     readers: Vec<Vec<Vec<usize>>>,
     /// Species read by the reactions of every level.
     read_at: Vec<Vec<usize>>,
-    /// Diffusing species of every species level.
+    /// Diffusing species of every level.
     hoppers: Vec<Vec<usize>>,
+}
+
+/// The levels of species and reactions, shared by the trajectories.
+#[derive(Debug, Clone)]
+pub struct MultigridSetup {
+    pub(crate) base: RdmeSetup,
+    /// Layout at every global coarsening level, `0..=max_global`; the
+    /// layout of level 0 holds the species levels.
+    pub(crate) layouts: Vec<Layout>,
     /// First site of every level, then the number of sites.
     offset: Vec<usize>,
     /// `parent[l][v]`: the voxel of level `l + 1` that contains voxel `v` of level `l`.
@@ -74,24 +82,10 @@ fn reads(r: &crate::ssa::model::Reaction) -> Vec<usize> {
     out
 }
 
-impl MultigridSetup {
-    /// `base` with the species levels `levels` (state order); every level
-    /// must exist in `base`.
-    pub fn new(base: RdmeSetup, levels: &[u32]) -> Result<Self> {
+impl Layout {
+    fn new(base: &RdmeSetup, level: Vec<usize>) -> Self {
         let n_sp = base.n_sp;
         let depth = base.max_levels() as usize;
-        if levels.len() != n_sp {
-            return Err(RadkinError::Value(format!(
-                "rdme: {} species levels for {n_sp} dynamic species",
-                levels.len()
-            )));
-        }
-        if let Some(l) = levels.iter().find(|l| **l as usize > depth) {
-            return Err(RadkinError::Value(format!(
-                "rdme: species level {l} above the {depth} levels of the grid"
-            )));
-        }
-        let level: Vec<usize> = levels.iter().map(|l| *l as usize).collect();
         let model = base.model();
         let react_level: Vec<usize> = model
             .reactions
@@ -127,6 +121,44 @@ impl MultigridSetup {
                     .collect()
             })
             .collect();
+        Self {
+            level,
+            top,
+            react_level,
+            by_level,
+            readers,
+            read_at,
+            hoppers,
+        }
+    }
+}
+
+impl MultigridSetup {
+    /// `base` with the species levels `levels` (state order), and global
+    /// coarsening allowed up to level `max_global`; every level must exist
+    /// in `base`.
+    pub fn new(base: RdmeSetup, levels: &[u32], max_global: u32) -> Result<Self> {
+        let n_sp = base.n_sp;
+        let depth = base.max_levels() as usize;
+        if levels.len() != n_sp {
+            return Err(RadkinError::Value(format!(
+                "rdme: {} species levels for {n_sp} dynamic species",
+                levels.len()
+            )));
+        }
+        if let Some(l) = levels
+            .iter()
+            .chain(std::iter::once(&max_global))
+            .find(|l| **l as usize > depth)
+        {
+            return Err(RadkinError::Value(format!(
+                "rdme: level {l} above the {depth} levels of the grid"
+            )));
+        }
+        let species_level: Vec<usize> = levels.iter().map(|l| *l as usize).collect();
+        let layouts = (0..=max_global as usize)
+            .map(|g| Layout::new(&base, species_level.iter().map(|l| (*l).max(g)).collect()))
+            .collect();
         let mut offset = vec![0];
         for lv in &base.levels {
             offset.push(offset.last().unwrap() + lv.grid.n_voxels());
@@ -144,16 +176,15 @@ impl MultigridSetup {
             .collect();
         Ok(Self {
             base,
-            level,
-            top,
-            react_level,
-            by_level,
-            readers,
-            read_at,
-            hoppers,
+            layouts,
             offset,
             parent,
         })
+    }
+
+    /// Global coarsening levels allowed above the fine grid.
+    pub fn max_global(&self) -> u32 {
+        self.layouts.len() as u32 - 1
     }
 
     /// The single-level setup it extends.
@@ -165,13 +196,14 @@ impl MultigridSetup {
     /// level of the reaction.
     pub fn cross_level_reaction(&self) -> Option<usize> {
         let model = self.base.model();
+        let lay = &self.layouts[0];
         (0..model.reactions.len()).find(|j| {
-            let l = self.react_level[*j];
+            let l = lay.react_level[*j];
             let r = &model.reactions[*j];
             reads(r)
                 .iter()
                 .chain(r.delta.iter().map(|(s, _)| s))
-                .any(|s| self.level[*s] != l)
+                .any(|s| lay.level[*s] != l)
         })
     }
 
@@ -215,22 +247,45 @@ pub struct Multigrid<'a> {
     /// Events selected on a site whose rate had become zero (round-off of
     /// the incremental rate updates); they change nothing.
     pub n_null: u64,
+    /// Current global coarsening level: every species lives on at least it.
+    g: usize,
+    /// Threshold of the dispersion test; `None`: global coarsening off.
+    z_max: Option<f64>,
+    /// `(t, global level)` after every change of global level.
+    pub level_history: Vec<(f64, u32)>,
+    /// Events fired since the last coarsening test.
+    events_since_test: u64,
+}
+
+/// Empty count arrays of every species for `lay`: its own level, then the
+/// coarser levels up to `top`.
+fn empty_agg(setup: &MultigridSetup, lay: &Layout) -> Vec<Vec<Vec<i64>>> {
+    (0..setup.base.n_sp)
+        .map(|s| {
+            (lay.level[s]..=lay.top[s])
+                .map(|l| vec![0; setup.base.levels[l].grid.n_voxels()])
+                .collect()
+        })
+        .collect()
 }
 
 impl<'a> Multigrid<'a> {
     /// An empty grid at time `t`.
     pub fn new(setup: &'a MultigridSetup, t: f64, rng: SsaRng) -> Self {
         let base = &setup.base;
-        let agg = (0..base.n_sp)
-            .map(|s| {
-                (setup.level[s]..=setup.top[s])
-                    .map(|l| vec![0; base.levels[l].grid.n_voxels()])
-                    .collect()
-            })
-            .collect();
-        let max_by_level = setup.by_level.iter().map(Vec::len).max().unwrap_or(0);
+        let agg = empty_agg(setup, &setup.layouts[0]);
+        let max_by_level = setup
+            .layouts
+            .iter()
+            .flat_map(|lay| lay.by_level.iter().map(Vec::len))
+            .max()
+            .unwrap_or(0);
         let mut r = Self {
             setup,
+            g: 0,
+            z_max: None,
+            level_history: Vec::new(),
+            events_since_test: 0,
             t,
             agg,
             react: Vec::new(),
@@ -253,11 +308,138 @@ impl<'a> Multigrid<'a> {
         self.n_reactions + self.n_hops
     }
 
+    /// Layout of the current global level.
+    fn lay(&self) -> &'a Layout {
+        &self.setup.layouts[self.g]
+    }
+
+    /// Current global coarsening level.
+    pub fn global_level(&self) -> u32 {
+        self.g as u32
+    }
+
+    /// Level species `s` currently lives on.
+    pub fn level_of(&self, s: usize) -> u32 {
+        self.lay().level[s] as u32
+    }
+
+    /// Turn global coarsening on with the dispersion threshold `z` (`None`: off).
+    pub fn set_coarsening(&mut self, z: Option<f64>) {
+        self.z_max = z;
+    }
+
+    /// Move to global level `g`: the species whose level changes are merged
+    /// (counts summed) or split (each molecule to one of the 8 children at
+    /// random, the uniform multinomial split), one level at a time.
+    fn set_global(&mut self, g: usize) {
+        let setup = self.setup;
+        let (old, new) = (self.lay(), &setup.layouts[g]);
+        let mut own: Vec<Vec<i64>> = self
+            .agg
+            .iter_mut()
+            .map(|a| std::mem::take(&mut a[0]))
+            .collect();
+        for (s, counts) in own.iter_mut().enumerate() {
+            let (mut l, to) = (old.level[s], new.level[s]);
+            while l < to {
+                let mut up = vec![0; setup.base.levels[l + 1].grid.n_voxels()];
+                for (v, n) in counts.iter().enumerate() {
+                    up[setup.parent[l][v] as usize] += n;
+                }
+                *counts = up;
+                l += 1;
+            }
+            while l > to {
+                let fine = &setup.base.levels[l - 1].grid;
+                let coarse = &setup.base.levels[l].grid;
+                let mut down = vec![0; fine.n_voxels()];
+                for (v, n) in counts.iter().enumerate() {
+                    let c = coarse.coords(v);
+                    for _ in 0..*n {
+                        let k = self.rng.below(8) as usize;
+                        down[fine.index(
+                            2 * c[0] + (k & 1),
+                            2 * c[1] + ((k >> 1) & 1),
+                            2 * c[2] + ((k >> 2) & 1),
+                        )] += 1;
+                    }
+                }
+                *counts = down;
+                l -= 1;
+            }
+        }
+        self.agg = empty_agg(setup, new);
+        for (a, counts) in self.agg.iter_mut().zip(own) {
+            a[0] = counts;
+        }
+        self.g = g;
+        self.level_history.push((self.t, g as u32));
+        self.rebuild();
+    }
+
+    /// Whether the species that would merge at the next global level (those
+    /// living on the current one) are consistent with a uniform split over
+    /// every 2x2x2 block (the test of [`crate::ssa::rdme_coarsen`]). False
+    /// at the last global level.
+    pub fn is_uniform_in_blocks(&self, z: f64) -> bool {
+        let setup = self.setup;
+        let g = self.g;
+        if g + 1 >= setup.layouts.len() {
+            return false;
+        }
+        let lay = self.lay();
+        let species: Vec<usize> = (0..setup.base.n_sp)
+            .filter(|s| lay.level[*s] == g)
+            .collect();
+        crate::ssa::rdme_coarsen::blocks_are_uniform(
+            &setup.base.levels[g].grid,
+            &setup.base.levels[g + 1].grid,
+            &species,
+            |v, s| self.agg[s][0][v],
+            z,
+        )
+    }
+
+    /// Drop as many global levels as the dispersion test allows. Returns
+    /// whether the level changed.
+    pub fn coarsen_while_uniform(&mut self) -> bool {
+        let Some(z) = self.z_max else {
+            return false;
+        };
+        let before = self.g;
+        while self.is_uniform_in_blocks(z) {
+            self.set_global(self.g + 1);
+        }
+        self.g != before
+    }
+
+    /// Back to global level 0: every species on its own species level.
+    pub fn refine_to_fine(&mut self) {
+        while self.g > 0 {
+            self.set_global(self.g - 1);
+        }
+    }
+
+    /// Run the coarsening test once `8 x voxels of the current global level`
+    /// events fired since the last one.
+    fn count_events(&mut self, fired: u64) {
+        if self.z_max.is_none() {
+            return;
+        }
+        self.events_since_test += fired;
+        let interval = 8 * self.setup.base.levels[self.g].grid.n_voxels() as u64;
+        if self.events_since_test >= interval {
+            self.events_since_test = 0;
+            self.coarsen_while_uniform();
+        }
+    }
+
     /// Sum the own counts of every species into its coarser levels.
     fn rebuild_aggregates(&mut self) {
         let setup = self.setup;
+        let lay = self.lay();
         for (s, levels) in self.agg.iter_mut().enumerate() {
-            let l0 = setup.level[s];
+            let l0 = lay.level[s];
             for k in 1..levels.len() {
                 let (lower, upper) = levels.split_at_mut(k);
                 let (fine, coarse) = (&lower[k - 1], &mut upper[0]);
@@ -271,9 +453,9 @@ impl<'a> Multigrid<'a> {
 
     /// Fill `buf` with the counts the reactions of voxel `v` of level `l` read.
     fn load(&mut self, l: usize, v: usize) {
-        let setup = self.setup;
-        for &s in &setup.read_at[l] {
-            self.buf[s] = self.agg[s][l - setup.level[s]][v];
+        let lay = self.lay();
+        for &s in &lay.read_at[l] {
+            self.buf[s] = self.agg[s][l - lay.level[s]][v];
         }
     }
 
@@ -281,7 +463,7 @@ impl<'a> Multigrid<'a> {
     fn react_of(&mut self, l: usize, v: usize) -> f64 {
         self.load(l, v);
         let model = &self.setup.base.levels[l].model;
-        self.setup.by_level[l]
+        self.lay().by_level[l]
             .iter()
             .map(|j| model.propensity(*j, &self.buf))
             .sum()
@@ -291,7 +473,7 @@ impl<'a> Multigrid<'a> {
     fn readers_sum(&mut self, l: usize, v: usize, s: usize) -> f64 {
         self.load(l, v);
         let model = &self.setup.base.levels[l].model;
-        self.setup.readers[l][s]
+        self.lay().readers[l][s]
             .iter()
             .map(|j| model.propensity(*j, &self.buf))
             .sum()
@@ -300,7 +482,8 @@ impl<'a> Multigrid<'a> {
     /// `sum_s D_s n_s` of the species living on voxel `v` of level `l`.
     fn dsum_of(&self, l: usize, v: usize) -> f64 {
         let setup = self.setup;
-        setup.hoppers[l]
+        let lay = self.lay();
+        lay.hoppers[l]
             .iter()
             .map(|s| self.agg[*s][0][v] as f64 * setup.base.diffusion[*s])
             .sum()
@@ -338,9 +521,10 @@ impl<'a> Multigrid<'a> {
     /// concentrations `y` [µmol/L], `V` the voxel volume of the species' level.
     pub fn fill_poisson(&mut self, y: &[f64]) {
         let setup = self.setup;
+        let lay = self.lay();
         assert_eq!(y.len(), setup.base.n_sp, "rdme: state length");
         for (s, c) in y.iter().enumerate() {
-            let k = setup.base.levels[setup.level[s]].model.molecules_per_umol();
+            let k = setup.base.levels[lay.level[s]].model.molecules_per_umol();
             for n in self.agg[s][0].iter_mut() {
                 *n = self.rng.poisson(c * k);
             }
@@ -349,11 +533,15 @@ impl<'a> Multigrid<'a> {
     }
 
     /// Add `(fine voxel, species, molecules)` entries, each to the voxel of
-    /// its species' level that contains the fine voxel.
+    /// its species' level that contains the fine voxel. A globally coarsened
+    /// grid is refined to global level 0 first.
     pub fn inject(&mut self, molecules: &[(usize, usize, i64)]) {
+        self.refine_to_fine();
+        self.events_since_test = 0;
         let setup = self.setup;
+        let lay = self.lay();
         for &(v, s, n) in molecules {
-            let w = setup.ancestor(v, 0, setup.level[s]);
+            let w = setup.ancestor(v, 0, lay.level[s]);
             self.agg[s][0][w] += n;
         }
         self.rebuild();
@@ -377,11 +565,12 @@ impl<'a> Multigrid<'a> {
     /// voxel of level `L` spreads its count evenly over its `8^L` fine voxels.
     pub fn fine_field(&self) -> Vec<i64> {
         let setup = self.setup;
+        let lay = self.lay();
         let n_fine = setup.base.grid().n_voxels();
         let max = setup.base.max_levels() as usize;
         let mut out = vec![0; setup.base.n_sp * n_fine];
         for (s, levels) in self.agg.iter().enumerate() {
-            let l = setup.level[s];
+            let l = lay.level[s];
             let scale = 8i64.pow((max - l) as u32);
             for v in 0..n_fine {
                 out[s * n_fine + v] = levels[0][setup.ancestor(v, 0, l)] * scale;
@@ -394,7 +583,8 @@ impl<'a> Multigrid<'a> {
     /// the coarser levels, and mark the sites whose rates it changes.
     fn change(&mut self, s: usize, w: usize, d: i64) {
         let setup = self.setup;
-        let l0 = setup.level[s];
+        let lay = self.lay();
+        let l0 = lay.level[s];
         let mut v = w;
         for k in 0..self.agg[s].len() {
             let l = l0 + k;
@@ -403,7 +593,7 @@ impl<'a> Multigrid<'a> {
             }
             self.agg[s][k][v] += d;
             debug_assert!(self.agg[s][k][v] >= 0);
-            if k == 0 || !setup.readers[l][s].is_empty() {
+            if k == 0 || !lay.readers[l][s].is_empty() {
                 self.touched.push(setup.offset[l] + v);
             }
         }
@@ -413,7 +603,8 @@ impl<'a> Multigrid<'a> {
     /// proportion to the molecules of `s` it holds.
     fn pick_inside(&mut self, s: usize, l: usize, mut v: usize) -> usize {
         let setup = self.setup;
-        let l0 = setup.level[s];
+        let lay = self.lay();
+        let l0 = lay.level[s];
         for cur in (l0 + 1..=l).rev() {
             let fine = &setup.base.levels[cur - 1].grid;
             let c = setup.base.levels[cur].grid.coords(v);
@@ -452,10 +643,11 @@ impl<'a> Multigrid<'a> {
     /// Fire a reaction of voxel `v` of level `l`; `frac` in `[0, 1)` selects it.
     fn fire_reaction(&mut self, l: usize, v: usize, frac: f64) {
         let setup = self.setup;
+        let lay = self.lay();
         let model = &setup.base.levels[l].model;
         let site = setup.offset[l] + v;
         self.load(l, v);
-        let reactions = &setup.by_level[l];
+        let reactions = &lay.by_level[l];
         let mut total = 0.0;
         for (a, j) in self.a.iter_mut().zip(reactions) {
             *a = model.propensity(*j, &self.buf);
@@ -485,13 +677,13 @@ impl<'a> Multigrid<'a> {
             for _ in 0..-d {
                 let w = self.pick_inside(s, l, v);
                 self.change(s, w, -1);
-                if setup.level[s] < spot.0 {
-                    spot = (setup.level[s], w);
+                if lay.level[s] < spot.0 {
+                    spot = (lay.level[s], w);
                 }
             }
         }
         for &(s, d) in delta.iter().filter(|(_, d)| *d > 0) {
-            let ls = setup.level[s];
+            let ls = lay.level[s];
             for _ in 0..d {
                 let w = if ls >= spot.0 {
                     setup.ancestor(spot.1, spot.0, ls)
@@ -523,9 +715,10 @@ impl<'a> Multigrid<'a> {
     /// the species.
     fn fire_hop(&mut self, l: usize, v: usize, x: f64) {
         let setup = self.setup;
+        let lay = self.lay();
         let site = setup.offset[l] + v;
         let (mut acc, mut species) = (0.0, None);
-        for &s in &setup.hoppers[l] {
+        for &s in &lay.hoppers[l] {
             let n = self.agg[s][0][v];
             if n > 0 {
                 acc += n as f64 * setup.base.diffusion[s];
@@ -577,7 +770,7 @@ impl<'a> Multigrid<'a> {
                     break;
                 }
             }
-            let has_readers = !setup.readers[lk][s].is_empty();
+            let has_readers = !lay.readers[lk][s].is_empty();
             let before = if has_readers {
                 (self.readers_sum(lk, a, s), self.readers_sum(lk, b, s))
             } else {
@@ -658,7 +851,9 @@ impl<'a> Multigrid<'a> {
 
     /// Advance to `t_stop` with exact events.
     pub fn advance_to(&mut self, t_stop: f64) {
-        while self.step(t_stop) {}
+        while self.step(t_stop) {
+            self.count_events(1);
+        }
         if t_stop > self.t {
             self.t = t_stop;
         }
@@ -690,7 +885,7 @@ mod tests {
         for (name, level) in levels {
             l[env.species.index_of(name).unwrap()] = *level;
         }
-        (env, MultigridSetup::new(base, &l).unwrap())
+        (env, MultigridSetup::new(base, &l, 0).unwrap())
     }
 
     const DECAY: &str = r#"
@@ -710,13 +905,13 @@ mod tests {
             k_value = 2.0e6
         "#;
         let (_, s) = setup(toml, [4, 4, 4], 10e-9, 5e-9, 2, &[("OH_r", 2)]);
-        assert_eq!(s.react_level, [2, 0]);
+        assert_eq!(s.layouts[0].react_level, [2, 0]);
         assert_eq!(s.cross_level_reaction(), Some(0));
         let (_, same) = setup(toml, [4, 4, 4], 10e-9, 5e-9, 2, &[]);
         assert_eq!(same.cross_level_reaction(), None);
         let (_, decay) = setup(DECAY, [4, 4, 4], 10e-9, 5e-9, 2, &[("H_r", 1), ("H2", 1)]);
         assert_eq!(decay.cross_level_reaction(), None);
-        assert_eq!(decay.react_level, [1]);
+        assert_eq!(decay.layouts[0].react_level, [1]);
     }
 
     #[test]
@@ -877,6 +1072,102 @@ mod tests {
             r.n_hops
         );
         assert!(r.totals()[h2o2] > 0);
+    }
+
+    fn floor_setup(max_global: u32) -> (SimEnv, MultigridSetup) {
+        let toml = r#"
+            [[reactions.k_reaction]]
+            reaction = "e_aq + OH_r -> OH_minus"
+            k_value = 3.0e10
+        "#;
+        let env = SimEnv::from_config(&Config::from_toml_str(toml, None).unwrap()).unwrap();
+        let mat = SimMatrices::build(&env).unwrap();
+        let grid = VoxelGrid::new([8, 4, 4], [20e-9; 3], [0.0; 3]).unwrap();
+        let base = RdmeSetup::new(&mat, &grid, vec![5e-9; mat.n_dyn], 2, false).unwrap();
+        let mut l = vec![0; mat.n_dyn];
+        l[env.species.index_of("OH_r").unwrap()] = 1;
+        (env, MultigridSetup::new(base, &l, max_global).unwrap())
+    }
+
+    #[test]
+    fn global_levels_are_a_floor_and_conserve_every_species() {
+        let (env, s) = floor_setup(2);
+        let ix = |n: &str| env.species.index_of(n).unwrap();
+        let (e, oh) = (ix("e_aq"), ix("OH_r"));
+        let mut r = Multigrid::new(&s, 0.0, SsaRng::new(7, 0));
+        let mut y = vec![0.0; s.base.n_sp];
+        y[e] = 3.0 / s.base.model().molecules_per_umol();
+        y[oh] = 2.0 / s.base.model().molecules_per_umol();
+        r.fill_poisson(&y);
+        let totals = r.totals();
+        assert_eq!((r.level_of(e), r.level_of(oh)), (0, 1));
+        r.set_global(1);
+        assert_eq!((r.level_of(e), r.level_of(oh)), (1, 1));
+        assert_eq!(r.counts(e).len(), 16);
+        assert_eq!(r.totals(), totals);
+        r.check_consistency();
+        r.set_global(2);
+        assert_eq!((r.level_of(e), r.level_of(oh)), (2, 2));
+        assert_eq!(r.totals(), totals);
+        r.check_consistency();
+        // Refining stops at each species' own level.
+        r.refine_to_fine();
+        assert_eq!((r.level_of(e), r.level_of(oh)), (0, 1));
+        assert_eq!(r.counts(e).len(), 128);
+        assert_eq!(r.counts(oh).len(), 16);
+        assert_eq!(r.totals(), totals);
+        r.check_consistency();
+        let history: Vec<u32> = r.level_history.iter().map(|(_, l)| *l).collect();
+        assert_eq!(history, [1, 2, 1, 0]);
+        // The fine field keeps the total in units of 1 / 8^2 molecule.
+        let n_fine = 128;
+        let f = r.fine_field();
+        assert_eq!(
+            f[e * n_fine..(e + 1) * n_fine].iter().sum::<i64>(),
+            totals[e] * 64
+        );
+    }
+
+    #[test]
+    fn the_dispersion_test_reads_only_the_species_that_merge() {
+        let (env, s) = floor_setup(2);
+        let ix = |n: &str| env.species.index_of(n).unwrap();
+        let (e, oh) = (ix("e_aq"), ix("OH_r"));
+        let mut r = Multigrid::new(&s, 0.0, SsaRng::new(8, 0));
+        // OH_r on level 1 is clustered in one voxel; at global level 0 only
+        // e_aq (level 0) would merge, and it is absent.
+        r.inject(&[(0, oh, 500)]);
+        assert!(r.is_uniform_in_blocks(3.0));
+        r.set_global(1);
+        // Now OH_r merges into level 2: its cluster blocks the test.
+        assert!(!r.is_uniform_in_blocks(3.0));
+        r.refine_to_fine();
+        r.inject(&[(5, e, 500)]);
+        assert!(!r.is_uniform_in_blocks(3.0));
+    }
+
+    #[test]
+    fn a_mixing_grid_coarsens_and_a_seed_refines_it() {
+        let (env, s) = floor_setup(2);
+        let ix = |n: &str| env.species.index_of(n).unwrap();
+        let (e, oh, ohm) = (ix("e_aq"), ix("OH_r"), ix("OH_minus"));
+        let mut r = Multigrid::new(&s, 0.0, SsaRng::new(9, 0));
+        r.set_coarsening(Some(3.0));
+        r.inject(&[(0, e, 2000), (127, oh, 2000)]);
+        // h^2 / D = 80 ns: far from mixed after 2 ns.
+        r.advance_to(2e-9);
+        assert_eq!(r.global_level(), 0);
+        r.advance_to(2e-5);
+        assert_eq!(r.global_level(), 2, "history {:?}", r.level_history);
+        r.check_consistency();
+        let t = r.totals();
+        assert_eq!(t[e] + t[ohm], 2000);
+        assert_eq!(t[oh] + t[ohm], 2000);
+        r.inject(&[(3, e, 10)]);
+        assert_eq!(r.global_level(), 0);
+        assert_eq!((r.level_of(e), r.level_of(oh)), (0, 1));
+        assert_eq!(r.totals()[e], t[e] + 10);
+        r.check_consistency();
     }
 
     #[test]

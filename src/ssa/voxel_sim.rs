@@ -252,7 +252,7 @@ impl VoxelTrajectory for Multigrid<'_> {
         Multigrid::fine_field(self)
     }
     fn finish(self) -> (u64, u64, Vec<(f64, u32)>) {
-        (self.n_reactions, self.n_hops, Vec::new())
+        (self.n_reactions, self.n_hops, self.level_history)
     }
 }
 
@@ -357,18 +357,10 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let coeffs: Vec<f64> = species.iter().map(|s| sim.voxel.diffusion_of(s)).collect();
     let levels = species_levels(sim, cfg, &species, &coeffs)?;
     let multigrid = levels.iter().any(|l| *l > 0);
-    if multigrid {
-        if sim.voxel.max_coarsen_levels > 0 {
-            return Err(RadkinError::Config(
-                "ssa.species_levels with voxel.max_coarsen_levels > 0 is not implemented yet"
-                    .into(),
-            ));
-        }
-        if cfg.tau_leap {
-            return Err(RadkinError::Config(
-                "ssa.species_levels with ssa.tau_leap is not implemented yet".into(),
-            ));
-        }
+    if multigrid && cfg.tau_leap {
+        return Err(RadkinError::Config(
+            "ssa.species_levels with ssa.tau_leap is not implemented yet".into(),
+        ));
     }
     let depth = hierarchy_depth(sim.voxel.max_coarsen_levels, &levels);
     let grid = &sim.voxel.grid;
@@ -411,7 +403,7 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
 
     let max_levels = setup.max_levels();
     let model = if multigrid {
-        let mg = MultigridSetup::new(setup, &levels)?;
+        let mg = MultigridSetup::new(setup, &levels, sim.voxel.max_coarsen_levels)?;
         Model::Multi(Box::new(mg))
     } else {
         Model::Single(setup)
@@ -420,7 +412,11 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let one = |i: usize| -> TrajectoryOutput {
         let rng = SsaRng::new(cfg.seed, i as u64);
         match &model {
-            Model::Multi(mg) => record(Multigrid::new(mg, t_start, rng), &plan, &molecules, &y0),
+            Model::Multi(mg) => {
+                let mut traj = Multigrid::new(mg, t_start, rng);
+                traj.set_coarsening(z_max);
+                record(traj, &plan, &molecules, &y0)
+            }
             Model::Single(setup) => {
                 let mut rdme = Rdme::new(setup, t_start, rng);
                 rdme.set_coarsening(z_max);

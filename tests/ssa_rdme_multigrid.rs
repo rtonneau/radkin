@@ -28,7 +28,7 @@ fn setup(
         l[s] = *level;
     }
     let base = RdmeSetup::new(&mat, &grid, d, depth, correct).unwrap();
-    (env, MultigridSetup::new(base, &l).unwrap())
+    (env, MultigridSetup::new(base, &l, 0).unwrap())
 }
 
 /// `out += rate * (discrete Laplacian of m)` on `dims` with zero-flux faces.

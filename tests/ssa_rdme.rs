@@ -616,3 +616,50 @@ fn ssa_rdme_species_levels_are_checked() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn ssa_rdme_species_levels_follow_the_global_coarsening() {
+    // The homogenising case with H2 on level 1 and global coarsening up to
+    // level 3 (a floor for the species levels), against the fine-grid
+    // ensemble. H2 reacts slowly, so its coarser grid costs no accuracy. A
+    // track species would: OH- on level 1 spreads over 200 nm voxels while
+    // its H3O+ partner stays on the 100 nm grid, and their near
+    // diffusion-limited recombination is then too slow (+40 % H3O+ at 1 us),
+    // with or without global coarsening.
+    let dir = scratch("species_levels_floor");
+    let fine_sim = VoxelSimulation::from_toml(homogenising_case(&dir, 0)).unwrap();
+    let sim = VoxelSimulation::from_toml(homogenising_case(&dir, 3)).unwrap();
+    let n = 24;
+    let fine = run_rdme(&fine_sim, &ssa(n)).unwrap();
+    let cfg = SsaConfig {
+        species_levels: vec![("H2".into(), 1)],
+        ..ssa(n)
+    };
+    let multi = run_rdme(&sim, &cfg).unwrap();
+    let levels: Vec<u32> = multi.level_history.iter().map(|(_, l)| *l).collect();
+    let refined = levels
+        .iter()
+        .position(|l| *l == 0)
+        .expect("refined for the second seed");
+    assert!(levels[..refined].iter().any(|l| *l >= 2), "{levels:?}");
+    assert_eq!(multi.level_history[refined].0, 5e-5);
+    let mut worst = 0.0f64;
+    for t in &fine.snapshot_times {
+        let (rf, rm) = (record(&fine, *t), record(&multi, *t));
+        for (s, label) in fine.species.iter().enumerate() {
+            let (mf, mm) = (fine.totals_mean[rf][s], multi.totals_mean[rm][s]);
+            let var = (fine.totals_std[rf][s].powi(2) + multi.totals_std[rm][s].powi(2)) / n as f64;
+            let sem = var.max(mf.max(1.0) / n as f64).sqrt();
+            assert!(
+                (mf - mm).abs() <= K * sem + 1.0,
+                "t = {t:e} s, {label}: multi-grid {mm:.2} vs fine {mf:.2} molecules (SEM {sem:.2})"
+            );
+            worst = worst.max((mf - mm).abs() / sem);
+        }
+    }
+    eprintln!(
+        "species levels with coarsening: worst {worst:.2} SEM, hops {} vs {} fine",
+        multi.n_hops, fine.n_hops
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

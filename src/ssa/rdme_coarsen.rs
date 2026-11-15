@@ -48,6 +48,60 @@ fn children(fine: &VoxelGrid, i: usize, j: usize, k: usize) -> [usize; 8] {
     out
 }
 
+/// The dispersion test of the module doc: whether, for every species of
+/// `species`, the counts `count(fine voxel, species)` of every 2x2x2 block
+/// of `fine` (one voxel of `coarse`) are consistent with a uniform split at
+/// the threshold `z`.
+pub(crate) fn blocks_are_uniform(
+    fine: &VoxelGrid,
+    coarse: &VoxelGrid,
+    species: &[usize],
+    count: impl Fn(usize, usize) -> i64,
+    z: f64,
+) -> bool {
+    let [nx, ny, nz] = coarse.dims;
+    let mut blocks: Vec<[usize; 8]> = Vec::with_capacity(coarse.n_voxels());
+    for k in 0..nz {
+        for j in 0..ny {
+            for i in 0..nx {
+                blocks.push(children(fine, i, j, k));
+            }
+        }
+    }
+    for &s in species {
+        let (mut excess, mut variance) = (0.0, 0.0);
+        // Largest standardized statistic among the populated blocks.
+        let (mut worst_block, mut n_tested) = (0.0f64, 0usize);
+        for block in &blocks {
+            let (mut sum, mut sum_sq) = (0i64, 0i64);
+            for &v in block {
+                let c = count(v, s);
+                sum += c;
+                sum_sq += c * c;
+            }
+            if sum < 1 {
+                continue;
+            }
+            let sf = sum as f64;
+            let x = 8.0 * sum_sq as f64 / sf - sf;
+            let var = 14.0 * (sf - 1.0) / sf;
+            excess += x - 7.0;
+            variance += var;
+            if sum >= BLOCK_TEST_MIN {
+                n_tested += 1;
+                worst_block = worst_block.max((x - 7.0) / var.sqrt());
+            }
+        }
+        if variance > 0.0 && excess / variance.sqrt() > z {
+            return false;
+        }
+        if n_tested > 0 && worst_block > z + (2.0 * (n_tested as f64).ln()).sqrt() {
+            return false;
+        }
+    }
+    true
+}
+
 impl Rdme<'_> {
     /// Turn coarsening on with the dispersion threshold `z` (`None`: off).
     pub fn set_coarsening(&mut self, z: Option<f64>) {
@@ -61,50 +115,15 @@ impl Rdme<'_> {
         if self.level + 1 >= self.setup.levels.len() {
             return false;
         }
-        let fine = self.grid();
-        let coarse = &self.setup.levels[self.level + 1].grid;
         let n_sp = self.setup.n_sp;
-        let [nx, ny, nz] = coarse.dims;
-        let mut blocks: Vec<[usize; 8]> = Vec::with_capacity(coarse.n_voxels());
-        for k in 0..nz {
-            for j in 0..ny {
-                for i in 0..nx {
-                    blocks.push(children(fine, i, j, k));
-                }
-            }
-        }
-        for s in 0..n_sp {
-            let (mut excess, mut variance) = (0.0, 0.0);
-            // Largest standardized statistic among the populated blocks.
-            let (mut worst_block, mut n_tested) = (0.0f64, 0usize);
-            for block in &blocks {
-                let (mut sum, mut sum_sq) = (0i64, 0i64);
-                for &v in block {
-                    let c = self.counts[v * n_sp + s];
-                    sum += c;
-                    sum_sq += c * c;
-                }
-                if sum < 1 {
-                    continue;
-                }
-                let sf = sum as f64;
-                let x = 8.0 * sum_sq as f64 / sf - sf;
-                let var = 14.0 * (sf - 1.0) / sf;
-                excess += x - 7.0;
-                variance += var;
-                if sum >= BLOCK_TEST_MIN {
-                    n_tested += 1;
-                    worst_block = worst_block.max((x - 7.0) / var.sqrt());
-                }
-            }
-            if variance > 0.0 && excess / variance.sqrt() > z {
-                return false;
-            }
-            if n_tested > 0 && worst_block > z + (2.0 * (n_tested as f64).ln()).sqrt() {
-                return false;
-            }
-        }
-        true
+        let species: Vec<usize> = (0..n_sp).collect();
+        blocks_are_uniform(
+            self.grid(),
+            &self.setup.levels[self.level + 1].grid,
+            &species,
+            |v, s| self.counts[v * n_sp + s],
+            z,
+        )
     }
 
     /// Merge every 2x2x2 block into one voxel (counts summed). The grid
