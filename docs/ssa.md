@@ -332,6 +332,77 @@ rate equations let a fraction of a molecule react with itself (`k [A]²` is not 
 for one molecule, `n (n − 1)` is). In this example four reactions with H2O stay
 uncorrected (`h*` of 12 to 75 nm).
 
+### Reversible pairs
+
+The mesh correction scales the bimolecular propensity of a reaction, but the reverse of
+`H3O_plus + OH_minus <-> H2O` is first order and used to stay unscaled. The equilibrium
+constant then moved with the voxel size: in a seedless box at pH 7 the ion product fell
+by `1 − h*/h`, and about 480 H3O⁺ and OH⁻ lost 8, 19 and 26 ions over 10 µs at 20, 10
+and 5 nm (ADR 0006). The unit-cell SSA keeps them constant.
+
+Both directions of a pair declared with `<->` now share one factor (Fange et al. 2010;
+Hellander 2012), so `K_eq` is kept:
+
+- One direction is bimolecular once the fixed species (H2O) are dropped, the other is
+  first order: the first order direction (the follower) takes the factor
+  `1 / (1 − h*/h)` of the bimolecular one. On the multi-grid, the factor is that of the
+  level where the bimolecular direction runs, and the follower takes the same level.
+- Both directions are bimolecular: each keeps its own factor. The
+  `K_eq` shift is then the ratio of the two factors, and radkin logs it at the start
+  of the run (warning).
+- A pair with `h* ≥ h` on the fine grid keeps the macroscopic rates, as before.
+- Only pairs declared with `<->` are linked. Nothing is inferred from one-way reactions.
+  A chemistry that writes the two directions as separate one-way reactions, like the
+  Geant4 export `chem_g4.toml` (`H3O_plus + OH_minus -> H2O` and
+  `H2O -> H3O_plus + OH_minus`), gets no shared factor and keeps the old drift. Declare
+  its pair with `[[reactions.equilibrium]] reaction = "H2O <-> H3O_plus + OH_minus"`.
+- At the start of a voxel run an info line per pair gives the factor
+  (`rdme: reversible pair '…': both directions take the mesh correction of '…'`).
+
+On the radiopyo network nine pairs have a bimolecular direction, all with a first order
+other direction (water autoionisation and the acid-base pairs of HO2, H2O2, O⁻, •OH, H• and
+e⁻aq). Unit tests on
+`CONFIG_PAPER_01` check them. A seedless box now keeps H3O⁺ and OH⁻ within noise on the
+single grid and on the multi-grid (`cargo test --release ssa`), and the single-track
+rerun at 20 and 10 nm confirms it (`.scratch/tests/2026-11-15__rdme-reversible-mesh-correction/report.md`).
+
+### Background run
+
+The G-values of the deterministic voxel run are net of the seedless uniform background
+(pH 7 ions, O2, ...). The stochastic yields now are too. With `[ssa] background_run`
+(default `true` for a voxel SSA run) radkin runs a second ensemble on the same grid,
+chemistry, settings, species levels and record times, with no seeds and a seed derived
+from `seed` (`background_seed`). Its mean totals are subtracted in the numerator of the
+yields:
+
+```text
+G(t) = ( N_seeded(t) − N_background(t) ) / (E / 100 eV)
+```
+
+- Without a background run, `G` would be `(N(t) − N(t_start)) / (E / 100 eV)`. This
+  still holds with `background_run = false`.
+- The means subtract and the standard deviations add in quadrature
+  (`G_<sp>_std`), since the two ensembles are independent.
+- The `N_<sp>` columns stay gross: the molecules in the domain, background included.
+- `snapshots.json` records `background_run` (its seed, event counts) and `noise`: the
+  standard error of the mean change of every species in the background run over the
+  whole run [molecules]. That is the noise the subtraction adds to the yields. It is
+  about ±20 molecules per 480 H3O⁺ at 10 nm on 4 trajectories.
+- Snapshots are not net. They are the seeded run's fields.
+- A unit-cell run has no seeds, so `background_run = true` there is an error;
+  `false` is accepted.
+- Cost: the background ensemble has as many trajectories as the seeded one, and it runs
+  after it. In a large box the uniform background dominates the events (hops of the
+  pH 7 ions), so the run takes about twice as long. A 2 × 2 × 2 µm box at 10 nm, 4
+  trajectories to 10 µs (one Geant4 event, 4 threads): 47 s before, 82 s now, with 18.1 M
+  hops in the seeded ensemble and 17.2 M in the background one. At 20 nm: 6 s and 11 s.
+  Set `background_run = false` to skip it, for instance on a long run at a very fine
+  grid, or when the background has no species (no H3O⁺ and OH⁻, nothing to subtract).
+- The subtraction adds the background's noise to the yields. The two ensembles start from
+  independent Poisson draws of the uniform background, so a species with hundreds of
+  molecules (H3O⁺ and OH⁻ at pH 7 in 2 µm: about 480) has a pooled `G` error of about
+  ±0.9 over 10 events of 4 trajectories. Radicals with no background are unaffected.
+
 ### Species levels
 
 Hops dominate the cost of the RDME, and global coarsening keeps the whole grid fine as

@@ -10,6 +10,7 @@
 //! tau_leap = false      # opt-in tau-leaping
 //! tau_epsilon = 0.03    # accuracy of a leap (smaller: closer to the exact SSA)
 //! rate_correction = "hellander"  # voxel runs: "hellander" (default) or "none"
+//! background_run = true # voxel runs: subtract a seedless run (default true)
 //!
 //! [ssa.species_levels]  # voxel runs: grid level of a species (default 0, fine)
 //! O2 = 2                # O2 hops and reacts on 4x4x4 blocks of fine voxels
@@ -18,6 +19,11 @@
 //! `rate_correction` scales the bimolecular propensities of a voxel run for
 //! the voxel size (mesh correction, `docs/ssa.md`). Unit-cell runs have no
 //! grid: an explicit `"hellander"` there is an error.
+//!
+//! `background_run` runs a second, seedless ensemble on the same grid and
+//! settings, with a seed derived from `seed`, and subtracts its counts so
+//! that the G-values of `yields.csv` are background-net (`N_` stays gross). A
+//! unit-cell run has no seeds: `true` there is an error, `false` is accepted.
 //!
 //! `species_levels` puts a species on a coarser level of the 2^L voxel
 //! hierarchy (multi-grid RDME, ADR 0005). It needs a stochastic voxel run.
@@ -113,6 +119,9 @@ pub struct SsaConfig {
     /// Mesh correction of a voxel run; `None`: not set, the default
     /// (Hellander where the grid allows it).
     pub rate_correction: Option<RateCorrection>,
+    /// Seedless background run of a voxel run; `None`: not set, the default
+    /// (on).
+    pub background_run: Option<bool>,
     /// `[ssa.species_levels]`: `(species label, level)` in file order.
     pub species_levels: Vec<(String, u32)>,
 }
@@ -129,6 +138,7 @@ impl Default for SsaConfig {
             tau_leap: false,
             tau_epsilon: DEFAULT_TAU_EPSILON,
             rate_correction: None,
+            background_run: None,
             species_levels: Vec::new(),
         }
     }
@@ -192,11 +202,19 @@ impl SsaConfig {
                         )));
                     }
                 },
+                "background_run" => match value.as_bool() {
+                    Some(b) => out.background_run = Some(b),
+                    None => {
+                        return Err(RadkinError::Config(format!(
+                            "ssa.background_run must be a boolean, got {value}"
+                        )));
+                    }
+                },
                 "species_levels" => out.species_levels = parse_species_levels(value)?,
                 other => {
                     return Err(RadkinError::Config(format!(
                         "unknown key ssa.{other} (known: volume, trajectories, seed, tau_leap, \
-                         tau_epsilon, rate_correction, species_levels)"
+                         tau_epsilon, rate_correction, background_run, species_levels)"
                     )));
                 }
             }
@@ -209,6 +227,11 @@ impl SsaConfig {
     /// grid).
     pub fn require_volume(&self) -> Result<f64> {
         self.refuse_species_levels("a unit-cell run")?;
+        if self.background_run == Some(true) {
+            return Err(RadkinError::Config(
+                "ssa.background_run needs a voxel run: a unit cell has no seeds".into(),
+            ));
+        }
         if self.rate_correction == Some(RateCorrection::Hellander) {
             return Err(RadkinError::Config(
                 "ssa.rate_correction = \"hellander\" needs a voxel run: a unit cell has no grid"
@@ -360,6 +383,7 @@ tau_epsilon = 0.01\nrate_correction = \"none\"",
                 tau_leap: true,
                 tau_epsilon: 0.01,
                 rate_correction: Some(RateCorrection::None),
+                background_run: None,
                 species_levels: Vec::new(),
             }
         );
@@ -409,6 +433,38 @@ tau_epsilon = 0.01\nrate_correction = \"none\"",
             .require_volume()
             .unwrap_err();
         assert!(e.to_string().contains("rate_correction"), "{e}");
+    }
+
+    #[test]
+    fn parses_background_run() {
+        let parse = |extra: &str| {
+            SolverConfig::from_toml_str(&format!(
+                "[ssa]
+{extra}"
+            ))
+            .map(|c| c.ssa)
+        };
+        assert_eq!(parse("").unwrap().background_run, None);
+        assert_eq!(
+            parse("background_run = false").unwrap().background_run,
+            Some(false)
+        );
+        assert_eq!(
+            parse("background_run = true").unwrap().background_run,
+            Some(true)
+        );
+        for bad in ["background_run = \"yes\"", "background_run = 1"] {
+            let e = parse(bad).unwrap_err();
+            assert!(e.to_string().contains("background_run"), "{e}");
+        }
+        let e = parse(
+            "volume = 1e-15
+background_run = true",
+        )
+        .unwrap()
+        .require_volume()
+        .unwrap_err();
+        assert!(e.to_string().contains("background_run"), "{e}");
     }
 
     #[test]

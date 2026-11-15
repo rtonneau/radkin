@@ -147,6 +147,43 @@ pub fn is_cubic(grid: &VoxelGrid) -> bool {
     grid.spacing.iter().all(|s| (s - h).abs() <= 1e-12 * h)
 }
 
+/// How the mesh correction treats a pair declared with `<->` that has a
+/// bimolecular direction (ADR 0006).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReversiblePair {
+    /// One direction is bimolecular once the fixed species are dropped: the
+    /// other one (`follower`) takes its mesh factor, so K_eq is kept.
+    Shared { bimolecular: usize, follower: usize },
+    /// Both directions are bimolecular: each keeps its own mesh factor, and
+    /// K_eq shifts by their ratio.
+    BothBimolecular { forward: usize, backward: usize },
+}
+
+/// The reversible pairs of `model` that have a bimolecular direction.
+fn reversible_pairs(model: &SsaModel) -> Vec<ReversiblePair> {
+    model
+        .pairs
+        .iter()
+        .filter_map(
+            |&(f, b)| match (model.is_bimolecular(f), model.is_bimolecular(b)) {
+                (true, true) => Some(ReversiblePair::BothBimolecular {
+                    forward: f,
+                    backward: b,
+                }),
+                (true, false) => Some(ReversiblePair::Shared {
+                    bimolecular: f,
+                    follower: b,
+                }),
+                (false, true) => Some(ReversiblePair::Shared {
+                    bimolecular: b,
+                    follower: f,
+                }),
+                (false, false) => None,
+            },
+        )
+        .collect()
+}
+
 /// Everything that does not change during a run, shared by the trajectories.
 #[derive(Debug, Clone)]
 pub struct RdmeSetup {
@@ -156,6 +193,8 @@ pub struct RdmeSetup {
     pub(crate) n_sp: usize,
     /// `(reaction, h*)` of every bimolecular reaction with a diffusing pair.
     critical: Vec<(usize, f64)>,
+    /// Reversible pairs with a bimolecular direction.
+    pairs: Vec<ReversiblePair>,
     /// Whether the propensities carry the mesh correction.
     corrected: bool,
 }
@@ -168,7 +207,9 @@ impl RdmeSetup {
     /// each reaction of critical spacing `h* < h` by `1 / (1 - h*/h)`
     /// (mesh correction, Hellander and Hellander 2020, eq. 6 with
     /// `1/k = 1/k_r + 1/(4 pi sigma D)`); the grid must be cubic. Reactions
-    /// with `h* >= h` keep the macroscopic rate on that level.
+    /// with `h* >= h` keep the macroscopic rate on that level. The other
+    /// direction of a reversible pair with one bimolecular direction takes
+    /// the factor of that direction ([`ReversiblePair::Shared`]).
     pub fn new(
         mat: &SimMatrices,
         grid: &VoxelGrid,
@@ -195,7 +236,9 @@ impl RdmeSetup {
             )));
         }
         // `h*` does not depend on the volume: take it from the fine model.
-        let critical = critical_spacings(&SsaModel::new(mat, grid.voxel_volume_l())?, &diffusion);
+        let fine = SsaModel::new(mat, grid.voxel_volume_l())?;
+        let critical = critical_spacings(&fine, &diffusion);
+        let pairs = reversible_pairs(&fine);
         let mut levels = Vec::with_capacity(max_levels as usize + 1);
         let mut g = grid.clone();
         for l in 0..=max_levels {
@@ -204,7 +247,7 @@ impl RdmeSetup {
             }
             let mut model = SsaModel::new(mat, g.voxel_volume_l())?;
             if correct {
-                mesh_correct(&mut model, &critical, g.spacing[0]);
+                mesh_correct(&mut model, &critical, &pairs, g.spacing[0]);
             }
             levels.push(Level {
                 model,
@@ -217,8 +260,30 @@ impl RdmeSetup {
             diffusion,
             n_sp: mat.n_dyn,
             critical,
+            pairs,
             corrected: correct,
         })
+    }
+
+    /// Reversible pairs with a bimolecular direction, in declaration order.
+    pub fn reversible_pairs(&self) -> &[ReversiblePair] {
+        &self.pairs
+    }
+
+    /// Critical spacing [m] of reaction `j`, if it has one.
+    pub fn critical_spacing(&self, j: usize) -> Option<f64> {
+        self.critical.iter().find(|(r, _)| *r == j).map(|(_, h)| *h)
+    }
+
+    /// Divisor `1 - h*/h` of the mesh correction of the bimolecular reaction
+    /// `j` on level `level`: 1 without the correction, without a critical
+    /// spacing, or at or below the pole.
+    pub(crate) fn pole_distance(&self, level: usize, j: usize) -> f64 {
+        let h = self.levels[level].grid.spacing[0];
+        match self.critical_spacing(j) {
+            Some(h_star) if self.corrected && h_star < h => 1.0 - h_star / h,
+            _ => 1.0,
+        }
     }
 
     /// Whether the propensities carry the mesh correction.
@@ -265,16 +330,32 @@ impl RdmeSetup {
 }
 
 /// Scale the propensity of every reaction of `critical` with `h* < h` by
-/// `1 / (1 - h*/h)`.
-fn mesh_correct(model: &mut SsaModel, critical: &[(usize, f64)], h: f64) {
-    use crate::ssa::model::Law;
+/// `1 / (1 - h*/h)`, and the follower of every shared reversible pair by the
+/// factor of its bimolecular direction (Fange et al. 2010; Hellander 2012).
+fn mesh_correct(model: &mut SsaModel, critical: &[(usize, f64)], pairs: &[ReversiblePair], h: f64) {
     for &(j, h_star) in critical {
         if h_star >= h {
             continue;
         }
-        if let Law::MassAction { c, .. } = &mut model.reactions[j].law {
-            *c /= 1.0 - h_star / h;
+        scale_down(model, j, 1.0 - h_star / h);
+        for p in pairs {
+            if let ReversiblePair::Shared {
+                bimolecular,
+                follower,
+            } = *p
+                && bimolecular == j
+            {
+                scale_down(model, follower, 1.0 - h_star / h);
+            }
         }
+    }
+}
+
+/// Divide the propensity constant of mass-action reaction `j` by `by`.
+pub(crate) fn scale_down(model: &mut SsaModel, j: usize, by: f64) {
+    use crate::ssa::model::Law;
+    if let Law::MassAction { c, .. } = &mut model.reactions[j].law {
+        *c /= by;
     }
 }
 
@@ -901,6 +982,95 @@ mod tests {
         let (_, h_star) = s.critical_spacings()[0];
         let want = CRITICAL_FACTOR * k_eff / (1e3 * crate::consts::AVOGADRO) / 1e-8;
         assert!((h_star - want).abs() < 1e-12 * want, "{h_star}");
+    }
+
+    /// Water autoionisation: the backward direction is bimolecular once H2O
+    /// (fixed) is dropped. Then a pair bimolecular in both directions.
+    const WATER: &str = r#"
+        [[reactions.equilibrium]]
+        reaction = "H2O <-> H3O_plus + OH_minus"
+        k_forward = 2.12e-5
+        k_backward = 1.18e11
+        [[reactions.equilibrium]]
+        reaction = "e_aq + OH_r <-> H_r + O_minus"
+        k_forward = 2.0e10
+        k_backward = 1.0e10
+    "#;
+
+    #[test]
+    fn reversible_pairs_share_the_factor_of_their_bimolecular_direction() {
+        // h* = 4.95 nm for H3O+ + OH- (D = 5e-9 each).
+        let h = 10e-9;
+        let plain = setup_levels(WATER, h, 5e-9, 1, false);
+        let fixed = setup_levels(WATER, h, 5e-9, 1, true);
+        assert_eq!(
+            fixed.reversible_pairs(),
+            [
+                ReversiblePair::Shared {
+                    bimolecular: 1,
+                    follower: 0
+                },
+                ReversiblePair::BothBimolecular {
+                    forward: 2,
+                    backward: 3
+                },
+            ]
+        );
+        assert_eq!(plain.reversible_pairs(), fixed.reversible_pairs());
+        // The first-order forward direction has no critical spacing of its own.
+        assert!(fixed.critical_spacing(0).is_none());
+        let hs = fixed.critical_spacing(1).unwrap();
+        for (level, spacing) in [(0, h), (1, 2.0 * h)] {
+            assert!(
+                hs < spacing,
+                "the backward direction is corrected on level {level}"
+            );
+            let want = 1.0 / (1.0 - hs / spacing);
+            for j in [0, 1] {
+                let got = c_of(&fixed, level, j) / c_of(&plain, level, j);
+                assert!(
+                    (got - want).abs() < 1e-12 * want,
+                    "level {level}, {j}: {got}"
+                );
+            }
+            // K_eq: the ratio of the two directions is that of the plain model.
+            let ratio = |s: &RdmeSetup| c_of(s, level, 0) / c_of(s, level, 1);
+            assert!((ratio(&fixed) - ratio(&plain)).abs() < 1e-12 * ratio(&plain));
+            // Both directions bimolecular: each keeps its own factor.
+            for j in [2, 3] {
+                let h_j = fixed.critical_spacing(j).unwrap();
+                let want = 1.0 / (1.0 - h_j / spacing);
+                let got = c_of(&fixed, level, j) / c_of(&plain, level, j);
+                assert!(
+                    (got - want).abs() < 1e-12 * want,
+                    "level {level}, {j}: {got}"
+                );
+            }
+            assert!(
+                (fixed.pole_distance(level, 1) - (1.0 - hs / spacing)).abs() < 1e-15,
+                "level {level}"
+            );
+        }
+        // The factors differ, so the K_eq of the second pair shifts.
+        let (h2, h3) = (
+            fixed.critical_spacing(2).unwrap(),
+            fixed.critical_spacing(3).unwrap(),
+        );
+        assert!((h2 / h3 - 2.0).abs() < 1e-12);
+        // Without the correction the divisor is 1.
+        assert_eq!(plain.pole_distance(0, 1), 1.0);
+    }
+
+    #[test]
+    fn reversible_pair_follower_stays_plain_at_the_pole() {
+        // h = 1 nm is at or below h* of H3O+ + OH- (D = 5e-9 each: 4.95 nm):
+        // neither direction is corrected on the fine level.
+        let plain = setup_levels(WATER, 1e-9, 5e-9, 0, false);
+        let fixed = setup_levels(WATER, 1e-9, 5e-9, 0, true);
+        assert!(fixed.critical_spacing(1).unwrap() >= 1e-9);
+        assert_eq!(c_of(&fixed, 0, 0), c_of(&plain, 0, 0));
+        assert_eq!(c_of(&fixed, 0, 1), c_of(&plain, 0, 1));
+        assert_eq!(fixed.pole_distance(0, 1), 1.0);
     }
 
     #[test]

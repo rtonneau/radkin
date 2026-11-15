@@ -87,6 +87,9 @@ pub struct SimMatrices {
     /// Fixed species concentrations [mol/L], species `n_dyn..`.
     pub cst_sp: Vec<f64>,
     pub overshoot: OvershootTables,
+    /// `(forward, backward)` indices in `k` of every pair declared with
+    /// `<->` (acid/base, then equilibrium, in declaration order).
+    pub reversible_pairs: Vec<(usize, usize)>,
     pub n_species: usize,
     pub n_dyn: usize,
 }
@@ -202,12 +205,17 @@ impl SimMatrices {
             cst_sp[s.index - n_dyn] = s.initial_cc(env.temperature);
         }
         let overshoot = OvershootTables::build(&k, &ez, n_dyn, n_species);
+        // `iter_all_k` puts every pair first, forward then backward.
+        let reversible_pairs = (0..env.reactions.iter_pairs().count())
+            .map(|i| (2 * i, 2 * i + 1))
+            .collect();
         Ok(Self {
             k,
             radiolytic,
             enzymatic: ez,
             cst_sp,
             overshoot,
+            reversible_pairs,
             n_species,
             n_dyn,
         })
@@ -270,5 +278,50 @@ impl OvershootTables {
             et.push(entries);
         }
         Self { k: kt, ez: et }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    #[test]
+    fn reversible_pairs_are_the_declared_pairs() {
+        let cfg = Config::load("data/CONFIG_PAPER_01.toml").unwrap();
+        let env = SimEnv::from_config(&cfg).unwrap();
+        let mat = SimMatrices::build(&env).unwrap();
+        let text = env.reaction_strings();
+        // The declared forward reaction, and the backward one with the sides
+        // swapped, in declaration order (acid/base, then equilibrium).
+        let declared = [
+            "H2O2 <-> H3O_plus + HO2_minus",
+            "OH_r <-> O_minus + H3O_plus",
+            "HO2 <-> O2_minus + H3O_plus",
+            "HO2 + OH_minus <-> O2_minus + H2O",
+            "H2O <-> H3O_plus + OH_minus",
+            "H2O2 + OH_minus <-> HO2_minus + H2O",
+            "e_aq + H2O <-> H_r + OH_minus",
+            "H_r <-> e_aq + H3O_plus",
+            "OH_r + OH_minus <-> O_minus + H2O",
+        ];
+        assert_eq!(mat.reversible_pairs.len(), declared.len());
+        for (&(f, b), want) in mat.reversible_pairs.iter().zip(declared) {
+            assert_eq!(text[f], want);
+            let (lhs, rhs) = want.split_once(" <-> ").unwrap();
+            assert_eq!(text[b], format!("{rhs} <-> {lhs}"));
+        }
+        // A one-way reaction is not a pair, even when it repeats a direction
+        // of one ("e_aq + H2O -> H_r + OH_minus" is also a k_reaction).
+        let one_way = text
+            .iter()
+            .position(|t| t == "e_aq + H2O -> H_r + OH_minus")
+            .unwrap();
+        assert!(one_way >= 2 * declared.len());
+        assert!(
+            mat.reversible_pairs
+                .iter()
+                .all(|&(f, b)| f != one_way && b != one_way)
+        );
     }
 }

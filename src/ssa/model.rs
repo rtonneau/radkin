@@ -83,6 +83,9 @@ pub struct SsaModel {
     pub affects: Vec<Vec<usize>>,
     /// Reactions to re-evaluate after source `i` fires.
     pub source_affects: Vec<Vec<usize>>,
+    /// `(forward, backward)` reaction indices of every pair declared with
+    /// `<->` ([`SimMatrices::reversible_pairs`]).
+    pub pairs: Vec<(usize, usize)>,
 }
 
 fn integer(coef: f64, what: &str) -> Result<i64> {
@@ -236,7 +239,15 @@ impl SsaModel {
             readers,
             affects,
             source_affects,
+            pairs: mat.reversible_pairs.clone(),
         })
+    }
+
+    /// Whether reaction `j` is bimolecular once the fixed species are
+    /// dropped: mass action with two dynamic reactant slots.
+    pub fn is_bimolecular(&self, j: usize) -> bool {
+        let r = &self.reactions[j];
+        matches!(r.law, Law::MassAction { .. }) && r.order == 2
     }
 
     /// Propensity [1/s] of reaction `j` for the counts `n`.
@@ -393,6 +404,40 @@ mod tests {
         // Reaction 2 consumes e_aq and OH_r: reactions 0, 2 and 3 read them.
         assert_eq!(m.affects[2], vec![0, 2, 3]);
         assert_eq!(m.readers[oh], vec![0, 2]);
+    }
+
+    #[test]
+    fn reversible_pairs_and_their_bimolecular_direction() {
+        // The radiopyo network: one direction of every pair is bimolecular
+        // once H2O (fixed) is dropped.
+        let cfg = Config::load("data/CONFIG_PAPER_01.toml").unwrap();
+        let env = SimEnv::from_config(&cfg).unwrap();
+        let mat = SimMatrices::build(&env).unwrap();
+        let m = SsaModel::new(&mat, 1e-18).unwrap();
+        let text = env.reaction_strings();
+        assert_eq!(m.pairs, mat.reversible_pairs);
+        let bimolecular: Vec<&str> = m
+            .pairs
+            .iter()
+            .map(|&(f, b)| {
+                assert_ne!(m.is_bimolecular(f), m.is_bimolecular(b), "{}", text[f]);
+                text[if m.is_bimolecular(f) { f } else { b }].as_str()
+            })
+            .collect();
+        assert_eq!(
+            bimolecular,
+            [
+                "H3O_plus + HO2_minus <-> H2O2",
+                "O_minus + H3O_plus <-> OH_r",
+                "O2_minus + H3O_plus <-> HO2",
+                "HO2 + OH_minus <-> O2_minus + H2O",
+                "H3O_plus + OH_minus <-> H2O",
+                "H2O2 + OH_minus <-> HO2_minus + H2O",
+                "H_r + OH_minus <-> e_aq + H2O",
+                "e_aq + H3O_plus <-> H_r",
+                "OH_r + OH_minus <-> O_minus + H2O",
+            ]
+        );
     }
 
     #[test]

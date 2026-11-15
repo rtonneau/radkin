@@ -20,14 +20,18 @@
 //!   level inside it (Erban and Winkelmann 2024, eq. 20). Without a consumed
 //!   molecule the reaction voxel is the spot.
 //!
+//! The follower of a reversible pair (ADR 0006) carries the mesh factor of
+//! the level where its bimolecular direction fires, so K_eq is kept when the
+//! two directions belong to different levels.
+//!
 //! Each species also keeps its counts summed over the voxels of every
 //! coarser level whose reactions read it, so a propensity reads its counts
 //! directly. The event queue covers the voxels of every level
 //! (next-subvolume method over all levels).
 
 use crate::error::{RadkinError, Result};
-use crate::ssa::model::{Law, Slot};
-use crate::ssa::rdme::{EventQueue, RdmeSetup, face_weight, strides};
+use crate::ssa::model::{Law, Slot, SsaModel};
+use crate::ssa::rdme::{EventQueue, RdmeSetup, ReversiblePair, face_weight, scale_down, strides};
 use crate::ssa::rng::SsaRng;
 
 /// The levels of species and reactions at one global coarsening level.
@@ -47,6 +51,10 @@ pub(crate) struct Layout {
     pub(crate) read_at: Vec<Vec<usize>>,
     /// Diffusing species of every level.
     pub(crate) hoppers: Vec<Vec<usize>>,
+    /// Propensity model of every level: the base model of that level, except
+    /// that the follower of a shared reversible pair carries the mesh factor
+    /// of the level where its bimolecular direction fires (ADR 0006).
+    pub(crate) models: Vec<SsaModel>,
 }
 
 /// The levels of species and reactions, shared by the trajectories.
@@ -121,6 +129,23 @@ impl Layout {
                     .collect()
             })
             .collect();
+        let mut models: Vec<SsaModel> = base.levels.iter().map(|lv| lv.model.clone()).collect();
+        for p in base.reversible_pairs() {
+            let ReversiblePair::Shared {
+                bimolecular,
+                follower,
+            } = *p
+            else {
+                continue;
+            };
+            let (lb, lf) = (react_level[bimolecular], react_level[follower]);
+            if lb != lf {
+                // The follower fires on level `lf` with the factor of that
+                // level: swap it for the factor of level `lb`.
+                let by = base.pole_distance(lb, bimolecular) / base.pole_distance(lf, bimolecular);
+                scale_down(&mut models[lf], follower, by);
+            }
+        }
         Self {
             level,
             top,
@@ -129,6 +154,7 @@ impl Layout {
             readers,
             read_at,
             hoppers,
+            models,
         }
     }
 }
@@ -468,7 +494,7 @@ impl<'a> Multigrid<'a> {
     /// Total reaction propensity of voxel `v` of level `l`.
     fn react_of(&mut self, l: usize, v: usize) -> f64 {
         self.load(l, v);
-        let model = &self.setup.base.levels[l].model;
+        let model = &self.lay().models[l];
         self.lay().by_level[l]
             .iter()
             .map(|j| model.propensity(*j, &self.buf))
@@ -478,7 +504,7 @@ impl<'a> Multigrid<'a> {
     /// Propensity of the reactions of level `l` that read `s`, in voxel `v`.
     fn readers_sum(&mut self, l: usize, v: usize, s: usize) -> f64 {
         self.load(l, v);
-        let model = &self.setup.base.levels[l].model;
+        let model = &self.lay().models[l];
         self.lay().readers[l][s]
             .iter()
             .map(|j| model.propensity(*j, &self.buf))
@@ -651,7 +677,7 @@ impl<'a> Multigrid<'a> {
     fn fire_reaction(&mut self, l: usize, v: usize, frac: f64) {
         let setup = self.setup;
         let lay = self.lay();
-        let model = &setup.base.levels[l].model;
+        let model = &lay.models[l];
         let site = setup.offset[l] + v;
         self.load(l, v);
         let reactions = &lay.by_level[l];
@@ -924,6 +950,58 @@ mod tests {
         let (_, decay) = setup(DECAY, [4, 4, 4], 10e-9, 5e-9, 2, &[("H_r", 1), ("H2", 1)]);
         assert_eq!(decay.cross_level_reaction(), None);
         assert_eq!(decay.layouts[0].react_level, [1]);
+    }
+
+    #[test]
+    fn a_reversible_pair_takes_the_factor_of_its_bimolecular_level() {
+        // H2O <-> H3O+ + OH-: the forward direction fires on the finest
+        // product level, the backward one on the coarsest reactant level.
+        // With OH- on level 1, the forward direction on level 0 must carry
+        // the factor of level 1, where the backward one fires (ADR 0006).
+        let toml = r#"
+            [[reactions.equilibrium]]
+            reaction = "H2O <-> H3O_plus + OH_minus"
+            k_forward = 2.12e-5
+            k_backward = 1.18e11
+        "#;
+        let env = SimEnv::from_config(&Config::from_toml_str(toml, None).unwrap()).unwrap();
+        let mat = SimMatrices::build(&env).unwrap();
+        // h* = 4.95 nm (D = 5e-9 each): factors 1.98 (10 nm) and 1.33 (20 nm).
+        let h = 10e-9;
+        let grid = VoxelGrid::new([4, 4, 4], [h; 3], [0.0; 3]).unwrap();
+        let oh = env.species.index_of("OH_minus").unwrap();
+        let mut levels = vec![0; mat.n_dyn];
+        levels[oh] = 1;
+        let make = |correct: bool, levels: &[u32], global: u32| {
+            let base = RdmeSetup::new(&mat, &grid, vec![5e-9; mat.n_dyn], 1, correct).unwrap();
+            MultigridSetup::new(base, levels, global).unwrap()
+        };
+        let c_of = |m: &SsaModel, j: usize| match &m.reactions[j].law {
+            Law::MassAction { c, .. } => *c,
+            other => panic!("{other:?}"),
+        };
+        // `c` of reaction `j` on level `l` of the layout of global level `g`.
+        let c = |s: &MultigridSetup, g: usize, l: usize, j: usize| c_of(&s.layouts[g].models[l], j);
+        let (plain, fixed) = (make(false, &levels, 1), make(true, &levels, 1));
+        assert_eq!(fixed.layouts[0].react_level, [0, 1]);
+        let hs = fixed.base.critical_spacing(1).unwrap();
+        let f1 = 1.0 / (1.0 - hs / (2.0 * h));
+        for (j, l) in [(0, 0), (1, 1)] {
+            let got = c(&fixed, 0, l, j) / c(&plain, 0, l, j);
+            assert!((got - f1).abs() < 1e-12 * f1, "reaction {j}: {got} vs {f1}");
+        }
+        // The base model of level 0 keeps the factor of level 0.
+        let f0 = 1.0 / (1.0 - hs / h);
+        let base0 = c_of(&fixed.base.levels[0].model, 0);
+        assert!((base0 / c(&plain, 0, 0, 0) - f0).abs() < 1e-12 * f0);
+        assert!(f0 > 1.4 * f1);
+        // At global level 1 both directions fire on level 1: nothing to move.
+        assert_eq!(fixed.layouts[1].react_level, [1, 1]);
+        assert_eq!(fixed.layouts[1].models[1], fixed.base.levels[1].model);
+        // Same levels: the layout models are the base ones.
+        let same = make(true, &vec![0; mat.n_dyn], 0);
+        assert_eq!(same.layouts[0].models[0], same.base.levels[0].model);
+        assert_eq!(same.layouts[0].models[1], same.base.levels[1].model);
     }
 
     #[test]

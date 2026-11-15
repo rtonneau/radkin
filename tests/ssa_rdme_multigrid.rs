@@ -8,6 +8,9 @@ use radkin::matrices::SimMatrices;
 use radkin::ssa::{Multigrid, MultigridSetup, RdmeSetup, SsaRng};
 use radkin::voxel::grid::VoxelGrid;
 
+mod common;
+use common::{Background, T_END, assert_pooled, par_map};
+
 /// Environment, multi-grid setup and species index lookup for `toml` on a
 /// cubic grid of spacing `h`, with per-species diffusion and levels.
 fn setup(
@@ -222,4 +225,36 @@ fn ssa_multigrid_cross_level_association_has_the_coarse_voxel_rate() {
         "association: mean {mean:.4e} s, 1/k_meso {t_corr:.4e} s, {:.2} SEM",
         (mean - t_corr).abs() / sem
     );
+}
+
+#[test]
+fn ssa_multigrid_background_keeps_the_water_equilibrium() {
+    // The ions on level 0 and every other species on level 2; then OH- on
+    // level 1, where the backward direction of the water pair fires while
+    // the forward one fires on level 0 with the factor of level 1
+    // (ADR 0006). Without the shared factor the ions drift down: -3.0,
+    // -4.0, -2.5, -0.6, -1.5 and -2.2 SEM here, -5.6 pooled.
+    // Each OH- level draws its own RDME seeds; the unit-cell reference of a
+    // size is shared by both levels, so their z values are mildly correlated
+    // (its error is 1/3 to 1/4 of the RDME one) and the pooled score slightly
+    // overstates their independence.
+    let mut z = Vec::new();
+    for oh_level in [0, 1] {
+        for (h_nm, runs) in [(5.0, 1500), (10.0, 1300), (20.0, 900)] {
+            let bg = Background::new(h_nm, 2);
+            let mut levels = vec![2; bg.y0.len()];
+            levels[bg.ions[0]] = 0;
+            levels[bg.ions[1]] = oh_level;
+            let mg = MultigridSetup::new(bg.setup.clone(), &levels, 0).unwrap();
+            let changes = par_map(runs, |i| {
+                let mut r = Multigrid::new(&mg, 0.0, SsaRng::new(31 + oh_level as u64, i as u64));
+                r.fill_poisson(&bg.y0);
+                let start = r.totals();
+                r.advance_to(T_END);
+                bg.change(&start, &r.totals())
+            });
+            z.push(bg.compare(&format!("multi-grid, OH- on level {oh_level}"), &changes));
+        }
+    }
+    assert_pooled("multi-grid", &z);
 }

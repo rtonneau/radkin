@@ -233,7 +233,7 @@ impl Multigrid<'_> {
         let (mut a0, mut a_critical) = (0.0, 0.0);
         for i in 0..n_sites {
             let (l, v) = setup.site_of(i);
-            let model = &setup.base.levels[l].model;
+            let model = &lay.models[l];
             let mut critical = 0.0;
             if !lay.by_level[l].is_empty() {
                 self.load(l, v);
@@ -320,7 +320,7 @@ impl Multigrid<'_> {
         }
         let (i, before) = site?;
         let (l, v) = setup.site_of(i);
-        let model = &setup.base.levels[l].model;
+        let model = &lay.models[l];
         let mut acc = before;
         let mut last = None;
         if !lay.by_level[l].is_empty() {
@@ -415,7 +415,7 @@ impl Multigrid<'_> {
         let n_sites = *setup.offset.last().unwrap();
         for i in 0..n_sites {
             let (l, v) = setup.site_of(i);
-            let model = &setup.base.levels[l].model;
+            let model = &lay.models[l];
             if !lay.by_level[l].is_empty() {
                 self.load(l, v);
             }

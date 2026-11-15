@@ -18,7 +18,7 @@ use crate::error::{RadkinError, Result};
 use crate::matrices::SimMatrices;
 use crate::ssa::config::{RateCorrection, SsaConfig, hierarchy_depth, suggested_level};
 use crate::ssa::ensemble::{Moments, map_ordered};
-use crate::ssa::rdme::{Rdme, RdmeSetup, is_cubic};
+use crate::ssa::rdme::{Rdme, RdmeSetup, ReversiblePair, is_cubic};
 use crate::ssa::rdme_coarsen::dispersion_threshold;
 use crate::ssa::rdme_multigrid::{Multigrid, MultigridSetup};
 use crate::ssa::rng::SsaRng;
@@ -71,6 +71,9 @@ pub struct RdmeOutput {
     pub tau_leap: bool,
     /// Mesh correction applied: `"hellander"` or `"none"`.
     pub rate_correction: &'static str,
+    /// The seedless background run subtracted from the totals and the net
+    /// molecules, if any.
+    pub background: Option<BackgroundRun>,
     /// Events summed over the trajectories.
     pub n_reactions: u64,
     pub n_hops: u64,
@@ -80,6 +83,27 @@ pub struct RdmeOutput {
     pub species_levels: Vec<u32>,
     /// Wall time [s].
     pub exec_time: f64,
+}
+
+/// The seedless background run of a voxel RDME run (`[ssa] background_run`).
+#[derive(Debug, Clone)]
+pub struct BackgroundRun {
+    /// Seed of its generator, derived from the run's seed.
+    pub seed: u64,
+    /// Per species: standard error of the mean change of its molecules in
+    /// the background run over `[t_start, t_end]`. It is the noise the
+    /// subtraction adds to the final totals; the change itself is zero for
+    /// a background in equilibrium.
+    pub noise: Vec<f64>,
+    /// Events of the background run, summed over its trajectories.
+    pub n_reactions: u64,
+    pub n_hops: u64,
+}
+
+/// Seed of the background run: the run's seed, scrambled so that its
+/// streams do not repeat those of the seeded run.
+pub fn background_seed(seed: u64) -> u64 {
+    seed ^ 0x9E37_79B9_7F4A_7C15
 }
 
 /// What one trajectory returns.
@@ -102,6 +126,28 @@ struct Schedule {
     seeds: Vec<Vec<usize>>,
     is_record: Vec<bool>,
     is_snapshot: Vec<bool>,
+}
+
+impl Schedule {
+    /// The same times, without seeds or snapshots.
+    fn without_seeds(&self) -> Self {
+        Self {
+            times: self.times.clone(),
+            seeds: vec![Vec::new(); self.times.len()],
+            is_record: self.is_record.clone(),
+            is_snapshot: vec![false; self.times.len()],
+        }
+    }
+}
+
+/// Sums of an ensemble.
+struct Accumulator {
+    fields: Vec<Vec<FieldMoments>>,
+    totals: Vec<Vec<Moments>>,
+    net: Vec<Vec<Moments>>,
+    n_reactions: u64,
+    n_hops: u64,
+    level_history: Vec<(f64, u32)>,
 }
 
 fn schedule(sim: &VoxelSimulation) -> Result<Schedule> {
@@ -349,6 +395,43 @@ fn species_levels(
     Ok(levels)
 }
 
+/// Log how the mesh correction treats every reversible pair whose
+/// bimolecular direction it corrects (ADR 0006), with the factors of the
+/// fine grid.
+fn log_reversible_pairs(setup: &RdmeSetup, reactions: &[String]) {
+    let factor = |j: usize| 1.0 / setup.pole_distance(0, j);
+    for p in setup.reversible_pairs() {
+        match *p {
+            ReversiblePair::Shared {
+                bimolecular,
+                follower,
+            } if setup.pole_distance(0, bimolecular) < 1.0 => log::info!(
+                "rdme: reversible pair '{}': both directions take the mesh correction of \
+                 '{}' (x{:.3} on the fine grid), so K_eq is kept",
+                // The forward direction, as declared.
+                reactions[follower.min(bimolecular)],
+                reactions[bimolecular],
+                factor(bimolecular)
+            ),
+            ReversiblePair::BothBimolecular { forward, backward }
+                if setup.critical_spacing(forward).is_some()
+                    || setup.critical_spacing(backward).is_some() =>
+            {
+                log::warn!(
+                    "rdme: reversible pair '{}' is bimolecular in both directions: each keeps \
+                     its own mesh correction (x{:.3} forward, x{:.3} backward on the fine \
+                     grid), so its K_eq shifts by x{:.3}",
+                    reactions[forward],
+                    factor(forward),
+                    factor(backward),
+                    factor(forward) / factor(backward)
+                )
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Run the RDME ensemble of `sim`.
 pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let started = Instant::now();
@@ -364,6 +447,7 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let smallest = grid.spacing.iter().copied().fold(f64::INFINITY, f64::min);
     let reactions = sim.env.reaction_strings();
     if correct {
+        log_reversible_pairs(&setup, &reactions);
         for &(j, h) in setup.critical_spacings() {
             if smallest <= h {
                 log::warn!(
@@ -404,26 +488,61 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
         Model::Single(setup)
     };
 
-    let one = |i: usize| -> TrajectoryOutput {
-        let rng = SsaRng::new(cfg.seed, i as u64);
-        match &model {
-            Model::Multi(mg) => {
-                let mut traj = Multigrid::new(mg, t_start, rng);
-                traj.set_coarsening(z_max);
-                traj.set_tau_leaping(cfg.tau_leap.then_some(cfg.tau_epsilon));
-                record(traj, &plan, &molecules, &y0)
-            }
-            Model::Single(setup) => {
-                let mut rdme = Rdme::new(setup, t_start, rng);
-                rdme.set_coarsening(z_max);
-                rdme.set_tau_leaping(cfg.tau_leap.then_some(cfg.tau_epsilon));
-                record(rdme, &plan, &molecules, &y0)
-            }
-        }
-    };
-
     let n_sp = species.len();
     let n_fine = sim.voxel.grid.n_voxels();
+    let ensemble = |seed: u64, plan: &Schedule, molecules: &[Vec<(usize, usize, i64)>]| {
+        let one = |i: usize| -> TrajectoryOutput {
+            let rng = SsaRng::new(seed, i as u64);
+            match &model {
+                Model::Multi(mg) => {
+                    let mut traj = Multigrid::new(mg, t_start, rng);
+                    traj.set_coarsening(z_max);
+                    traj.set_tau_leaping(cfg.tau_leap.then_some(cfg.tau_epsilon));
+                    record(traj, plan, molecules, &y0)
+                }
+                Model::Single(setup) => {
+                    let mut rdme = Rdme::new(setup, t_start, rng);
+                    rdme.set_coarsening(z_max);
+                    rdme.set_tau_leaping(cfg.tau_leap.then_some(cfg.tau_epsilon));
+                    record(rdme, plan, molecules, &y0)
+                }
+            }
+        };
+        let n_snap = plan.is_snapshot.iter().filter(|s| **s).count();
+        let mut acc = Accumulator {
+            fields: vec![vec![FieldMoments::default(); n_sp * n_fine]; n_snap],
+            totals: vec![vec![Moments::default(); n_sp]; plan.times.len()],
+            net: vec![vec![Moments::default(); n_sp]; plan.times.len()],
+            n_reactions: 0,
+            n_hops: 0,
+            level_history: Vec::new(),
+        };
+        let mut first = 0;
+        while first < cfg.trajectories {
+            let last = (first + BATCH).min(cfg.trajectories);
+            for (i, traj) in map_ordered(first..last, one).into_iter().enumerate() {
+                acc.n_reactions += traj.n_reactions;
+                acc.n_hops += traj.n_hops;
+                if first + i == 0 {
+                    acc.level_history = traj.level_history;
+                }
+                for (snap, f) in traj.snapshots.iter().zip(acc.fields.iter_mut()) {
+                    for (x, m) in snap.iter().zip(f.iter_mut()) {
+                        m.sum += x;
+                        m.sum_sq += (*x as f64) * (*x as f64);
+                    }
+                }
+                for (k, row) in traj.totals.iter().enumerate() {
+                    for (s, x) in row.iter().enumerate() {
+                        acc.totals[k][s].add(*x);
+                        acc.net[k][s].add(*x - traj.baseline[s]);
+                    }
+                }
+            }
+            first = last;
+        }
+        acc
+    };
     let snapshot_times: Vec<f64> = plan
         .times
         .iter()
@@ -431,35 +550,23 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
         .filter(|(_, s)| **s)
         .map(|(t, _)| *t)
         .collect();
-    let mut fields = vec![vec![FieldMoments::default(); n_sp * n_fine]; snapshot_times.len()];
-    let mut totals = vec![vec![Moments::default(); n_sp]; plan.times.len()];
-    let mut net = vec![vec![Moments::default(); n_sp]; plan.times.len()];
-    let (mut n_reactions, mut n_hops) = (0u64, 0u64);
-    let mut level_history = Vec::new();
-    let mut first = 0;
-    while first < cfg.trajectories {
-        let last = (first + BATCH).min(cfg.trajectories);
-        for (i, traj) in map_ordered(first..last, one).into_iter().enumerate() {
-            n_reactions += traj.n_reactions;
-            n_hops += traj.n_hops;
-            if first + i == 0 {
-                level_history = traj.level_history;
-            }
-            for (snap, acc) in traj.snapshots.iter().zip(fields.iter_mut()) {
-                for (x, m) in snap.iter().zip(acc.iter_mut()) {
-                    m.sum += x;
-                    m.sum_sq += (*x as f64) * (*x as f64);
-                }
-            }
-            for (k, row) in traj.totals.iter().enumerate() {
-                for (s, x) in row.iter().enumerate() {
-                    totals[k][s].add(*x);
-                    net[k][s].add(*x - traj.baseline[s]);
-                }
-            }
-        }
-        first = last;
-    }
+    let Accumulator {
+        fields,
+        totals,
+        net,
+        n_reactions,
+        n_hops,
+        level_history,
+    } = ensemble(cfg.seed, &plan, &molecules);
+    // The seedless companion run: same grid, settings and record times,
+    // no seeds, no snapshots.
+    let background = if cfg.background_run.unwrap_or(true) {
+        let seed = background_seed(cfg.seed);
+        let acc = ensemble(seed, &plan.without_seeds(), &[]);
+        Some((seed, acc))
+    } else {
+        None
+    };
 
     // Field units: 1 / 8^max_levels molecule per fine voxel -> µmol/L.
     let n = cfg.trajectories as f64;
@@ -485,16 +592,40 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let table = |acc: &[Vec<Moments>], f: fn(&Moments) -> f64| -> Vec<Vec<f64>> {
         acc.iter().map(|row| row.iter().map(f).collect()).collect()
     };
+    let totals_mean = table(&totals, Moments::mean);
+    let totals_std = table(&totals, Moments::std);
+    let mut net_mean = table(&net, Moments::mean);
+    let mut net_std = table(&net, Moments::std);
+    let background_run = background.map(|(seed, bg)| {
+        // G is net of the background totals, not of the totals at `t_start`
+        // (as in the deterministic run). The runs are independent: the means
+        // subtract and the variances add. N stays gross.
+        for (k, row) in bg.totals.iter().enumerate() {
+            for (s, m) in row.iter().enumerate() {
+                net_mean[k][s] = totals_mean[k][s] - m.mean();
+                net_std[k][s] = totals_std[k][s].hypot(m.std());
+            }
+        }
+        let noise = bg.net.last().map_or_else(Vec::new, |row| {
+            row.iter().map(|m| m.std() / n.sqrt()).collect()
+        });
+        BackgroundRun {
+            seed,
+            noise,
+            n_reactions: bg.n_reactions,
+            n_hops: bg.n_hops,
+        }
+    });
     Ok(RdmeOutput {
         species,
         snapshot_times,
         mean,
         std,
         record_times: plan.times,
-        totals_mean: table(&totals, Moments::mean),
-        totals_std: table(&totals, Moments::std),
-        net_mean: table(&net, Moments::mean),
-        net_std: table(&net, Moments::std),
+        totals_mean,
+        totals_std,
+        net_mean,
+        net_std,
         seed_energies: sim
             .seeds
             .iter()
@@ -504,6 +635,7 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
         seed: cfg.seed,
         tau_leap: cfg.tau_leap,
         rate_correction: if correct { "hellander" } else { "none" },
+        background: background_run,
         n_reactions,
         n_hops,
         level_history,
