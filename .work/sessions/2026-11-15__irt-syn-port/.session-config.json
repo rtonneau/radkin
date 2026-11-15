@@ -137,6 +137,30 @@
         "ticket": "03-single-track-solver",
         "commit": "19d52db"
       }
+    },
+    {
+      "at": "2026-11-15T18:19:38.247Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-background-reactions.md",
+        "03-implement/04-background-reactions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-background-reactions"
+      }
+    },
+    {
+      "at": "2026-11-15T18:26:57.417Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-background-reactions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-background-reactions",
+        "commit": "ab5985f"
+      }
     }
   ],
   "current_phase": "ship",
