@@ -71,6 +71,14 @@ _Avoid_: validity bound, h_min (h_min is where the uncorrected RDME starts to de
 The scaling `1 / (1 - h*/h)` of a bimolecular propensity on a grid level of spacing `h > h*`, which makes the RDME's mean encounter time match the macroscopic rate constant (`[ssa] rate_correction = "hellander"`).
 _Avoid_: rate correction (the config key only), mesoscopic rate, renormalisation
 
+**Reversible pair**:
+A forward/backward reaction pair declared with `<->` in the network. In a voxel SSA run, its two directions share one mesh-correction factor, taken from the direction that is bimolecular once fixed species are dropped.
+_Avoid_: equilibrium reaction (only one parsed kind of pair), reverse reaction
+
+**Background run**:
+The seedless RDME companion run, on the same grid and settings, whose counts are subtracted to give background-net yields.
+_Avoid_: blank run, control run
+
 ### Voxel model
 
 **Voxel grid**:
