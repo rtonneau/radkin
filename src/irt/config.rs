@@ -6,7 +6,9 @@
 //! t_start = 1e-12          # s (default: the earliest seed time)
 //! trajectories = 16        # default 1 (`radkin irt` only)
 //! random_seed = 1          # default 0 (`radkin irt` only)
-//! resampling = "full"      # pair rule
+//! resampling = "full"      # pair rule: "full" (every reaction time is drawn again after
+//!                          # each reaction) or "incremental" (reaction times are kept;
+//!                          # only the pairs of new molecules are drawn)
 //! start_contact = true     # a pair injected inside its effective radius reacts at once
 //!                          # with the contact probability; false for seeds taken from a
 //!                          # chemistry stage that has already started (Geant4 at 1.001 ps)
@@ -79,6 +81,19 @@ const KEYS: [&str; 16] = [
 pub enum Resampling {
     /// Every sampled reaction time is discarded after each reaction.
     Full,
+    /// Sampled reaction times are kept; new ones are drawn only for pairs
+    /// involving the molecules that reacted, were created or were injected.
+    Incremental,
+}
+
+impl Resampling {
+    /// Value of the `resampling` key.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Full => "full",
+            Self::Incremental => "incremental",
+        }
+    }
 }
 
 /// `boundary` key.
@@ -251,9 +266,10 @@ impl IrtConfig {
         let resampling = match irt.get("resampling") {
             None => Resampling::Full,
             Some(toml::Value::String(s)) if s == "full" => Resampling::Full,
+            Some(toml::Value::String(s)) if s == "incremental" => Resampling::Incremental,
             Some(v) => {
                 return Err(RadkinError::Config(format!(
-                    "irt.resampling must be \"full\", got {v}"
+                    "irt.resampling must be \"full\" or \"incremental\", got {v}"
                 )));
             }
         };

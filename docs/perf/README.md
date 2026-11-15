@@ -5,7 +5,8 @@ it (gps session `2026-11-13__rsoda-per-step-overhead`, idea
 `.work/idea/rsoda-per-step-overhead.md`).
 
 Voxel (Phase 2) runs are benchmarked separately: see [voxel.md](voxel.md)
-(`examples/voxel_bench.rs`).
+(`examples/voxel_bench.rs`). The IRT stage is in [irt-scaling.md](irt-scaling.md)
+(`examples/irt_scaling.rs`).
 
 ## How it is measured
 

@@ -207,7 +207,7 @@ pub struct Stage<'a> {
 }
 
 /// Whether `x` is outside the box `[lo, hi]` or on one of its faces.
-fn outside(lo: Vec3, hi: Vec3, x: Vec3) -> bool {
+pub(crate) fn outside(lo: Vec3, hi: Vec3, x: Vec3) -> bool {
     (0..3).any(|a| x[a] <= lo[a] || x[a] >= hi[a])
 }
 
@@ -222,7 +222,7 @@ pub fn fold(lo: Vec3, hi: Vec3, x: Vec3) -> Vec3 {
 
 /// Mirror image of `x` across the walls named by `image` (per axis 0, -1 for
 /// the lower wall, 1 for the upper wall).
-fn mirror(lo: Vec3, hi: Vec3, x: Vec3, image: [i8; 3]) -> Vec3 {
+pub(crate) fn mirror(lo: Vec3, hi: Vec3, x: Vec3, image: [i8; 3]) -> Vec3 {
     std::array::from_fn(|a| match image[a] {
         -1 => 2.0 * lo[a] - x[a],
         1 => 2.0 * hi[a] - x[a],
@@ -266,6 +266,16 @@ impl<'a> Stage<'a> {
 
     pub fn particles(&self) -> &Particles {
         &self.particles
+    }
+
+    /// `(species, position)` of every particle, at the stage time.
+    pub fn molecules(&self) -> Vec<(u32, Vec3)> {
+        self.particles
+            .species
+            .iter()
+            .copied()
+            .zip(self.particles.pos.iter().copied())
+            .collect()
     }
 
     pub fn stats(&self) -> &StageStats {

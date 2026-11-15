@@ -11,7 +11,8 @@ use std::time::Instant;
 use crate::chemistry::env::SimEnv;
 use crate::config::Config;
 use crate::error::{RadkinError, Result};
-use crate::irt::config::{BoundaryKind, IrtConfig};
+use crate::irt::config::{BoundaryKind, IrtConfig, Resampling};
+use crate::irt::incremental::IncrementalStage;
 use crate::irt::model::IrtModel;
 use crate::irt::sample::Vec3;
 use crate::irt::solver::{Boundary, Stage, StageOptions, StageStats};
@@ -93,6 +94,62 @@ pub fn load_seed(
         log::warn!("{msg}: dropped");
     }
     Ok(seed)
+}
+
+/// One trajectory of the IRT stage, with the pair rule of the config.
+#[derive(Debug, Clone)]
+pub enum Engine<'a> {
+    Full(Stage<'a>),
+    Incremental(IncrementalStage<'a>),
+}
+
+impl Engine<'_> {
+    /// Fire every reaction up to `t`.
+    pub fn advance_to(&mut self, t: f64) {
+        match self {
+            Self::Full(s) => s.advance_to(t),
+            Self::Incremental(s) => s.advance_to(t),
+        }
+    }
+
+    /// Move every particle to `t` (after [`Engine::advance_to`]).
+    pub fn sync(&mut self, t: f64) {
+        match self {
+            Self::Full(s) => s.sync(t),
+            Self::Incremental(s) => s.sync(t),
+        }
+    }
+
+    /// Add particles at the stage time (after [`Engine::sync`]).
+    pub fn inject(&mut self, molecules: &[(u32, Vec3)]) {
+        match self {
+            Self::Full(s) => s.inject(molecules),
+            Self::Incremental(s) => s.inject(molecules),
+        }
+    }
+
+    /// Particles per species.
+    pub fn counts(&self) -> &[i64] {
+        match self {
+            Self::Full(s) => s.counts(),
+            Self::Incremental(s) => s.counts(),
+        }
+    }
+
+    /// `(species, position)` of every particle.
+    pub fn molecules(&self) -> Vec<(u32, Vec3)> {
+        match self {
+            Self::Full(s) => s.molecules(),
+            Self::Incremental(s) => s.molecules(),
+        }
+    }
+
+    pub fn stats(&self) -> &StageStats {
+        match self {
+            Self::Full(s) => s.stats(),
+            Self::Incremental(s) => s.stats(),
+        }
+    }
 }
 
 /// A run of the IRT stage.
@@ -214,6 +271,22 @@ impl IrtSimulation {
         times
     }
 
+    /// An empty trajectory at the start of the stage, for the random stream
+    /// `stream` of `seed`.
+    pub fn engine(&self, seed: u64, stream: u64) -> Engine<'_> {
+        let rng = SsaRng::new(seed, stream);
+        let options = self.stage_options();
+        match self.config.resampling {
+            Resampling::Full => Engine::Full(Stage::new(&self.model, options, rng, self.t_start)),
+            Resampling::Incremental => Engine::Incremental(IncrementalStage::new(
+                &self.model,
+                options,
+                rng,
+                self.t_start,
+            )),
+        }
+    }
+
     fn stage_options(&self) -> StageOptions {
         StageOptions {
             t_stop: self.config.t_end,
@@ -237,12 +310,7 @@ impl IrtSimulation {
         times.extend(self.seeds.iter().map(|s| s.spec.time));
         times.sort_by(f64::total_cmp);
         times.dedup();
-        let mut stage = Stage::new(
-            &self.model,
-            self.stage_options(),
-            SsaRng::new(seed, stream),
-            self.t_start,
-        );
+        let mut stage = self.engine(seed, stream);
         let mut totals = Vec::with_capacity(records.len());
         for &t in &times {
             stage.advance_to(t);

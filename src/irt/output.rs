@@ -126,7 +126,7 @@ pub fn irt_meta_json(sim: &IrtSimulation, out: &IrtOutput) -> Result<String> {
     use crate::irt::model::TypeSource;
     let meta = Meta {
         solver: "irt",
-        resampling: "full",
+        resampling: sim.config.resampling.name(),
         t_start: sim.t_start,
         t_end: sim.config.t_end,
         trajectories: out.trajectories,
