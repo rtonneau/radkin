@@ -4,6 +4,7 @@
 //! | file | content |
 //! |---|---|
 //! | `yields.csv` | `t`, `N_<sp>` (mean molecules in the domain), `G_<sp>` when seeds give `energy_ev` (mean of `(N - N(t_start)) / (E / 100 eV)`, E the energy of the seeds injected so far), then `N_<sp>_std` and `G_<sp>_std` |
+//! | | With `[ssa] background_run` (default) the `G` and `G_std` are net of the seedless background run's totals (means subtracted, standard deviations added in quadrature) instead of the totals at `t_start`; `N` stays gross |
 //! | `snapshots/t<k>_<sp>.npy` | mean concentration field [mol/L], float64, C order, shape `(nz, ny, nx)` |
 //! | `snapshots/t<k>_<sp>_std.npy` | standard deviation of the field over the trajectories [mol/L] |
 //! | `snapshots.json` | grid, species, snapshot times and file names, ensemble settings and event counts |
@@ -32,12 +33,26 @@ struct SnapshotIndex<'a> {
     seed: u64,
     tau_leap: bool,
     rate_correction: &'static str,
+    /// The seedless run subtracted from `yields.csv`, with its noise.
+    background_run: Option<BackgroundIndex<'a>>,
     /// Events summed over the trajectories.
     n_reactions: u64,
     n_hops: u64,
     /// Species level of every species, in `species` order.
     species_levels: &'a [u32],
     exec_time: f64,
+}
+
+#[derive(Serialize)]
+struct BackgroundIndex<'a> {
+    /// Seed of the background run, derived from `seed`.
+    seed: u64,
+    /// Standard error of the mean change of every species (`species` order)
+    /// in the background run over the whole run [molecules]: the noise the
+    /// subtraction adds to `yields.csv`.
+    noise: &'a [f64],
+    n_reactions: u64,
+    n_hops: u64,
 }
 
 #[derive(Serialize)]
@@ -144,6 +159,12 @@ pub fn write_rdme_dir(dir: &Path, out: &RdmeOutput, grid: &VoxelGrid) -> Result<
         seed: out.seed,
         tau_leap: out.tau_leap,
         rate_correction: out.rate_correction,
+        background_run: out.background.as_ref().map(|b| BackgroundIndex {
+            seed: b.seed,
+            noise: &b.noise,
+            n_reactions: b.n_reactions,
+            n_hops: b.n_hops,
+        }),
         n_reactions: out.n_reactions,
         n_hops: out.n_hops,
         species_levels: &out.species_levels,

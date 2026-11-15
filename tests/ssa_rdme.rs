@@ -744,3 +744,93 @@ fn ssa_rdme_background_keeps_the_water_equilibrium() {
     }
     assert_pooled("single grid", &z);
 }
+
+/// Seedless pure water at pH 7 in a 16x16x16 box of 20 nm voxels, no tracks.
+fn seedless_case(dir: &Path) -> PathBuf {
+    let path = dir.join("run.toml");
+    std::fs::write(
+        &path,
+        r#"
+        [includes]
+        toml = ["radkin/advanced_water_radiolysis.toml"]
+
+        [voxel.grid]
+        dims = [16, 16, 16]
+        spacing_nm = 20.0
+
+        [voxel.run]
+        t_end = 1e-6
+        snapshots = [1e-6]
+        "#,
+    )
+    .unwrap();
+    path
+}
+
+#[test]
+fn ssa_rdme_background_run_nets_a_seedless_run_to_zero() {
+    let dir = scratch("background");
+    let sim = VoxelSimulation::from_toml(seedless_case(&dir)).unwrap();
+    let n = 200;
+    let cfg = SsaConfig {
+        trajectories: n,
+        seed: 5,
+        ..Default::default()
+    };
+    // Default: the background run is on.
+    let out = run_rdme(&sim, &cfg).unwrap();
+    let bg = out.background.as_ref().expect("background run by default");
+    assert_eq!(bg.seed, radkin::ssa::voxel_sim::background_seed(5));
+    assert_ne!(bg.seed, cfg.seed);
+    assert_eq!(bg.noise.len(), out.species.len());
+    assert!(out.n_reactions > 0);
+    let sqrt_n = (n as f64).sqrt();
+    let mut noisy = 0;
+    for k in 0..out.record_times.len() {
+        for s in 0..out.species.len() {
+            // The G numerator: the difference of two independent ensembles,
+            // zero within noise.
+            let (mean, sem) = (out.net_mean[k][s], out.net_std[k][s] / sqrt_n);
+            assert!(
+                mean.abs() <= K * sem + 1e-9,
+                "t = {:e} s, {}: net {mean} (SEM {sem})",
+                out.record_times[k],
+                out.species[s]
+            );
+            noisy += usize::from(sem > 0.0);
+        }
+    }
+    assert!(noisy > 0, "no species fluctuates: the check is empty");
+    assert!(bg.noise.iter().any(|x| *x > 0.0));
+
+    // Opt out: the raw totals, no record of a background run.
+    let raw = run_rdme(
+        &sim,
+        &SsaConfig {
+            background_run: Some(false),
+            ..cfg.clone()
+        },
+    )
+    .unwrap();
+    assert!(raw.background.is_none());
+    let h3o = raw.species.iter().position(|s| s == "H3O_plus").unwrap();
+    let last = raw.record_times.len() - 1;
+    assert!(raw.totals_mean[last][h3o] > 0.0);
+
+    // The output records the run and its noise.
+    let o = dir.join("out");
+    radkin::ssa::write_rdme_dir(&o, &out, &sim.voxel.grid).unwrap();
+    let index: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(o.join("snapshots.json")).unwrap()).unwrap();
+    assert_eq!(index["background_run"]["seed"], bg.seed);
+    assert_eq!(
+        index["background_run"]["noise"].as_array().unwrap().len(),
+        out.species.len()
+    );
+    let o2 = dir.join("out2");
+    radkin::ssa::write_rdme_dir(&o2, &raw, &sim.voxel.grid).unwrap();
+    let index: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(o2.join("snapshots.json")).unwrap()).unwrap();
+    assert!(index["background_run"].is_null());
+    let _ = std::fs::remove_dir_all(&dir);
+}
