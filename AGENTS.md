@@ -4,6 +4,8 @@ radkin is a Rust port of radiopyo: homogeneous chemical kinetics of water radiol
 (G-values, rate equations, beams), solved with the LSODA solver rsoda. Phase 1 reproduces
 radiopyo's results. Phase 2 adds a voxelised 3D geometry with species diffusion, seeded by
 Geant4-DNA molecules and coupled to the chemistry by Strang splitting (`src/voxel/`, ADR 0002).
+The IRT stage (`src/irt/`, ADR 0007) runs the chemistry on the molecules as particles from
+1 ps, with Geant4-DNA's reaction-time formulas, alone or before a handover to the voxel grid.
 See `README.md` for usage and `docs/superpowers/specs/` for the Phase-1 design.
 
 ## Related repositories
@@ -47,6 +49,18 @@ Python with `-I`.
   (kernel, rsoda linear solver, rest) on the same cases, no radiopyo needed. It uses the
   `timing` cargo feature. Results and the keep rule for optimizations are in `docs/perf/`.
 
+Comparison of the IRT stage with Geant4-DNA needs no radiopyo, only a release build and the
+Geant4 reference run (100 events of IRT_syn, kept under `.scratch/`; ten of them are in
+`tests/data/irt/`).
+
+- `python -I tools/compare_irt_geant4.py --events 100 --boundary outflow`: G(t) of every
+  species against Geant4-DNA IRT_syn, event by event. The reference ran in a 2 um water box
+  that loses molecules at its faces, hence the outflow box. Results are in `docs/irt.md`.
+- `python -I tools/export_g4_chem.py`: writes `data/chem_g4.toml` from Geant4's reaction
+  table dump.
+- `cargo run --release --example irt_scaling -- --tracks 1,10,100`: run time against the
+  number of overlapping tracks (`docs/perf/irt-scaling.md`).
+
 ## Layout
 
 - `src/chemistry/`: reaction parser (a port of radiopyo's grammar), species, reactions,
@@ -69,8 +83,17 @@ Python with `-I`.
   and its outputs; on the voxel grid the RDME (hop events, coarsening, tau-leaping) and
   its multi-grid form with species levels (`rdme_multigrid*.rs`, ADR 0005). Its
   integration tests are named `ssa_*` so that `cargo test --release ssa` runs them all.
+- `src/irt/`: IRT stage (`radkin irt`, `[irt]`, ADR 0007, `docs/irt.md`). Every molecule
+  is a particle; reactions are independent reaction times per pair and per molecule.
+  Species table and typed reaction model, sampling kernel (Geant4-DNA's formulas), the
+  event loops of the two pair rules (`solver.rs` full resampling, `incremental.rs`),
+  walls, seeds and outputs. The handover to the RDME is in `src/ssa/voxel_sim.rs`. Its
+  integration tests are named `irt_*` so that `cargo test --release irt_` runs them all.
 - `tests/golden/*.json`: radiopyo reference data exported by `tools/export_golden.py`.
-- `data/`: radiopyo's config TOMLs and the Boscolo CSV.
+- `tests/data/irt/`: Geant4-DNA reference of the IRT stage (reaction table dump, ten
+  events).
+- `data/`: radiopyo's config TOMLs and the Boscolo CSV; `chem_g4.toml`, the Geant4-DNA
+  option3 chemistry written by `tools/export_g4_chem.py`.
 
 ## Conventions
 

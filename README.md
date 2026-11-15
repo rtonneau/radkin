@@ -328,6 +328,62 @@ size changes, and compare against Geant4-DNA step-by-step chemistry before trust
 absolute G-values. The example (`data/voxel_example.toml`, a synthetic track) shows the
 workflow; its numbers are illustrative only.
 
+## IRT stage
+
+`radkin irt CONFIG --out DIR` runs the chemistry of `CONFIG` on the molecules of its
+seeds as particles: every molecule has a position, and reactions are drawn as
+independent reaction times, one per pair of particles and one per particle for its
+first-order and background reactions. It replaces the chemistry stage of Geant4-DNA
+(IRT_syn) from the molecules at 1 ps, so that Geant4 is only needed up to the end of
+the physico-chemical stage, and it takes several tracks at once, injected at their own
+times, with the background reactions of the solution (O2, pH). ADR 0007 in
+`.work/adr/`; the method, its validation and its limits are in `docs/irt.md`.
+
+```toml
+[includes]
+toml = ["radkin/chem_g4.toml"]   # Geant4-DNA option3 chemistry, with its reaction types
+
+[irt]
+t_end = 1e-6             # s: end of the stage
+trajectories = 32        # independent trajectories of the same molecules (default 1)
+random_seed = 1
+resampling = "full"      # "full" (reference) or "incremental" (many tracks)
+start_contact = true     # false for molecules Geant4 wrote after its chemistry started
+background_reactions = true
+boundary = "none"        # "none", "reflective" or "outflow" (the last two need a box)
+
+[[irt.seed]]             # as [[voxel.seed]]
+file = "voxel_example_molecules.csv"
+time = 1e-12
+energy_ev = 360.0
+```
+
+```bash
+radkin irt data/irt_example.toml --out out/irt_example
+```
+
+- Outputs: `yields.csv` (`t`, `N_<sp>`, `G_<sp>` per 100 eV, and their standard
+  deviations over the trajectories, the columns of the RDME `yields.csv`) and `irt.json`
+  (settings, event counts, firings of each reaction).
+- The formulas of the reaction times are those of Geant4-DNA 11.4.3. A reaction takes
+  its type (fully or partially diffusion-controlled) from the `irt_type` key of the
+  network, else from its rate constant against its diffusion limit. Any radkin network
+  runs; the species table (radius, charge, diffusion coefficient) is Geant4's for the
+  water species and can be extended in `[irt.species.<label>]`.
+- On 100 single-track events G(t) of every species matches Geant4-DNA IRT_syn within
+  its statistical error (`python -I tools/compare_irt_geant4.py --events 100 --boundary
+  outflow`).
+- `resampling = "incremental"` keeps the sampled reaction times and brings 100
+  overlapping tracks to 1 us in half a second per trajectory (`docs/perf/irt-scaling.md`).
+- With an `[irt]` section `radkin voxel --solver ssa` runs the IRT stage first and hands
+  its molecules over to the RDME at `irt.t_end` (the handover time). The stage then needs
+  `boundary = "reflective"`: its walls are the faces of the grid.
+- Results with several overlapping tracks, and aerated results, have no reference at the
+  particle level yet: treat them as provisional.
+
+`data/chem_g4.toml` is written by `python -I tools/export_g4_chem.py` from the reaction
+table Geant4 dumped at run time (`tests/data/irt/g4_chemistry_dump.txt`).
+
 ## License
 
 LGPL-3.0-or-later, as radiopyo. Bundled data: see [data/README.md](data/README.md).
