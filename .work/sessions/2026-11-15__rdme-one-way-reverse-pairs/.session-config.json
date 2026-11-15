@@ -49,13 +49,38 @@
       "detail": {
         "tickets": 1
       }
+    },
+    {
+      "at": "2026-11-15T14:52:16.229Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-infer-one-way-pairs.md",
+        "03-implement/01-infer-one-way-pairs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-infer-one-way-pairs"
+      }
+    },
+    {
+      "at": "2026-11-15T15:04:09.101Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/01-infer-one-way-pairs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-infer-one-way-pairs",
+        "commit": "dae9ecc"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "fix/rdme-one-way-reverse-pairs",
     "base_branch": "fix/rdme-reversible-mesh-correction",
     "branch_created_at": "2026-11-15T14:52:15.755Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "delegate"
 }
