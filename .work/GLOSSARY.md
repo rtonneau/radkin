@@ -110,8 +110,22 @@ A Geant4-DNA run where only a small water region (2x2x10 um at the track entranc
 _Avoid_: cropped track (cutting a cube from a whole-track run is a different, inexact thing)
 
 **Handover time**:
-The time at which a Geant4-DNA run stops its chemistry (IRT_syn, so every molecule sits at that time) and its molecules become radkin seeds; radkin computes the chemistry from there on.
-_Avoid_: start time (ambiguous with the config's t0), seed time (a seed time is any injection time)
+The time at which the particle chemistry stops and its molecules are binned onto the voxel grid, which computes the chemistry from there on. The particle chemistry is either a Geant4-DNA run (IRT_syn, whose molecules become radkin seeds) or radkin's own IRT stage (one fixed time per run, in-process).
+_Avoid_: start time (ambiguous with the config's t0), seed time (a seed time is any injection time), coupling time, switch time
+
+### IRT stage
+
+**IRT stage**:
+The part of a run where every molecule is a particle with a position, and reactions are drawn as independent reaction times per pair (and per molecule for background reactions); it runs from the 1 ps molecules to the handover time, or to the end of the run.
+_Avoid_: particle stage, spur stage, microscopic stage, IRT_syn (the name of Geant4's implementation only)
+
+**Full resampling**:
+The pair rule of the IRT stage that discards every sampled reaction time after each reaction and draws them all again from the current positions; the reference mode, as Geant4's IRT_syn does.
+_Avoid_: synchronous mode, IRT_syn mode
+
+**Incremental resampling**:
+The pair rule of the IRT stage that keeps the sampled reaction times and draws new ones only for pairs involving the molecules that reacted or were created.
+_Avoid_: classic IRT, lazy resampling
 
 ### Performance
 
