@@ -85,6 +85,30 @@
         "ticket": "01-geant4-segment-passes",
         "commit": "bf006e8"
       }
+    },
+    {
+      "at": "2026-11-15T00:39:23.422Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-configs-and-pilot.md",
+        "03-implement/02-configs-and-pilot/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-configs-and-pilot"
+      }
+    },
+    {
+      "at": "2026-11-15T01:14:02.402Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-configs-and-pilot/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-configs-and-pilot",
+        "commit": "b46df9f"
+      }
     }
   ],
   "current_phase": "ship",
