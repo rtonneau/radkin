@@ -61,6 +61,30 @@
       "detail": {
         "tickets": 4
       }
+    },
+    {
+      "at": "2026-11-15T00:36:10.335Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-geant4-segment-passes.md",
+        "03-implement/01-geant4-segment-passes/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-geant4-segment-passes"
+      }
+    },
+    {
+      "at": "2026-11-15T00:39:16.560Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-geant4-segment-passes/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-geant4-segment-passes",
+        "commit": "bf006e8"
+      }
     }
   ],
   "current_phase": "ship",
@@ -69,5 +93,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-15T00:36:04.796Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "inline"
 }
