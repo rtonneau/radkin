@@ -185,6 +185,30 @@
         "ticket": "05-walls-and-scheduled-tracks",
         "commit": "3a480a7"
       }
+    },
+    {
+      "at": "2026-11-15T18:36:34.927Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-incremental-resampling.md",
+        "03-implement/06-incremental-resampling/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-incremental-resampling"
+      }
+    },
+    {
+      "at": "2026-11-15T18:49:08.039Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/06-incremental-resampling/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-incremental-resampling",
+        "commit": "1d88b4c"
+      }
     }
   ],
   "current_phase": "ship",
