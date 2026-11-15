@@ -1,9 +1,9 @@
 ---
-status: planned
+status: promoted
 scope: project
 created: 2026-11-15
 reviews: 0
-promoted_to: null
+promoted_to: radkin:2026-11-15__rdme-reversible-mesh-correction
 ---
 
 ## Problem
@@ -46,3 +46,4 @@ RDME mesh correction breaks detailed balance for reversible pairs. RDME yields a
 - 2026-11-15 — capture — RDME mesh correction breaks detailed balance of reversible pairs (radkin @ test/rdme-single-track-gvalues)
 - 2026-11-15 — grill
 - 2026-11-15 — plan
+- 2026-11-15 — promote
