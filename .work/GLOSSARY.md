@@ -120,12 +120,36 @@ The part of a run where every molecule is a particle with a position, and reacti
 _Avoid_: particle stage, spur stage, microscopic stage, IRT_syn (the name of Geant4's implementation only)
 
 **Full resampling**:
-The pair rule of the IRT stage that discards every sampled reaction time after each reaction and draws them all again from the current positions; the reference mode, as Geant4's IRT_syn does.
-_Avoid_: synchronous mode, IRT_syn mode
+The pair rule of the IRT stage that discards every sampled reaction time after each reaction and draws them all again from the current positions; the default and the reference rule.
+_Avoid_: synchronous mode, IRT_syn mode (Geant4's IRT_syn keeps its reaction set between reaction steps)
 
 **Incremental resampling**:
-The pair rule of the IRT stage that keeps the sampled reaction times and draws new ones only for pairs involving the molecules that reacted or were created.
+The pair rule of the IRT stage that keeps the sampled reaction times and draws new ones only for pairs involving the molecules that reacted, were created or were injected; the working rule for many tracks.
 _Avoid_: classic IRT, lazy resampling
+
+**Pair reaction**:
+A reaction of the IRT stage between two particles, with a type (fully or partially diffusion-controlled), an effective radius and a sampled reaction time.
+_Avoid_: bimolecular reaction (a reaction with a background species is bimolecular too, but is a molecule reaction here)
+
+**Molecule reaction**:
+A reaction of the IRT stage of one particle alone, with an exponential reaction time: first order, with a fixed species such as water, or with a background species.
+_Avoid_: scavenging reaction (only one of its three cases), first-order reaction
+
+**Background species**:
+In the IRT stage, a species with an initial concentration (O2, H3O+ and OH- at the pH of the run): particles react with it at the rate `k c`, it keeps its concentration, and what it loses is counted, not debited. The molecules of the same species made by a track are particles.
+_Avoid_: scavenger (O2 is one, H3O+ is not called one), bulk species
+
+**Contact rule**:
+A pair injected inside its effective radius reacts at once, with the contact probability of its reaction (1 when fully diffusion-controlled). It applies at injection only; Geant4 applies it at the start of its chemistry (1 ps).
+_Avoid_: overlap reaction, zero-time reaction
+
+**Image pair**:
+A particle and the mirror image of its partner across a reflective wall, sampled as one more independent pair so that a pair near a wall reacts as often as in free space.
+_Avoid_: ghost particle, periodic image (the walls reflect, the box is not periodic)
+
+**Outflow box**:
+The box of an IRT run where a molecule that a move puts outside is removed, as Geant4-DNA does at the faces of its water volume; used only to compare with a Geant4 run made in a small box.
+_Avoid_: absorbing wall (it loses about half as many molecules), open boundary
 
 ### Performance
 
