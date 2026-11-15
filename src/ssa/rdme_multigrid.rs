@@ -134,6 +134,7 @@ impl Layout {
             let ReversiblePair::Shared {
                 bimolecular,
                 follower,
+                ..
             } = *p
             else {
                 continue;

@@ -340,8 +340,9 @@ constant then moved with the voxel size: in a seedless box at pH 7 the ion produ
 by `1 − h*/h`, and about 480 H3O⁺ and OH⁻ lost 8, 19 and 26 ions over 10 µs at 20, 10
 and 5 nm (ADR 0006). The unit-cell SSA keeps them constant.
 
-Both directions of a pair declared with `<->` now share one factor (Fange et al. 2010;
-Hellander 2012), so `K_eq` is kept:
+Both directions of a reversible pair now share one factor (Fange et al. 2010;
+Hellander 2012), so `K_eq` is kept. A reversible pair is either declared with `<->` or
+inferred from two one-way reactions:
 
 - One direction is bimolecular once the fixed species (H2O) are dropped, the other is
   first order: the first order direction (the follower) takes the factor
@@ -351,17 +352,29 @@ Hellander 2012), so `K_eq` is kept:
   `K_eq` shift is then the ratio of the two factors, and radkin logs it at the start
   of the run (warning).
 - A pair with `h* ≥ h` on the fine grid keeps the macroscopic rates, as before.
-- Only pairs declared with `<->` are linked. Nothing is inferred from one-way reactions.
-  A chemistry that writes the two directions as separate one-way reactions, like the
-  Geant4 export `chem_g4.toml` (`H3O_plus + OH_minus -> H2O` and
-  `H2O -> H3O_plus + OH_minus`), gets no shared factor and keeps the old drift. Declare
-  its pair with `[[reactions.equilibrium]] reaction = "H2O <-> H3O_plus + OH_minus"`.
+- Two one-way mass-action reactions A and B form an inferred pair when their sides swap
+  once the fixed species are dropped: the dynamic reactants of A are the dynamic products
+  of B and the other way round, with multiplicity. The Geant4 export `chem_g4.toml`
+  writes water autoionisation that way (`H3O_plus + OH_minus -> H2O` and
+  `H2O -> H3O_plus + OH_minus`), and it now gets the shared factor. Matching drops the
+  fixed species, so `e_aq + H2O -> H_r + OH_minus` and `H_r + OH_minus -> e_aq` are a pair
+  too. This is always on under `rate_correction = "hellander"`, with no config key.
+- A one-way reaction is paired only when it has exactly one candidate reverse and that
+  candidate has exactly one too. A reaction with several candidates is not paired, and a
+  warning names them at the start of the run
+  (`rdme: one-way reaction '…' has several candidate reverses (…)`).
+- A one-way reaction is never paired with a direction of a declared `<->` pair:
+  `CONFIG_PAPER_01` declares `e_aq + H2O <-> H_r + OH_minus` and also lists the one-way
+  `e_aq + H2O -> H_r + OH_minus`, which stays unpaired.
 - At the start of a voxel run an info line per pair gives the factor
-  (`rdme: reversible pair '…': both directions take the mesh correction of '…'`).
+  (`rdme: reversible pair '…': both directions take the mesh correction of '…'`); an
+  inferred pair names both reactions and says "inferred from one-way reactions".
 
-On the radiopyo network nine pairs have a bimolecular direction, all with a first order
-other direction (water autoionisation and the acid-base pairs of HO2, H2O2, O⁻, •OH, H• and
-e⁻aq). Unit tests on
+On the radiopyo network nine declared pairs have a bimolecular direction, all with a first
+order other direction (water autoionisation and the acid-base pairs of HO2, H2O2, O⁻, •OH,
+H• and e⁻aq). Two more are inferred from its one-way reactions, also with a first order
+other direction: `OH_r + H2 -> H_r + H2O` with `H_r + H2O -> H2 + OH_r`, and
+`O_minus + O2 -> O3_minus` with `O3_minus -> O_minus + O2`. Unit tests on
 `CONFIG_PAPER_01` check them. A seedless box now keeps H3O⁺ and OH⁻ within noise on the
 single grid and on the multi-grid (`cargo test --release ssa`), and the single-track
 rerun at 20 and 10 nm confirms it (`.scratch/tests/2026-11-15__rdme-reversible-mesh-correction/report.md`).

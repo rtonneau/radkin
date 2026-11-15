@@ -15,7 +15,7 @@
 
 use crate::consts::AVOGADRO;
 use crate::error::{RadkinError, Result};
-use crate::matrices::SimMatrices;
+use crate::matrices::{ReactionPair, SimMatrices};
 
 /// A reactant of a Michaelis–Menten reaction.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -83,9 +83,9 @@ pub struct SsaModel {
     pub affects: Vec<Vec<usize>>,
     /// Reactions to re-evaluate after source `i` fires.
     pub source_affects: Vec<Vec<usize>>,
-    /// `(forward, backward)` reaction indices of every pair declared with
-    /// `<->` ([`SimMatrices::reversible_pairs`]).
-    pub pairs: Vec<(usize, usize)>,
+    /// Reversible pairs, declared with `<->` or inferred from one-way
+    /// reactions ([`SimMatrices::reversible_pairs`]).
+    pub pairs: Vec<ReactionPair>,
 }
 
 fn integer(coef: f64, what: &str) -> Result<i64> {
@@ -408,8 +408,8 @@ mod tests {
 
     #[test]
     fn reversible_pairs_and_their_bimolecular_direction() {
-        // The radiopyo network: one direction of every pair is bimolecular
-        // once H2O (fixed) is dropped.
+        // The radiopyo network: one direction of every pair (declared or
+        // inferred) is bimolecular once H2O (fixed) is dropped.
         let cfg = Config::load("data/CONFIG_PAPER_01.toml").unwrap();
         let env = SimEnv::from_config(&cfg).unwrap();
         let mat = SimMatrices::build(&env).unwrap();
@@ -419,7 +419,8 @@ mod tests {
         let bimolecular: Vec<&str> = m
             .pairs
             .iter()
-            .map(|&(f, b)| {
+            .map(|p| {
+                let (f, b) = (p.forward, p.backward);
                 assert_ne!(m.is_bimolecular(f), m.is_bimolecular(b), "{}", text[f]);
                 text[if m.is_bimolecular(f) { f } else { b }].as_str()
             })
@@ -436,6 +437,9 @@ mod tests {
                 "H_r + OH_minus <-> e_aq + H2O",
                 "e_aq + H3O_plus <-> H_r",
                 "OH_r + OH_minus <-> O_minus + H2O",
+                // Inferred from one-way reactions.
+                "OH_r + H2 -> H_r + H2O",
+                "O_minus + O2 -> O3_minus",
             ]
         );
     }

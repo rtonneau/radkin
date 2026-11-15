@@ -147,16 +147,25 @@ pub fn is_cubic(grid: &VoxelGrid) -> bool {
     grid.spacing.iter().all(|s| (s - h).abs() <= 1e-12 * h)
 }
 
-/// How the mesh correction treats a pair declared with `<->` that has a
-/// bimolecular direction (ADR 0006).
+/// How the mesh correction treats a reversible pair (declared with `<->` or
+/// inferred from two one-way reactions) that has a bimolecular direction
+/// (ADR 0006). `inferred` marks a pair inferred from one-way reactions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReversiblePair {
     /// One direction is bimolecular once the fixed species are dropped: the
     /// other one (`follower`) takes its mesh factor, so K_eq is kept.
-    Shared { bimolecular: usize, follower: usize },
+    Shared {
+        bimolecular: usize,
+        follower: usize,
+        inferred: bool,
+    },
     /// Both directions are bimolecular: each keeps its own mesh factor, and
     /// K_eq shifts by their ratio.
-    BothBimolecular { forward: usize, backward: usize },
+    BothBimolecular {
+        forward: usize,
+        backward: usize,
+        inferred: bool,
+    },
 }
 
 /// The reversible pairs of `model` that have a bimolecular direction.
@@ -164,23 +173,27 @@ fn reversible_pairs(model: &SsaModel) -> Vec<ReversiblePair> {
     model
         .pairs
         .iter()
-        .filter_map(
-            |&(f, b)| match (model.is_bimolecular(f), model.is_bimolecular(b)) {
+        .filter_map(|p| {
+            let (f, b, inferred) = (p.forward, p.backward, p.inferred);
+            match (model.is_bimolecular(f), model.is_bimolecular(b)) {
                 (true, true) => Some(ReversiblePair::BothBimolecular {
                     forward: f,
                     backward: b,
+                    inferred,
                 }),
                 (true, false) => Some(ReversiblePair::Shared {
                     bimolecular: f,
                     follower: b,
+                    inferred,
                 }),
                 (false, true) => Some(ReversiblePair::Shared {
                     bimolecular: b,
                     follower: f,
+                    inferred,
                 }),
                 (false, false) => None,
-            },
-        )
+            }
+        })
         .collect()
 }
 
@@ -265,7 +278,8 @@ impl RdmeSetup {
         })
     }
 
-    /// Reversible pairs with a bimolecular direction, in declaration order.
+    /// Reversible pairs with a bimolecular direction: the declared ones in
+    /// declaration order, then the inferred ones.
     pub fn reversible_pairs(&self) -> &[ReversiblePair] {
         &self.pairs
     }
@@ -342,6 +356,7 @@ fn mesh_correct(model: &mut SsaModel, critical: &[(usize, f64)], pairs: &[Revers
             if let ReversiblePair::Shared {
                 bimolecular,
                 follower,
+                ..
             } = *p
                 && bimolecular == j
             {
@@ -1008,11 +1023,13 @@ mod tests {
             [
                 ReversiblePair::Shared {
                     bimolecular: 1,
-                    follower: 0
+                    follower: 0,
+                    inferred: false
                 },
                 ReversiblePair::BothBimolecular {
                     forward: 2,
-                    backward: 3
+                    backward: 3,
+                    inferred: false
                 },
             ]
         );
@@ -1059,6 +1076,48 @@ mod tests {
         assert!((h2 / h3 - 2.0).abs() < 1e-12);
         // Without the correction the divisor is 1.
         assert_eq!(plain.pole_distance(0, 1), 1.0);
+    }
+
+    /// Water autoionisation as the Geant4 export writes it (chem_g4.toml):
+    /// two one-way reactions, the second preceded by an unrelated one.
+    const WATER_ONE_WAY: &str = r#"
+        [[reactions.k_reaction]]
+        reaction = "H3O_plus + OH_minus -> H2O"
+        k_value = 1.13e11
+        [[reactions.k_reaction]]
+        reaction = "2 H_r -> H2"
+        k_value = 5.03e9
+        [[reactions.k_reaction]]
+        reaction = "H2O -> H3O_plus + OH_minus"
+        k_value = 2.12e-5
+    "#;
+
+    #[test]
+    fn inferred_pairs_share_the_factor_of_their_bimolecular_direction() {
+        let h = 10e-9;
+        let plain = setup_levels(WATER_ONE_WAY, h, 5e-9, 1, false);
+        let fixed = setup_levels(WATER_ONE_WAY, h, 5e-9, 1, true);
+        assert_eq!(
+            fixed.reversible_pairs(),
+            [ReversiblePair::Shared {
+                bimolecular: 0,
+                follower: 2,
+                inferred: true
+            }]
+        );
+        let hs = fixed.critical_spacing(0).unwrap();
+        assert!(fixed.critical_spacing(2).is_none());
+        for (level, spacing) in [(0, h), (1, 2.0 * h)] {
+            assert!(hs < spacing, "level {level}");
+            let want = 1.0 / (1.0 - hs / spacing);
+            for j in [0, 2] {
+                let got = c_of(&fixed, level, j) / c_of(&plain, level, j);
+                assert!(
+                    (got - want).abs() < 1e-12 * want,
+                    "level {level}, {j}: {got}"
+                );
+            }
+        }
     }
 
     #[test]
