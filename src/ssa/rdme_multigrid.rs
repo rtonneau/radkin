@@ -36,17 +36,17 @@ pub(crate) struct Layout {
     /// Level every species lives on: `max(global level, species level)`.
     pub(crate) level: Vec<usize>,
     /// Highest level whose reactions read each species (at least its own).
-    top: Vec<usize>,
+    pub(crate) top: Vec<usize>,
     /// Level of every reaction: the coarsest level of its reactants.
-    react_level: Vec<usize>,
+    pub(crate) react_level: Vec<usize>,
     /// Reactions of every level.
-    by_level: Vec<Vec<usize>>,
+    pub(crate) by_level: Vec<Vec<usize>>,
     /// `readers[l][s]`: reactions of level `l` whose propensity reads `s`.
-    readers: Vec<Vec<Vec<usize>>>,
+    pub(crate) readers: Vec<Vec<Vec<usize>>>,
     /// Species read by the reactions of every level.
-    read_at: Vec<Vec<usize>>,
+    pub(crate) read_at: Vec<Vec<usize>>,
     /// Diffusing species of every level.
-    hoppers: Vec<Vec<usize>>,
+    pub(crate) hoppers: Vec<Vec<usize>>,
 }
 
 /// The levels of species and reactions, shared by the trajectories.
@@ -57,7 +57,7 @@ pub struct MultigridSetup {
     /// layout of level 0 holds the species levels.
     pub(crate) layouts: Vec<Layout>,
     /// First site of every level, then the number of sites.
-    offset: Vec<usize>,
+    pub(crate) offset: Vec<usize>,
     /// `parent[l][v]`: the voxel of level `l + 1` that contains voxel `v` of level `l`.
     parent: Vec<Vec<u32>>,
 }
@@ -208,13 +208,13 @@ impl MultigridSetup {
     }
 
     /// Level and voxel of site `i`.
-    fn site_of(&self, i: usize) -> (usize, usize) {
+    pub(crate) fn site_of(&self, i: usize) -> (usize, usize) {
         let l = self.offset.partition_point(|o| *o <= i) - 1;
         (l, i - self.offset[l])
     }
 
     /// Voxel of level `to` that contains voxel `v` of level `from <= to`.
-    fn ancestor(&self, mut v: usize, from: usize, to: usize) -> usize {
+    pub(crate) fn ancestor(&self, mut v: usize, from: usize, to: usize) -> usize {
         for parent in &self.parent[from..to] {
             v = parent[v] as usize;
         }
@@ -225,19 +225,19 @@ impl MultigridSetup {
 /// One trajectory of the multi-grid RDME.
 #[derive(Debug, Clone)]
 pub struct Multigrid<'a> {
-    setup: &'a MultigridSetup,
+    pub(crate) setup: &'a MultigridSetup,
     pub t: f64,
     /// `agg[s][k][v]`: molecules of `s` in voxel `v` of level `level[s] + k`;
     /// `k = 0` holds its own counts, `k` goes up to `top[s] - level[s]`.
-    agg: Vec<Vec<Vec<i64>>>,
+    pub(crate) agg: Vec<Vec<Vec<i64>>>,
     /// Total reaction propensity of every site.
     react: Vec<f64>,
     /// `sum_s D_s n_s` over the species living on every site.
     dsum: Vec<f64>,
     queue: EventQueue,
-    rng: SsaRng,
+    pub(crate) rng: SsaRng,
     /// Scratch: counts seen by the reactions of one site, species-indexed.
-    buf: Vec<i64>,
+    pub(crate) buf: Vec<i64>,
     /// Scratch: propensities of the reactions of one site.
     a: Vec<f64>,
     /// Scratch: sites whose rates changed.
@@ -255,6 +255,10 @@ pub struct Multigrid<'a> {
     pub level_history: Vec<(f64, u32)>,
     /// Events fired since the last coarsening test.
     events_since_test: u64,
+    /// Tau-leaping state; `None`: exact.
+    pub(crate) tau: Option<Box<crate::ssa::rdme_multigrid_tau::MultigridTau>>,
+    /// The event queue does not match the counts (set by a leap).
+    pub(crate) queue_stale: bool,
 }
 
 /// Empty count arrays of every species for `lay`: its own level, then the
@@ -286,6 +290,8 @@ impl<'a> Multigrid<'a> {
             z_max: None,
             level_history: Vec::new(),
             events_since_test: 0,
+            tau: None,
+            queue_stale: false,
             t,
             agg,
             react: Vec::new(),
@@ -309,7 +315,7 @@ impl<'a> Multigrid<'a> {
     }
 
     /// Layout of the current global level.
-    fn lay(&self) -> &'a Layout {
+    pub(crate) fn lay(&self) -> &'a Layout {
         &self.setup.layouts[self.g]
     }
 
@@ -422,7 +428,7 @@ impl<'a> Multigrid<'a> {
 
     /// Run the coarsening test once `8 x voxels of the current global level`
     /// events fired since the last one.
-    fn count_events(&mut self, fired: u64) {
+    pub(crate) fn count_events(&mut self, fired: u64) {
         if self.z_max.is_none() {
             return;
         }
@@ -435,7 +441,7 @@ impl<'a> Multigrid<'a> {
     }
 
     /// Sum the own counts of every species into its coarser levels.
-    fn rebuild_aggregates(&mut self) {
+    pub(crate) fn rebuild_aggregates(&mut self) {
         let setup = self.setup;
         let lay = self.lay();
         for (s, levels) in self.agg.iter_mut().enumerate() {
@@ -452,7 +458,7 @@ impl<'a> Multigrid<'a> {
     }
 
     /// Fill `buf` with the counts the reactions of voxel `v` of level `l` read.
-    fn load(&mut self, l: usize, v: usize) {
+    pub(crate) fn load(&mut self, l: usize, v: usize) {
         let lay = self.lay();
         for &s in &lay.read_at[l] {
             self.buf[s] = self.agg[s][l - lay.level[s]][v];
@@ -496,7 +502,7 @@ impl<'a> Multigrid<'a> {
     }
 
     /// Recompute every rate and draw every next event time.
-    fn rebuild(&mut self) {
+    pub(crate) fn rebuild(&mut self) {
         self.rebuild_aggregates();
         let setup = self.setup;
         let n_sites = *setup.offset.last().unwrap();
@@ -515,6 +521,7 @@ impl<'a> Multigrid<'a> {
             });
         }
         self.queue = EventQueue::build(keys);
+        self.queue_stale = false;
     }
 
     /// Set every count to a Poisson draw of mean `c N_A V` for the uniform
@@ -601,7 +608,7 @@ impl<'a> Multigrid<'a> {
 
     /// A voxel of level `level[s]` inside voxel `v` of level `l`, picked in
     /// proportion to the molecules of `s` it holds.
-    fn pick_inside(&mut self, s: usize, l: usize, mut v: usize) -> usize {
+    pub(crate) fn pick_inside(&mut self, s: usize, l: usize, mut v: usize) -> usize {
         let setup = self.setup;
         let lay = self.lay();
         let l0 = lay.level[s];
@@ -629,7 +636,7 @@ impl<'a> Multigrid<'a> {
     }
 
     /// A voxel of level `to` inside voxel `v` of level `from > to`, uniformly.
-    fn uniform_inside(&mut self, v: usize, from: usize, to: usize) -> usize {
+    pub(crate) fn uniform_inside(&mut self, v: usize, from: usize, to: usize) -> usize {
         let levels = &self.setup.base.levels;
         let c = levels[from].grid.coords(v);
         let scale = 1usize << (from - to);
@@ -849,8 +856,13 @@ impl<'a> Multigrid<'a> {
         }
     }
 
-    /// Advance to `t_stop` with exact events.
+    /// Advance to `t_stop`: exact events, or tau-leaping where it pays
+    /// when it is switched on.
     pub fn advance_to(&mut self, t_stop: f64) {
+        if self.tau.is_some() {
+            self.advance_tau(t_stop);
+            return;
+        }
         while self.step(t_stop) {
             self.count_events(1);
         }

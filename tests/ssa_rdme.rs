@@ -588,13 +588,6 @@ fn ssa_rdme_species_levels_are_checked() {
         let twin = sim.voxel.grid.index(c[0] ^ 1, c[1] ^ 1, c[2] ^ 1);
         assert_eq!(last[v], last[twin], "voxel {v}");
     }
-    // Not combined yet with global coarsening or tau-leaping.
-    let tau = SsaConfig {
-        tau_leap: true,
-        ..with(&[("e_aq", 1)])
-    };
-    let e = run_rdme(&sim, &tau).unwrap_err().to_string();
-    assert!(e.contains("tau_leap"), "{e}");
 
     // The deterministic voxel run refuses the table.
     let cfg = diffusion_case(&dir);
@@ -661,5 +654,70 @@ fn ssa_rdme_species_levels_follow_the_global_coarsening() {
         "species levels with coarsening: worst {worst:.2} SEM, hops {} vs {} fine",
         multi.n_hops, fine.n_hops
     );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn ssa_rdme_multigrid_tau_leaping_matches_the_exact_multigrid() {
+    // The large-count case with the uniform OH_r background on level 1
+    // (2 um voxels): e_aq + OH_r is a cross-level channel, 2 OH_r a level-1
+    // one, H_r -> H2 a fine one.
+    let dir = scratch("multigrid_tau");
+    let sim = VoxelSimulation::from_toml(large_count_case(&dir)).unwrap();
+    let n = 16;
+    let epsilon = 0.03;
+    let levels = vec![("OH_r".to_string(), 1)];
+    let exact = run_rdme(
+        &sim,
+        &SsaConfig {
+            species_levels: levels.clone(),
+            ..ssa(n)
+        },
+    )
+    .unwrap();
+    let tau = run_rdme(
+        &sim,
+        &SsaConfig {
+            species_levels: levels,
+            tau_leap: true,
+            tau_epsilon: epsilon,
+            ..ssa(n)
+        },
+    )
+    .unwrap();
+    let n_species = exact.species.len();
+    let peak: Vec<f64> = (0..n_species)
+        .map(|s| exact.totals_mean.iter().map(|r| r[s]).fold(0.0, f64::max))
+        .collect();
+    let mut worst = 0.0f64;
+    for (r, t) in exact.record_times.iter().enumerate() {
+        for (s, label) in exact.species.iter().enumerate() {
+            let (me, mt) = (exact.totals_mean[r][s], tau.totals_mean[r][s]);
+            let var = (exact.totals_std[r][s].powi(2) + tau.totals_std[r][s].powi(2)) / n as f64;
+            let sem = var.max(me.max(1.0) / n as f64).sqrt();
+            assert!(
+                (me - mt).abs() <= K * sem + epsilon * peak[s] + 1.0,
+                "t = {t:e} s, {label}: tau {mt:.1} vs exact {me:.1} molecules (SEM {sem:.1})"
+            );
+            let (se, st) = (exact.totals_std[r][s], tau.totals_std[r][s]);
+            // Standard deviations within their sampling error (16 runs: ~18 %).
+            assert!(
+                (se - st).abs() <= 0.8 * se.max(st) + 3.0,
+                "t = {t:e} s, {label}: std tau {st:.1} vs exact {se:.1}"
+            );
+            worst = worst.max((me - mt).abs() / peak[s].max(1.0));
+        }
+    }
+    let events = |o: &RdmeOutput| (o.n_reactions + o.n_hops) as f64 / n as f64;
+    println!(
+        "multi-grid tau-leaping: worst total difference {:.3} % of the species peak; events per trajectory {:.0} exact, {:.0} tau; wall time {:.2} s exact, {:.2} s tau ({:.1}x)",
+        100.0 * worst,
+        events(&exact),
+        events(&tau),
+        exact.exec_time,
+        tau.exec_time,
+        exact.exec_time / tau.exec_time
+    );
+    assert!((events(&tau) / events(&exact) - 1.0).abs() < 0.05);
     let _ = std::fs::remove_dir_all(&dir);
 }

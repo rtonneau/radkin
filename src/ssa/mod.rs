@@ -11,6 +11,7 @@ pub mod output;
 pub mod rdme;
 pub mod rdme_coarsen;
 pub mod rdme_multigrid;
+pub mod rdme_multigrid_tau;
 pub mod rdme_tau;
 pub mod rng;
 pub mod schedule;

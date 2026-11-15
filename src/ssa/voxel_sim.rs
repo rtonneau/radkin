@@ -357,11 +357,6 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     let coeffs: Vec<f64> = species.iter().map(|s| sim.voxel.diffusion_of(s)).collect();
     let levels = species_levels(sim, cfg, &species, &coeffs)?;
     let multigrid = levels.iter().any(|l| *l > 0);
-    if multigrid && cfg.tau_leap {
-        return Err(RadkinError::Config(
-            "ssa.species_levels with ssa.tau_leap is not implemented yet".into(),
-        ));
-    }
     let depth = hierarchy_depth(sim.voxel.max_coarsen_levels, &levels);
     let grid = &sim.voxel.grid;
     let correct = resolve_correction(cfg.rate_correction, grid)?;
@@ -415,6 +410,7 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
             Model::Multi(mg) => {
                 let mut traj = Multigrid::new(mg, t_start, rng);
                 traj.set_coarsening(z_max);
+                traj.set_tau_leaping(cfg.tau_leap.then_some(cfg.tau_epsilon));
                 record(traj, &plan, &molecules, &y0)
             }
             Model::Single(setup) => {
