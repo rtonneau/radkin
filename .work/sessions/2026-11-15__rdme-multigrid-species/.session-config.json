@@ -160,6 +160,30 @@
         "ticket": "04-coarsening-floor",
         "commit": "984929b"
       }
+    },
+    {
+      "at": "2026-11-15T00:04:39.155Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-multigrid-tau-leaping.md",
+        "03-implement/05-multigrid-tau-leaping/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-multigrid-tau-leaping"
+      }
+    },
+    {
+      "at": "2026-11-15T00:09:36.687Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-multigrid-tau-leaping/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-multigrid-tau-leaping",
+        "commit": "ccb0814"
+      }
     }
   ],
   "git": {
