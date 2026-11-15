@@ -184,6 +184,30 @@
         "ticket": "05-multigrid-tau-leaping",
         "commit": "ccb0814"
       }
+    },
+    {
+      "at": "2026-11-15T00:09:53.437Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-aerated-track-validation-docs.md",
+        "03-implement/06-aerated-track-validation-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-aerated-track-validation-docs"
+      }
+    },
+    {
+      "at": "2026-11-15T00:12:58.482Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/06-aerated-track-validation-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-aerated-track-validation-docs",
+        "commit": "8c085b5"
+      }
     }
   ],
   "git": {
@@ -193,6 +217,6 @@
     "pr_url": null,
     "worktree_path": "D:\\DEV\\RUST\\radkin-worktrees\\2026-11-15__rdme-multigrid-species"
   },
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "ship_mode": "inline"
 }
