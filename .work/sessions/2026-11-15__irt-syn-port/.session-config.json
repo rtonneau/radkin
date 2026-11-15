@@ -89,6 +89,30 @@
         "ticket": "01-species-table-reaction-typing",
         "commit": "68fc2c7"
       }
+    },
+    {
+      "at": "2026-11-15T17:39:48.324Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-pair-sampling-kernel.md",
+        "03-implement/02-pair-sampling-kernel/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-pair-sampling-kernel"
+      }
+    },
+    {
+      "at": "2026-11-15T17:50:08.054Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-pair-sampling-kernel/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-pair-sampling-kernel",
+        "commit": "f5d86ef"
+      }
     }
   ],
   "current_phase": "ship",
