@@ -113,9 +113,30 @@ fn voxel_ssa(a: &VoxelArgs, cfg: &SsaConfig) -> radkin::Result<()> {
             "--resume cannot be used with the ssa solver (no checkpoint is written)".into(),
         ));
     }
-    let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
-    let out = radkin::ssa::run_rdme(&sim, cfg)?;
+    // With an [irt] section every trajectory starts with an IRT stage, which
+    // takes the seeds and hands its molecules over to the grid.
+    let (sim, out) = if radkin::irt::IrtConfig::from_toml_file(&a.config)?.is_some() {
+        let sim = radkin::voxel::VoxelSimulation::from_toml_without_seeds(&a.config)?;
+        let irt = radkin::irt::IrtSimulation::from_toml(&a.config)?;
+        let out = radkin::ssa::run_rdme_from_irt(&sim, &irt, cfg)?;
+        (sim, out)
+    } else {
+        let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
+        let out = radkin::ssa::run_rdme(&sim, cfg)?;
+        (sim, out)
+    };
     radkin::ssa::write_rdme_dir(&a.out, &out, &sim.voxel.grid)?;
+    if let Some(irt) = &out.irt {
+        eprintln!(
+            "radkin: irt stage to the handover at {:e} s: {} pair, {} contact and {} single-molecule reactions, {} molecules handed over ({} trajectories)",
+            irt.handover_time,
+            irt.stats.pair_reactions,
+            irt.stats.contact_reactions,
+            irt.stats.molecule_reactions,
+            irt.handed_over,
+            out.trajectories
+        );
+    }
     eprintln!(
         "radkin: ssa voxel run of {} voxels, {} trajectories, {} reactions and {} hops in {:.1} s; {} snapshots written to {}",
         sim.voxel.grid.n_voxels(),
@@ -137,6 +158,11 @@ fn voxel(a: &VoxelArgs) -> radkin::Result<()> {
     solver
         .ssa
         .refuse_species_levels("a deterministic voxel run")?;
+    if radkin::irt::IrtConfig::from_toml_file(&a.config)?.is_some() {
+        return Err(RadkinError::Config(
+            "irt: the IRT stage hands over to the stochastic voxel solver only: set solver = \"ssa\" (or --solver ssa), or remove [irt]".into(),
+        ));
+    }
     let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
     let checkpoint = a.out.join("checkpoint.npz");
     let resume = match &a.resume {

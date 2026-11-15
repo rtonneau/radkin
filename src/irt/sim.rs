@@ -334,7 +334,8 @@ impl IrtSimulation {
     }
 }
 
-fn add_stats(sum: &mut StageStats, s: &StageStats) {
+/// Add the event counts `s` to `sum`.
+pub(crate) fn add_stats(sum: &mut StageStats, s: &StageStats) {
     sum.pair_reactions += s.pair_reactions;
     sum.contact_reactions += s.contact_reactions;
     sum.molecule_reactions += s.molecule_reactions;

@@ -31,4 +31,6 @@ pub use rng::{SsaRng, det_exp, det_ln, ln_factorial, norm_quantile};
 pub use schedule::{beam_segments, delivered_dose};
 pub use tau::TauLeap;
 pub use voxel_output::{rdme_yields_csv, write_rdme_dir};
-pub use voxel_sim::{BackgroundRun, RdmeOutput, run_rdme};
+pub use voxel_sim::{
+    BackgroundRun, IrtStage, RdmeOutput, handover_seed, run_rdme, run_rdme_from_irt,
+};

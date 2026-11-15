@@ -4,6 +4,7 @@
 //! | file | content |
 //! |---|---|
 //! | `yields.csv` | `t`, `N_<sp>` (mean molecules in the domain), `G_<sp>` when seeds give `energy_ev` (mean of `(N - N(t_start)) / (E / 100 eV)`, E the energy of the seeds injected so far), then `N_<sp>_std` and `G_<sp>_std` |
+//! | | With an IRT stage (`[irt]`) the rows start at the start of the stage: before the handover time `N` is the particles of the stage plus the grid's draw of the initial solution, and `snapshots.json` holds an `irt_stage` object (times, pair rule, molecules handed over, event counts) |
 //! | | With `[ssa] background_run` (default) the `G` and `G_std` are net of the seedless background run's totals (means subtracted, standard deviations added in quadrature) instead of the totals at `t_start`; `N` stays gross |
 //! | `snapshots/t<k>_<sp>.npy` | mean concentration field [mol/L], float64, C order, shape `(nz, ny, nx)` |
 //! | `snapshots/t<k>_<sp>_std.npy` | standard deviation of the field over the trajectories [mol/L] |
@@ -40,7 +41,23 @@ struct SnapshotIndex<'a> {
     n_hops: u64,
     /// Species level of every species, in `species` order.
     species_levels: &'a [u32],
+    /// The IRT stage before the handover to the grid (runs with `[irt]`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    irt_stage: Option<IrtIndex>,
     exec_time: f64,
+}
+
+#[derive(Serialize)]
+struct IrtIndex {
+    t_start: f64,
+    handover_time: f64,
+    resampling: &'static str,
+    /// Summed over the trajectories.
+    molecules_handed_over: u64,
+    pair_reactions: u64,
+    contact_reactions: u64,
+    molecule_reactions: u64,
+    image_reactions: u64,
 }
 
 #[derive(Serialize)]
@@ -168,6 +185,16 @@ pub fn write_rdme_dir(dir: &Path, out: &RdmeOutput, grid: &VoxelGrid) -> Result<
         n_reactions: out.n_reactions,
         n_hops: out.n_hops,
         species_levels: &out.species_levels,
+        irt_stage: out.irt.as_ref().map(|i| IrtIndex {
+            t_start: i.t_start,
+            handover_time: i.handover_time,
+            resampling: i.resampling,
+            molecules_handed_over: i.handed_over,
+            pair_reactions: i.stats.pair_reactions,
+            contact_reactions: i.stats.contact_reactions,
+            molecule_reactions: i.stats.molecule_reactions,
+            image_reactions: i.stats.image_reactions,
+        }),
         exec_time: out.exec_time,
     };
     let json = serde_json::to_string_pretty(&index)
