@@ -133,9 +133,33 @@
         "ticket": "03-rdme-sweep",
         "commit": "004414b"
       }
+    },
+    {
+      "at": "2026-11-15T05:22:54.429Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-analysis-report.md",
+        "03-implement/04-analysis-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-analysis-report"
+      }
+    },
+    {
+      "at": "2026-11-15T05:36:29.163Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/04-analysis-report/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-analysis-report",
+        "commit": "826bd31"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "test/rdme-single-track-gvalues",
     "base_branch": "main",
