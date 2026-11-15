@@ -73,14 +73,47 @@
         "ticket": "01-infer-one-way-pairs",
         "commit": "dae9ecc"
       }
+    },
+    {
+      "at": "2026-11-15T15:41:24.919Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-11-15T15:41:31.045Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/20"
+      }
+    },
+    {
+      "at": "2026-11-15T15:41:25.214Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
     }
   ],
-  "current_phase": "finish-pending",
+  "current_phase": "finished",
   "git": {
     "branch": "fix/rdme-one-way-reverse-pairs",
     "base_branch": "fix/rdme-reversible-mesh-correction",
     "branch_created_at": "2026-11-15T14:52:15.755Z",
-    "pr_url": null
+    "pr_url": "https://github.com/rtonneau/radkin/pull/20"
   },
-  "ship_mode": "delegate"
+  "ship_mode": "delegate",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 1,
+    "path": ".work/changelog/2026-11-15__rdme-one-way-reverse-pairs.md",
+    "written_at": "2026-11-15T15:41:24.915Z"
+  },
+  "finished_at": "2026-11-15T15:41:25.214Z"
 }
