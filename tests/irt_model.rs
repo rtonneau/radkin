@@ -112,7 +112,7 @@ fn close(a: f64, b: f64, rtol: f64) -> bool {
 }
 
 #[test]
-fn species_table_equals_the_geant4_dump() {
+fn irt_model_species_table_equals_the_geant4_dump() {
     let (species, _) = dump();
     let table = SpeciesTable::water();
     assert_eq!(table.len(), species.len());
@@ -127,7 +127,7 @@ fn species_table_equals_the_geant4_dump() {
 }
 
 #[test]
-fn geant4_network_has_geant4_types_and_radii() {
+fn irt_model_geant4_network_has_geant4_types_and_radii() {
     let (_, reactions) = dump();
     assert_eq!(reactions.len(), 52);
     let model = model_of(&g4_text(), &SpeciesTable::water());
@@ -185,7 +185,7 @@ fn geant4_network_has_geant4_types_and_radii() {
 }
 
 #[test]
-fn self_reactions_use_the_event_rate_constant() {
+fn irt_model_self_reactions_use_the_event_rate_constant() {
     // "2 OH_r -> H2O2" holds 2 k_obs in the TOML; Geant4's k_obs is 5.5e9.
     let model = model_of(&g4_text(), &SpeciesTable::water());
     let oh = model.species.iter().position(|s| s == "OH_r").unwrap();
@@ -199,7 +199,7 @@ fn self_reactions_use_the_event_rate_constant() {
 
 /// The rule `k_obs >= k_dif` on the Geant4 network, against Geant4's types.
 #[test]
-fn rate_constant_rule_against_geant4_types() {
+fn irt_model_rate_constant_rule_against_geant4_types() {
     let untyped: String = g4_text()
         .lines()
         .filter(|l| !l.starts_with("irt_type"))
@@ -239,7 +239,7 @@ fn rate_constant_rule_against_geant4_types() {
 }
 
 #[test]
-fn species_missing_from_the_table_falls_back_to_full() {
+fn irt_model_species_missing_from_the_table_falls_back_to_full() {
     let toml = r#"
 [[reactions.k_reaction]]
 reaction = "e_aq + Cl_r -> Cl_minus"
@@ -272,7 +272,7 @@ k_value = 2.95e10
 }
 
 #[test]
-fn molecule_reactions_first_order_water_and_background() {
+fn irt_model_molecule_reactions_first_order_water_and_background() {
     let model = model_of(&g4_text(), &SpeciesTable::water());
     let idx = |l: &str| model.species.iter().position(|s| s == l).unwrap();
     let rate_of = |species: &str, background: Option<&str>, n_products: usize| -> Vec<f64> {
@@ -300,7 +300,7 @@ fn molecule_reactions_first_order_water_and_background() {
 }
 
 #[test]
-fn unsupported_networks_are_refused() {
+fn irt_model_unsupported_networks_are_refused() {
     let build = |toml: &str| {
         let env = SimEnv::from_config(&Config::from_toml_str(toml, None).unwrap()).unwrap();
         let mat = SimMatrices::build(&env).unwrap();

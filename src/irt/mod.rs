@@ -3,6 +3,7 @@
 //! background reactions (ADR 0007, `docs/irt.md`).
 
 pub mod model;
+pub mod sample;
 pub mod species;
 
 pub use model::{IrtModel, MoleculeReaction, PairReaction, TypeSource};

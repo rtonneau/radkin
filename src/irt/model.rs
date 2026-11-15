@@ -28,6 +28,7 @@ use crate::consts::AVOGADRO;
 use crate::error::{RadkinError, Result};
 use crate::irt::species::SpeciesTable;
 use crate::matrices::SimMatrices;
+use crate::ssa::rng::det_exp;
 
 /// Elementary charge [C] (CLHEP `e_SI`).
 const E_SI: f64 = 1.602176634e-19;
@@ -141,7 +142,7 @@ pub fn effective_radius(r: f64, rc: f64) -> f64 {
     if rc == 0.0 {
         r
     } else {
-        -rc / (1.0 - (rc / r).exp())
+        -rc / (1.0 - det_exp(rc / r))
     }
 }
 
