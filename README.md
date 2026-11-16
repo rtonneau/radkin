@@ -20,14 +20,16 @@
 radkin simulates the chemistry of irradiated water under conventional and
 ultra-high-dose-rate (FLASH) irradiation. It is a Rust port of
 [radiopyo](https://github.com/rtonneau/radiopyo) and reproduces its results, then extends
-it to 3D voxel geometries seeded by Geant4-DNA tracks and to stochastic chemistry.
+it to 3D voxel geometries seeded by Geant4 tracks and to stochastic chemistry.
 
 - **Chemistry in TOML.** Acid/base, equilibrium, Arrhenius, constant and
   Michaelis–Menten reactions; radiopyo configuration files work unchanged.
 - **Radiolytic yields.** G-values from the Boscolo 2020 LET fit, with an optional
   dose-rate factor.
 - **Beams.** Constant, single-pulse, pulsed and macro-pulsed.
-- **Geant4-DNA coupling.** Molecules written by Geant4-DNA at 1 ps seed the 3D runs.
+- **Geant4 coupling.** Geant4 provides the track up to the end of the physico-chemical
+  stage; radkin runs the whole chemical stage from there, in place of Geant4-DNA's
+  chemistry.
 - **Reproducible and parallel.** Seeded ChaCha8 streams give the same output on every
   platform and thread count; voxels and stochastic trajectories run in parallel (rayon).
 
@@ -75,7 +77,7 @@ radkin run data/config_Labarbe.toml --t-span 1e-7 10 --out out/labarbe
 # Stochastic (Gillespie SSA); the run file needs an [ssa] section with its volume
 radkin run my_ssa.toml --t-span 0 1e-3 --solver ssa --out out/ssa
 
-# 3D voxel grid seeded by a Geant4-DNA track (LSODA, or --solver ssa for the RDME)
+# 3D voxel grid seeded by a Geant4 track (LSODA, or --solver ssa for the RDME)
 radkin voxel data/voxel_example.toml --out out/voxel
 
 # Particle-based IRT stage
