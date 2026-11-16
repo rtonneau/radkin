@@ -11,10 +11,21 @@
 //! times, and is recorded at the snapshot times (full fields) and at the
 //! record times (domain totals). Trajectory `i` draws from stream `i` of
 //! the seed; the statistics are accumulated in trajectory order.
+//!
+//! With an `[irt]` section ([`run_rdme_from_irt`]) every trajectory starts
+//! with an IRT stage: the seeds are injected into it as particles, and at
+//! the handover time (`irt.t_end`) its molecules are binned onto the grid,
+//! where the RDME carries on. The grid then starts at the handover time,
+//! from the Poisson draw of the initial solution. The records before the
+//! handover are the particles of the IRT stage plus that draw, so the
+//! totals and the net molecules are on one time axis.
 
 use std::time::Instant;
 
 use crate::error::{RadkinError, Result};
+use crate::irt::config::BoundaryKind;
+use crate::irt::sim::{Engine, IrtSimulation};
+use crate::irt::solver::StageStats;
 use crate::matrices::SimMatrices;
 use crate::ssa::config::{RateCorrection, SsaConfig, hierarchy_depth, suggested_level};
 use crate::ssa::ensemble::{Moments, map_ordered};
@@ -81,8 +92,25 @@ pub struct RdmeOutput {
     pub level_history: Vec<(f64, u32)>,
     /// Species level of every species (`[ssa.species_levels]`), state order.
     pub species_levels: Vec<u32>,
+    /// The IRT stage before the handover, if the run has one.
+    pub irt: Option<IrtStage>,
     /// Wall time [s].
     pub exec_time: f64,
+}
+
+/// The IRT stage of a voxel RDME run (`[irt]` section).
+#[derive(Debug, Clone)]
+pub struct IrtStage {
+    /// Start of the IRT stage [s].
+    pub t_start: f64,
+    /// Time at which the molecules were binned onto the grid [s].
+    pub handover_time: f64,
+    /// Pair rule: `"full"` or `"incremental"`.
+    pub resampling: &'static str,
+    /// Molecules handed over to the grid, summed over the trajectories.
+    pub handed_over: u64,
+    /// Event counts of the stage, summed over the trajectories.
+    pub stats: StageStats,
 }
 
 /// The seedless background run of a voxel RDME run (`[ssa] background_run`).
@@ -106,6 +134,12 @@ pub fn background_seed(seed: u64) -> u64 {
     seed ^ 0x9E37_79B9_7F4A_7C15
 }
 
+/// Seed of the IRT stage of a run with seed `seed`: trajectory `i` of the
+/// stage draws from stream `i` of it, apart from the RDME's own stream.
+pub fn handover_seed(seed: u64) -> u64 {
+    seed ^ 0xD1B5_4A32_D192_ED03
+}
+
 /// What one trajectory returns.
 struct TrajectoryOutput {
     /// Fine fields at the snapshot times ([`Rdme::fine_field`] units).
@@ -117,6 +151,66 @@ struct TrajectoryOutput {
     n_reactions: u64,
     n_hops: u64,
     level_history: Vec<(f64, u32)>,
+    /// Event counts of the IRT stage and molecules it handed over.
+    irt: Option<(StageStats, u64)>,
+}
+
+/// The IRT stage of one trajectory, up to its handover to the grid.
+struct Handover<'a> {
+    /// Handover time [s].
+    time: f64,
+    grid: &'a VoxelGrid,
+    /// The stage; `None` for the seedless background run.
+    stage: Option<(&'a IrtSimulation, Engine<'a>)>,
+    handed_over: u64,
+}
+
+impl Handover<'_> {
+    /// Totals at a record time `t` before the handover: the particles of
+    /// the stage on top of `baseline`, the grid's draw of the initial
+    /// solution.
+    fn totals_at(&mut self, t: f64, baseline: &[i64]) -> Vec<i64> {
+        let mut row = baseline.to_vec();
+        if let Some((irt, engine)) = &mut self.stage {
+            engine.advance_to(t);
+            let mut synced = false;
+            for seed in irt.seeds.iter().filter(|s| s.spec.time == t) {
+                if !synced {
+                    engine.sync(t);
+                    synced = true;
+                }
+                engine.inject(&seed.molecules);
+            }
+            for (r, c) in row.iter_mut().zip(engine.counts()) {
+                *r += c;
+            }
+        }
+        row
+    }
+
+    /// The molecules of the stage at the handover time, as
+    /// `(fine voxel, species, molecules)` entries.
+    fn hand_over(&mut self) -> Vec<(usize, usize, i64)> {
+        let Some((_, engine)) = &mut self.stage else {
+            return Vec::new();
+        };
+        engine.advance_to(self.time);
+        engine.sync(self.time);
+        let molecules = engine.molecules();
+        self.handed_over = molecules.len() as u64;
+        let grid = self.grid;
+        molecules
+            .iter()
+            .map(|&(s, pos)| {
+                // A molecule on the upper face belongs to the last voxel.
+                let c: [usize; 3] = std::array::from_fn(|a| {
+                    let f = ((pos[a] - grid.origin[a]) / grid.spacing[a]).floor();
+                    (f.max(0.0) as usize).min(grid.dims[a] - 1)
+                });
+                (grid.index(c[0], c[1], c[2]), s as usize, 1)
+            })
+            .collect()
+    }
 }
 
 /// The times a trajectory stops at, in order.
@@ -148,6 +242,66 @@ struct Accumulator {
     n_reactions: u64,
     n_hops: u64,
     level_history: Vec<(f64, u32)>,
+    irt_stats: StageStats,
+    handed_over: u64,
+}
+
+/// What a run with an IRT stage needs to be consistent; the handover time.
+fn check_handover(sim: &VoxelSimulation, irt: &IrtSimulation) -> Result<f64> {
+    let err = |msg: String| Err(RadkinError::Config(format!("irt: {msg}")));
+    let handover = irt.config.t_end;
+    let s = &sim.settings;
+    if !sim.seeds.is_empty() {
+        return err("the seeds of a run with an IRT stage are injected into the IRT stage, not onto the grid".into());
+    }
+    if irt.config.boundary != BoundaryKind::Reflective {
+        return err("a run with a handover to the grid needs boundary = \"reflective\" (the walls of the grid)".into());
+    }
+    if irt.config.domain != Some(sim.voxel.grid.bounds()) {
+        return err("the box of the IRT stage must be the voxel grid: remove [irt.box]".into());
+    }
+    if irt.config.trajectories.is_some() || irt.config.seed.is_some() {
+        return err("trajectories and random_seed are those of [ssa] in a run with a handover to the grid: remove them from [irt]".into());
+    }
+    if handover >= s.t_end {
+        return err(format!(
+            "the handover time irt.t_end ({handover} s) must be before voxel.run.t_end ({} s)",
+            s.t_end
+        ));
+    }
+    if let Some(t) = s.snapshots.iter().find(|t| **t < handover) {
+        return err(format!(
+            "snapshot at {t} s: the grid holds no field before the handover time ({handover} s)"
+        ));
+    }
+    if irt.model.species != sim.species() {
+        return err("the IRT stage and the grid do not have the same species".into());
+    }
+    Ok(handover)
+}
+
+/// The schedule of a run with an IRT stage: records from the start of the
+/// stage, the handover time and the seed times; no seed goes onto the grid.
+fn handover_schedule(sim: &VoxelSimulation, irt: &IrtSimulation, handover: f64) -> Schedule {
+    let s = &sim.settings;
+    let snapshots: Vec<f64> = s
+        .snapshots
+        .iter()
+        .copied()
+        .filter(|t| *t >= handover && *t <= s.t_end)
+        .collect();
+    let mut times = thinned_times(irt.t_start, s.t_end, N_RECORDS);
+    times.extend(&snapshots);
+    times.push(handover);
+    times.extend(irt.seeds.iter().map(|x| x.spec.time));
+    times.sort_by(f64::total_cmp);
+    times.dedup();
+    Schedule {
+        seeds: vec![Vec::new(); times.len()],
+        is_record: vec![true; times.len()],
+        is_snapshot: times.iter().map(|t| snapshots.contains(t)).collect(),
+        times,
+    }
 }
 
 fn schedule(sim: &VoxelSimulation) -> Result<Schedule> {
@@ -304,17 +458,32 @@ impl VoxelTrajectory for Multigrid<'_> {
 
 /// Run one trajectory through the schedule: Poisson initial solution, then
 /// the seeds, records and snapshots at their times.
+///
+/// With an IRT stage (`stage`) the trajectory of the grid starts at the
+/// handover time: the records before it come from the stage, and at the
+/// handover its molecules are injected onto the grid.
 fn record(
     mut traj: impl VoxelTrajectory,
     plan: &Schedule,
     molecules: &[Vec<(usize, usize, i64)>],
     y0: &[f64],
+    mut stage: Option<Handover<'_>>,
 ) -> TrajectoryOutput {
     traj.fill_poisson(y0);
     let baseline = traj.totals();
     let (mut snapshots, mut totals) = (Vec::new(), Vec::new());
     for (k, t) in plan.times.iter().enumerate() {
-        traj.advance_to(*t);
+        match &mut stage {
+            Some(h) if *t < h.time => {
+                totals.push(h.totals_at(*t, &baseline));
+                continue;
+            }
+            Some(h) if *t == h.time => {
+                let handed = h.hand_over();
+                traj.inject(&handed);
+            }
+            _ => traj.advance_to(*t),
+        }
         for seed in &plan.seeds[k] {
             traj.inject(&molecules[*seed]);
         }
@@ -333,6 +502,11 @@ fn record(
         n_reactions,
         n_hops,
         level_history,
+        irt: stage.and_then(|h| {
+            let handed_over = h.handed_over;
+            h.stage
+                .map(|(_, engine)| (engine.stats().clone(), handed_over))
+        }),
     }
 }
 
@@ -463,7 +637,26 @@ fn log_reversible_pairs(setup: &RdmeSetup, mat: &SimMatrices, reactions: &[Strin
 
 /// Run the RDME ensemble of `sim`.
 pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
+    run(sim, cfg, None)
+}
+
+/// Run the RDME ensemble of `sim` with an IRT stage before it: every
+/// trajectory runs `irt` to its handover time (`irt.t_end`), bins its
+/// molecules onto the grid and carries on with the RDME.
+///
+/// `sim` must hold no seed (they are those of `irt`), and `irt` must have
+/// reflective walls at the faces of the grid.
+pub fn run_rdme_from_irt(
+    sim: &VoxelSimulation,
+    irt: &IrtSimulation,
+    cfg: &SsaConfig,
+) -> Result<RdmeOutput> {
+    run(sim, cfg, Some(irt))
+}
+
+fn run(sim: &VoxelSimulation, cfg: &SsaConfig, irt: Option<&IrtSimulation>) -> Result<RdmeOutput> {
     let started = Instant::now();
+    let handover = irt.map(|i| check_handover(sim, i)).transpose()?;
     let species = sim.species();
     let mat = SimMatrices::build(&sim.env)?;
     let coeffs: Vec<f64> = species.iter().map(|s| sim.voxel.diffusion_of(s)).collect();
@@ -504,10 +697,14 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
     }
     let z_max = (sim.voxel.max_coarsen_levels > 0)
         .then(|| dispersion_threshold(sim.voxel.coarsen_tol_factor));
-    let plan = schedule(sim)?;
+    let plan = match (irt, handover) {
+        (Some(i), Some(t)) => handover_schedule(sim, i, t),
+        _ => schedule(sim)?,
+    };
     let molecules = seed_molecules(sim)?;
     let y0 = sim.env.initial_values();
-    let t_start = sim.settings.t_start;
+    // With an IRT stage the grid starts at the handover time.
+    let t_start = handover.unwrap_or(sim.settings.t_start);
 
     let max_levels = setup.max_levels();
     let model = if multigrid {
@@ -519,59 +716,74 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
 
     let n_sp = species.len();
     let n_fine = sim.voxel.grid.n_voxels();
-    let ensemble = |seed: u64, plan: &Schedule, molecules: &[Vec<(usize, usize, i64)>]| {
-        let one = |i: usize| -> TrajectoryOutput {
-            let rng = SsaRng::new(seed, i as u64);
-            match &model {
-                Model::Multi(mg) => {
-                    let mut traj = Multigrid::new(mg, t_start, rng);
-                    traj.set_coarsening(z_max);
-                    traj.set_tau_leaping(cfg.tau_leap.then_some(cfg.tau_epsilon));
-                    record(traj, plan, molecules, &y0)
-                }
-                Model::Single(setup) => {
-                    let mut rdme = Rdme::new(setup, t_start, rng);
-                    rdme.set_coarsening(z_max);
-                    rdme.set_tau_leaping(cfg.tau_leap.then_some(cfg.tau_epsilon));
-                    record(rdme, plan, molecules, &y0)
-                }
-            }
-        };
-        let n_snap = plan.is_snapshot.iter().filter(|s| **s).count();
-        let mut acc = Accumulator {
-            fields: vec![vec![FieldMoments::default(); n_sp * n_fine]; n_snap],
-            totals: vec![vec![Moments::default(); n_sp]; plan.times.len()],
-            net: vec![vec![Moments::default(); n_sp]; plan.times.len()],
-            n_reactions: 0,
-            n_hops: 0,
-            level_history: Vec::new(),
-        };
-        let mut first = 0;
-        while first < cfg.trajectories {
-            let last = (first + BATCH).min(cfg.trajectories);
-            for (i, traj) in map_ordered(first..last, one).into_iter().enumerate() {
-                acc.n_reactions += traj.n_reactions;
-                acc.n_hops += traj.n_hops;
-                if first + i == 0 {
-                    acc.level_history = traj.level_history;
-                }
-                for (snap, f) in traj.snapshots.iter().zip(acc.fields.iter_mut()) {
-                    for (x, m) in snap.iter().zip(f.iter_mut()) {
-                        m.sum += x;
-                        m.sum_sq += (*x as f64) * (*x as f64);
+    let ensemble =
+        |seed: u64, plan: &Schedule, molecules: &[Vec<(usize, usize, i64)>], with_stage: bool| {
+            let one = |i: usize| -> TrajectoryOutput {
+                let rng = SsaRng::new(seed, i as u64);
+                let stage = handover.map(|time| Handover {
+                    time,
+                    grid,
+                    stage: irt
+                        .filter(|_| with_stage)
+                        .map(|irt| (irt, irt.engine(handover_seed(seed), i as u64))),
+                    handed_over: 0,
+                });
+                match &model {
+                    Model::Multi(mg) => {
+                        let mut traj = Multigrid::new(mg, t_start, rng);
+                        traj.set_coarsening(z_max);
+                        traj.set_tau_leaping(cfg.tau_leap.then_some(cfg.tau_epsilon));
+                        record(traj, plan, molecules, &y0, stage)
+                    }
+                    Model::Single(setup) => {
+                        let mut rdme = Rdme::new(setup, t_start, rng);
+                        rdme.set_coarsening(z_max);
+                        rdme.set_tau_leaping(cfg.tau_leap.then_some(cfg.tau_epsilon));
+                        record(rdme, plan, molecules, &y0, stage)
                     }
                 }
-                for (k, row) in traj.totals.iter().enumerate() {
-                    for (s, x) in row.iter().enumerate() {
-                        acc.totals[k][s].add(*x);
-                        acc.net[k][s].add(*x - traj.baseline[s]);
+            };
+            let n_snap = plan.is_snapshot.iter().filter(|s| **s).count();
+            let mut acc = Accumulator {
+                fields: vec![vec![FieldMoments::default(); n_sp * n_fine]; n_snap],
+                totals: vec![vec![Moments::default(); n_sp]; plan.times.len()],
+                net: vec![vec![Moments::default(); n_sp]; plan.times.len()],
+                n_reactions: 0,
+                n_hops: 0,
+                level_history: Vec::new(),
+                irt_stats: StageStats::default(),
+                handed_over: 0,
+            };
+            let mut first = 0;
+            while first < cfg.trajectories {
+                let last = (first + BATCH).min(cfg.trajectories);
+                for (i, traj) in map_ordered(first..last, one).into_iter().enumerate() {
+                    acc.n_reactions += traj.n_reactions;
+                    acc.n_hops += traj.n_hops;
+                    if let Some((stats, handed_over)) = &traj.irt {
+                        crate::irt::sim::add_stats(&mut acc.irt_stats, stats);
+                        acc.handed_over += handed_over;
+                    }
+                    if first + i == 0 {
+                        acc.level_history = traj.level_history;
+                    }
+                    for (snap, f) in traj.snapshots.iter().zip(acc.fields.iter_mut()) {
+                        for (x, m) in snap.iter().zip(f.iter_mut()) {
+                            m.sum += x;
+                            m.sum_sq += (*x as f64) * (*x as f64);
+                        }
+                    }
+                    for (k, row) in traj.totals.iter().enumerate() {
+                        for (s, x) in row.iter().enumerate() {
+                            acc.totals[k][s].add(*x);
+                            acc.net[k][s].add(*x - traj.baseline[s]);
+                        }
                     }
                 }
+                first = last;
             }
-            first = last;
-        }
-        acc
-    };
+            acc
+        };
     let snapshot_times: Vec<f64> = plan
         .times
         .iter()
@@ -586,12 +798,14 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
         n_reactions,
         n_hops,
         level_history,
-    } = ensemble(cfg.seed, &plan, &molecules);
+        irt_stats,
+        handed_over,
+    } = ensemble(cfg.seed, &plan, &molecules, true);
     // The seedless companion run: same grid, settings and record times,
     // no seeds, no snapshots.
     let background = if cfg.background_run.unwrap_or(true) {
         let seed = background_seed(cfg.seed);
-        let acc = ensemble(seed, &plan.without_seeds(), &[]);
+        let acc = ensemble(seed, &plan.without_seeds(), &[], false);
         Some((seed, acc))
     } else {
         None
@@ -655,11 +869,18 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
         totals_std,
         net_mean,
         net_std,
-        seed_energies: sim
-            .seeds
-            .iter()
-            .filter_map(|s| s.spec.energy_ev.map(|e| (s.spec.time, e)))
-            .collect(),
+        seed_energies: match irt {
+            Some(i) => i
+                .seeds
+                .iter()
+                .filter_map(|s| s.spec.energy_ev.map(|e| (s.spec.time, e)))
+                .collect(),
+            None => sim
+                .seeds
+                .iter()
+                .filter_map(|s| s.spec.energy_ev.map(|e| (s.spec.time, e)))
+                .collect(),
+        },
         trajectories: cfg.trajectories,
         seed: cfg.seed,
         tau_leap: cfg.tau_leap,
@@ -669,6 +890,13 @@ pub fn run_rdme(sim: &VoxelSimulation, cfg: &SsaConfig) -> Result<RdmeOutput> {
         n_hops,
         level_history,
         species_levels: levels,
+        irt: irt.zip(handover).map(|(i, handover_time)| IrtStage {
+            t_start: i.t_start,
+            handover_time,
+            resampling: i.config.resampling.name(),
+            handed_over,
+            stats: irt_stats,
+        }),
         exec_time: started.elapsed().as_secs_f64(),
     })
 }

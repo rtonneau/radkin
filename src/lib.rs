@@ -7,6 +7,7 @@ pub mod consts;
 pub mod dense;
 pub mod error;
 pub mod gvalues;
+pub mod irt;
 pub mod kernel;
 pub mod matrices;
 pub mod output;

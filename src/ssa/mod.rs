@@ -27,8 +27,10 @@ pub use output::{SsaRunMeta, write_ssa_dir};
 pub use rdme::{Rdme, RdmeSetup, ReversiblePair};
 pub use rdme_coarsen::dispersion_threshold;
 pub use rdme_multigrid::{Multigrid, MultigridSetup};
-pub use rng::{SsaRng, det_ln, ln_factorial};
+pub use rng::{SsaRng, det_exp, det_ln, ln_factorial, norm_quantile};
 pub use schedule::{beam_segments, delivered_dose};
 pub use tau::TauLeap;
 pub use voxel_output::{rdme_yields_csv, write_rdme_dir};
-pub use voxel_sim::{BackgroundRun, RdmeOutput, run_rdme};
+pub use voxel_sim::{
+    BackgroundRun, IrtStage, RdmeOutput, handover_seed, run_rdme, run_rdme_from_irt,
+};

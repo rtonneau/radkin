@@ -82,6 +82,37 @@ pub enum KKind {
     Pair,
 }
 
+/// How a pair reaction is limited in the IRT stage (`irt_type` of a reaction
+/// entry; Geant4-DNA reaction types 0 and 1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IrtType {
+    /// Fully diffusion-controlled: the pair reacts at its first encounter.
+    Full,
+    /// Partially diffusion-controlled: an encounter reacts with a finite rate.
+    Partial,
+}
+
+impl IrtType {
+    /// Value of the `irt_type` key.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Full => "full",
+            Self::Partial => "partial",
+        }
+    }
+
+    /// Parse the `irt_type` key (`"full"` or `"partial"`).
+    pub fn parse(s: &str) -> Result<Self> {
+        match s.trim() {
+            "full" => Ok(Self::Full),
+            "partial" => Ok(Self::Partial),
+            other => Err(RadkinError::Config(format!(
+                "irt_type must be \"full\" or \"partial\", got \"{other}\""
+            ))),
+        }
+    }
+}
+
 /// Mass-action reaction.
 #[derive(Debug, Clone, PartialEq)]
 pub struct KReaction {
@@ -91,6 +122,8 @@ pub struct KReaction {
     pub kind: KKind,
     /// Global reaction index.
     pub index: usize,
+    /// Reaction type of the IRT stage given by the network, if any.
+    pub irt_type: Option<IrtType>,
 }
 
 impl KReaction {
@@ -106,6 +139,7 @@ impl KReaction {
             k,
             kind,
             index: usize::MAX,
+            irt_type: None,
         }
     }
 

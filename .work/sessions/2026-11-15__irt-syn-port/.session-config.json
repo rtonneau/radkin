@@ -1,0 +1,303 @@
+{
+  "session_id": "2026-11-15__irt-syn-port",
+  "feature_name": "irt-syn-port",
+  "scratch_dir": ".scratch/tests/2026-11-15__irt-syn-port",
+  "created_at": "2026-11-15T16:32:11.681Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-15T16:32:11.681Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-15T17:25:29.414Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-15T17:27:22.886Z",
+      "event": "auto_started",
+      "phase": "plan-not-started",
+      "detail": {
+        "target": "finish",
+        "steps": "plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-15T17:27:23.005Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-15T17:30:26.785Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/irt-stage",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-15T17:30:26.818Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-species-table-reaction-typing.md",
+        "02-plan/tickets/02-pair-sampling-kernel.md",
+        "02-plan/tickets/03-single-track-solver.md",
+        "02-plan/tickets/04-background-reactions.md",
+        "02-plan/tickets/05-walls-and-scheduled-tracks.md",
+        "02-plan/tickets/06-incremental-resampling.md",
+        "02-plan/tickets/07-rdme-handover.md",
+        "02-plan/tickets/08-docs.md"
+      ],
+      "detail": {
+        "tickets": 8
+      }
+    },
+    {
+      "at": "2026-11-15T17:30:32.918Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-species-table-reaction-typing.md",
+        "03-implement/01-species-table-reaction-typing/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-species-table-reaction-typing"
+      }
+    },
+    {
+      "at": "2026-11-15T17:39:41.706Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-species-table-reaction-typing/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-species-table-reaction-typing",
+        "commit": "68fc2c7"
+      }
+    },
+    {
+      "at": "2026-11-15T17:39:48.324Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-pair-sampling-kernel.md",
+        "03-implement/02-pair-sampling-kernel/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-pair-sampling-kernel"
+      }
+    },
+    {
+      "at": "2026-11-15T17:50:08.054Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-pair-sampling-kernel/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-pair-sampling-kernel",
+        "commit": "f5d86ef"
+      }
+    },
+    {
+      "at": "2026-11-15T17:50:08.495Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-single-track-solver.md",
+        "03-implement/03-single-track-solver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-single-track-solver"
+      }
+    },
+    {
+      "at": "2026-11-15T18:19:37.797Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-single-track-solver/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-single-track-solver",
+        "commit": "19d52db"
+      }
+    },
+    {
+      "at": "2026-11-15T18:19:38.247Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-background-reactions.md",
+        "03-implement/04-background-reactions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-background-reactions"
+      }
+    },
+    {
+      "at": "2026-11-15T18:26:57.417Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-background-reactions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-background-reactions",
+        "commit": "ab5985f"
+      }
+    },
+    {
+      "at": "2026-11-15T18:26:57.853Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-walls-and-scheduled-tracks.md",
+        "03-implement/05-walls-and-scheduled-tracks/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-walls-and-scheduled-tracks"
+      }
+    },
+    {
+      "at": "2026-11-15T18:36:34.516Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-walls-and-scheduled-tracks/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-walls-and-scheduled-tracks",
+        "commit": "3a480a7"
+      }
+    },
+    {
+      "at": "2026-11-15T18:36:34.927Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-incremental-resampling.md",
+        "03-implement/06-incremental-resampling/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-incremental-resampling"
+      }
+    },
+    {
+      "at": "2026-11-15T18:49:08.039Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/06-incremental-resampling/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-incremental-resampling",
+        "commit": "1d88b4c"
+      }
+    },
+    {
+      "at": "2026-11-15T18:49:08.464Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/07-rdme-handover.md",
+        "03-implement/07-rdme-handover/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "07-rdme-handover"
+      }
+    },
+    {
+      "at": "2026-11-15T18:56:03.526Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/07-rdme-handover/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "07-rdme-handover",
+        "commit": "180b4fe"
+      }
+    },
+    {
+      "at": "2026-11-15T18:56:03.945Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/08-docs.md",
+        "03-implement/08-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "08-docs"
+      }
+    },
+    {
+      "at": "2026-11-15T19:00:56.450Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/08-docs/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "08-docs",
+        "commit": "404834b"
+      }
+    },
+    {
+      "at": "2026-11-15T19:01:20.216Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-11-15T19:01:34.862Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/radkin/pull/21"
+      }
+    },
+    {
+      "at": "2026-11-15T19:01:29.198Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/irt-stage",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-15T17:30:26.785Z",
+    "pr_url": "https://github.com/rtonneau/radkin/pull/21"
+  },
+  "ship_mode": "inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 8,
+    "path": ".work/changelog/2026-11-15__irt-syn-port.md",
+    "written_at": "2026-11-15T19:01:20.209Z"
+  },
+  "finished_at": "2026-11-15T19:01:29.198Z"
+}

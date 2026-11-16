@@ -1,0 +1,22 @@
+# IRT stage example: the Geant4-DNA chemistry (data/chem_g4.toml) on a synthetic
+# 6-spur track. Every molecule is a particle with a position, and reactions are
+# drawn as independent reaction times per pair. Run with:
+#   radkin irt data/irt_example.toml --out out/irt_example
+
+[includes]
+toml = ["radkin/chem_g4.toml"]
+
+[irt]
+t_end = 1e-6          # s: end of the IRT stage
+trajectories = 32     # independent trajectories of the same molecules
+random_seed = 1
+# The molecules below are placed at 1 ps, before any chemistry: a pair found inside
+# its effective radius reacts at once with the contact probability of its reaction.
+# Set it to false for molecules written by Geant4 after its chemistry has started
+# (for example at 1.001 ps), which has already applied this rule.
+start_contact = true
+
+[[irt.seed]]
+file = "voxel_example_molecules.csv"
+time = 1e-12
+energy_ev = 360.0     # deposited energy of the track [eV] (illustrative)

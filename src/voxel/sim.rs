@@ -215,7 +215,12 @@ pub struct VoxelSimulation {
 
 impl VoxelSimulation {
     pub fn from_toml(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
+        let (env, voxel, settings) = Self::from_toml_parts(path.as_ref())?;
+        Self::new(env, voxel, settings)
+    }
+
+    /// The chemistry, `[voxel]` and `[voxel.run]` of a configuration file.
+    fn from_toml_parts(path: &Path) -> Result<(SimEnv, VoxelConfig, RunSettings)> {
         let cfg = Config::load(path)?;
         let env = SimEnv::from_config(&cfg)?;
         let voxel = VoxelConfig::from_toml_file(path)?;
@@ -228,7 +233,16 @@ impl VoxelSimulation {
             .and_then(|v| v.as_table())
             .ok_or_else(|| RadkinError::Config("missing [voxel.run] section".into()))?;
         let settings = RunSettings::from_table(run)?;
-        Self::new(env, voxel, settings)
+        Ok((env, voxel, settings))
+    }
+
+    /// Load a configuration file without its `[[voxel.seed]]` entries: the
+    /// run of an IRT stage handed over to the grid, whose seeds are
+    /// injected into the stage.
+    pub fn from_toml_without_seeds(path: impl AsRef<Path>) -> Result<Self> {
+        let mut sim = Self::from_toml_parts(path.as_ref())?;
+        sim.1.seeds.clear();
+        Self::new(sim.0, sim.1, sim.2)
     }
 
     pub fn new(env: SimEnv, voxel: VoxelConfig, settings: RunSettings) -> Result<Self> {

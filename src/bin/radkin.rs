@@ -57,6 +57,37 @@ enum Command {
     /// Voxel reaction-diffusion run seeded by Geant4-DNA molecules
     /// (`[voxel]` sections of the configuration).
     Voxel(VoxelArgs),
+    /// IRT stage alone: particles with positions and independent reaction
+    /// times, from seed molecules (`[irt]` section of the configuration).
+    Irt(IrtArgs),
+}
+
+#[derive(clap::Args)]
+struct IrtArgs {
+    /// TOML configuration file with an `[irt]` section and its seeds.
+    config: PathBuf,
+    /// Output directory (`yields.csv`, `irt.json`).
+    #[arg(long)]
+    out: PathBuf,
+}
+
+/// `radkin irt`.
+fn irt(a: &IrtArgs) -> radkin::Result<()> {
+    let sim = radkin::irt::IrtSimulation::from_toml(&a.config)?;
+    let out = radkin::irt::run_irt(&sim)?;
+    radkin::irt::write_irt_dir(&a.out, &sim, &out)?;
+    eprintln!(
+        "radkin: irt run of {} molecules, {} trajectories, {} pair, {} contact and {} single-molecule reactions in {:.1} s; {} record times written to {}",
+        sim.seeds.iter().map(|s| s.molecules.len()).sum::<usize>(),
+        out.trajectories,
+        out.stats.pair_reactions,
+        out.stats.contact_reactions,
+        out.stats.molecule_reactions,
+        out.exec_time,
+        out.record_times.len(),
+        a.out.display()
+    );
+    Ok(())
 }
 
 #[derive(clap::Args)]
@@ -82,9 +113,30 @@ fn voxel_ssa(a: &VoxelArgs, cfg: &SsaConfig) -> radkin::Result<()> {
             "--resume cannot be used with the ssa solver (no checkpoint is written)".into(),
         ));
     }
-    let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
-    let out = radkin::ssa::run_rdme(&sim, cfg)?;
+    // With an [irt] section every trajectory starts with an IRT stage, which
+    // takes the seeds and hands its molecules over to the grid.
+    let (sim, out) = if radkin::irt::IrtConfig::from_toml_file(&a.config)?.is_some() {
+        let sim = radkin::voxel::VoxelSimulation::from_toml_without_seeds(&a.config)?;
+        let irt = radkin::irt::IrtSimulation::from_toml(&a.config)?;
+        let out = radkin::ssa::run_rdme_from_irt(&sim, &irt, cfg)?;
+        (sim, out)
+    } else {
+        let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
+        let out = radkin::ssa::run_rdme(&sim, cfg)?;
+        (sim, out)
+    };
     radkin::ssa::write_rdme_dir(&a.out, &out, &sim.voxel.grid)?;
+    if let Some(irt) = &out.irt {
+        eprintln!(
+            "radkin: irt stage to the handover at {:e} s: {} pair, {} contact and {} single-molecule reactions, {} molecules handed over ({} trajectories)",
+            irt.handover_time,
+            irt.stats.pair_reactions,
+            irt.stats.contact_reactions,
+            irt.stats.molecule_reactions,
+            irt.handed_over,
+            out.trajectories
+        );
+    }
     eprintln!(
         "radkin: ssa voxel run of {} voxels, {} trajectories, {} reactions and {} hops in {:.1} s; {} snapshots written to {}",
         sim.voxel.grid.n_voxels(),
@@ -106,6 +158,11 @@ fn voxel(a: &VoxelArgs) -> radkin::Result<()> {
     solver
         .ssa
         .refuse_species_levels("a deterministic voxel run")?;
+    if radkin::irt::IrtConfig::from_toml_file(&a.config)?.is_some() {
+        return Err(RadkinError::Config(
+            "irt: the IRT stage hands over to the stochastic voxel solver only: set solver = \"ssa\" (or --solver ssa), or remove [irt]".into(),
+        ));
+    }
     let sim = radkin::voxel::VoxelSimulation::from_toml(&a.config)?;
     let checkpoint = a.out.join("checkpoint.npz");
     let resume = match &a.resume {
@@ -347,6 +404,7 @@ fn main() -> ExitCode {
     let result = match &cli.command {
         Command::Run(a) => run(a),
         Command::Voxel(a) => voxel(a),
+        Command::Irt(a) => irt(a),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
