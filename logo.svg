@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="150" viewBox="0 0 560 150" role="img" aria-labelledby="title desc">
+  <title id="title">radkin</title>
+  <desc id="desc">A tile with a voxel grid, an ionising track with spurs of molecules, and a decaying kinetics curve, next to the word radkin.</desc>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b3d6e"/>
+      <stop offset="0.55" stop-color="#0f6b8f"/>
+      <stop offset="1" stop-color="#14a3a1"/>
+    </linearGradient>
+    <linearGradient id="track" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffd166" stop-opacity="0"/>
+      <stop offset="0.25" stop-color="#ffd166"/>
+      <stop offset="1" stop-color="#ff7b54"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="tileClip">
+      <rect x="15" y="15" width="120" height="120" rx="28"/>
+    </clipPath>
+    <style>
+      .word { fill: #0b3d6e; }
+      .tag { fill: #4a6378; }
+      @media (prefers-color-scheme: dark) {
+        .word { fill: #e6f4f8; }
+        .tag { fill: #9fb8c8; }
+      }
+    </style>
+  </defs>
+
+  <!-- Tile -->
+  <rect x="15" y="15" width="120" height="120" rx="28" fill="url(#tile)"/>
+
+  <g clip-path="url(#tileClip)">
+    <!-- Voxel grid (RDME) -->
+    <g stroke="#ffffff" stroke-opacity="0.13" stroke-width="1">
+      <path d="M35 15V135M55 15V135M75 15V135M95 15V135M115 15V135"/>
+      <path d="M15 35H135M15 55H135M15 75H135M15 95H135M15 115H135"/>
+    </g>
+    <!-- Highlighted voxels along the track -->
+    <g fill="#ffffff" fill-opacity="0.10">
+      <rect x="35" y="95" width="20" height="20"/>
+      <rect x="55" y="75" width="20" height="20"/>
+      <rect x="75" y="55" width="20" height="20"/>
+      <rect x="95" y="35" width="20" height="20"/>
+    </g>
+
+    <!-- Kinetics curve (LSODA) -->
+    <path d="M24 40 C 44 92, 70 112, 128 118" fill="none" stroke="#7fe0d6" stroke-width="3"
+          stroke-linecap="round" stroke-opacity="0.75"/>
+
+    <!-- Ionising track -->
+    <path d="M20 132 C 50 108, 78 82, 128 24" fill="none" stroke="url(#track)" stroke-width="3.5"
+          stroke-linecap="round"/>
+
+    <!-- Spurs: molecules as particles (IRT) -->
+    <g>
+      <circle cx="47" cy="108" r="9" fill="url(#glow)" opacity="0.55"/>
+      <circle cx="73" cy="85" r="11" fill="url(#glow)" opacity="0.55"/>
+      <circle cx="101" cy="56" r="12" fill="url(#glow)" opacity="0.6"/>
+    </g>
+    <g fill="#ffffff">
+      <circle cx="44" cy="105" r="2.6"/>
+      <circle cx="51" cy="111" r="2"/>
+      <circle cx="70" cy="81" r="2.8"/>
+      <circle cx="78" cy="88" r="2.2"/>
+      <circle cx="68" cy="90" r="1.8"/>
+      <circle cx="97" cy="52" r="3"/>
+      <circle cx="106" cy="58" r="2.4"/>
+      <circle cx="99" cy="62" r="2"/>
+      <circle cx="108" cy="49" r="1.8"/>
+    </g>
+    <g fill="#ffd166">
+      <circle cx="48" cy="102" r="1.8"/>
+      <circle cx="75" cy="79" r="2"/>
+      <circle cx="103" cy="47" r="2.2"/>
+    </g>
+  </g>
+
+  <!-- Wordmark -->
+  <text class="word" x="160" y="92"
+        font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="68" font-weight="700" letter-spacing="-1">rad<tspan fill="#14a3a1">kin</tspan></text>
+  <text class="tag" x="163" y="122"
+        font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="15.5" letter-spacing="0.6">WATER RADIOLYSIS KINETICS · LSODA · RDME · IRT</text>
+</svg>

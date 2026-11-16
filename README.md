@@ -1,178 +1,88 @@
-# radkin
+<p align="center">
+  <img src="logo.svg" alt="radkin" width="520">
+</p>
 
-Homogeneous chemical kinetics of water radiolysis and radiobiology under conventional and
-ultra-high-dose-rate irradiation, in Rust. radkin is a port of
-[radiopyo](https://github.com/rtonneau/radiopyo) (Python) and reproduces its results; the
-ODE system is integrated with [rsoda](https://github.com/rtonneau/rsoda), a Rust port of
-LSODA, with radiopyo's analytic Jacobian.
+<p align="center">
+  <a href="https://github.com/rtonneau/radkin/actions/workflows/ci.yml"><img src="https://github.com/rtonneau/radkin/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-LGPL--3.0--or--later-blue.svg" alt="License: LGPL-3.0-or-later"></a>
+  <img src="https://img.shields.io/badge/rust-2024_edition-orange.svg?logo=rust" alt="Rust 2024 edition">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg" alt="Platforms: Linux, Windows">
+  <img src="https://img.shields.io/badge/C%20dependencies-none-success.svg" alt="No C dependency">
+  <a href="https://github.com/rtonneau/radiopyo"><img src="https://img.shields.io/badge/validated%20against-radiopyo-6f42c1.svg" alt="Validated against radiopyo"></a>
+</p>
 
-Same model as radiopyo: G-values (Boscolo 2020 LET fit, optional dose-rate factor) feed
-rate equations for the species concentrations; acid/base, equilibrium, k-, Arrhenius,
-constant and Michaelis–Menten reactions written in TOML; constant, single-pulse, pulsed and
-macro-pulsed beams; clipped concentrations, smooth depletion switch and overshoot
-relaxation (radiopyo ADRs 0001–0008). Configuration files of radiopyo work unchanged
-(`radiopyo/` include prefix included).
+<p align="center">
+  <b>Chemical kinetics of water radiolysis, from a single track to the homogeneous solution.</b>
+</p>
 
-## Build
+---
+
+radkin simulates the chemistry of irradiated water under conventional and
+ultra-high-dose-rate (FLASH) irradiation. It is a Rust port of
+[radiopyo](https://github.com/rtonneau/radiopyo) and reproduces its results, then extends
+it to 3D voxel geometries seeded by Geant4-DNA tracks and to stochastic chemistry.
+
+- **Chemistry in TOML.** Acid/base, equilibrium, Arrhenius, constant and
+  Michaelis–Menten reactions; radiopyo configuration files work unchanged.
+- **Radiolytic yields.** G-values from the Boscolo 2020 LET fit, with an optional
+  dose-rate factor.
+- **Beams.** Constant, single-pulse, pulsed and macro-pulsed.
+- **Geant4-DNA coupling.** Molecules written by Geant4-DNA at 1 ps seed the 3D runs.
+- **Reproducible and parallel.** Seeded ChaCha8 streams give the same output on every
+  platform and thread count; voxels and stochastic trajectories run in parallel (rayon).
+
+## Three solvers
+
+| | Solver | Model | Use it for |
+|---|---|---|---|
+| 1 | **LSODA** (deterministic) | Rate equations on a well-mixed cell or a voxel grid (Strang splitting with ADI diffusion), solved by [rsoda](https://github.com/rtonneau/rsoda) | Homogeneous kinetics, dose-rate studies, long times |
+| 2 | **Gillespie SSA / RDME** (stochastic) | Integer molecule counts; exact SSA or tau-leaping in a cell, reaction-diffusion master equation on a grid | Small volumes, low doses, a few molecules per voxel |
+| 3 | **IRT** (particle-based) | Every molecule is a particle; independent reaction times per pair, with Geant4-DNA's formulas | Track structure from 1 ps, before diffusion has spread the spurs |
+
+The solvers chain: an IRT stage can run the first microsecond of a track and hand its
+molecules over to the RDME grid.
+
+### Gillespie algorithm and RDME features
+
+- **Exact SSA** (Gillespie's direct method) and **tau-leaping** (Cao, Gillespie and
+  Petzold 2006) on the unit cell, with propensities built from the same matrices as the
+  LSODA kernel.
+- **Reaction-diffusion master equation** on the voxel grid with the next-subvolume
+  method: reactions fire inside voxels, diffusion is a hop to a neighbour at rate `D/h²`.
+- **Mesh correction** of bimolecular rates (Hellander, Hellander and Petzold 2012), so
+  that nanometre voxels keep the macroscopic rate; reversible pairs share one factor and
+  keep their equilibrium constant.
+- **Adaptive coarsening**: the grid merges 2×2×2 blocks once the counts are
+  statistically uniform and refines back before each new track.
+- **Multi-grid species levels**: numerous background species such as O₂ live on a
+  coarser grid, which cuts the number of hops by an order of magnitude.
+- **Tau-leaping on the grid** for reactions and hops together.
+- **Background run**: a seedless ensemble is subtracted so that G-values are net of the
+  background chemistry.
+- **Ensembles** of independent trajectories, reported as mean and standard deviation.
+
+## Quick start
 
 ```bash
-cargo build --release      # target/release/radkin
-cargo test --release       # unit tests + golden comparisons with radiopyo
+cargo build --release          # target/release/radkin
+cargo test --release           # unit tests and golden comparisons with radiopyo
 ```
 
-Rust 2024 edition (stable toolchain). No C dependency.
-
-## Command line
-
 ```bash
+# Homogeneous kinetics (LSODA)
 radkin run data/config_Labarbe.toml --t-span 1e-7 10 --out out/labarbe
-radkin run data/tonneau_2025.toml --mode single-pulse --t-span 0 500 --out out/tonneau
-radkin run my_pulsed.toml --mode chunked --t-span 0 1 \
-    --max-step-on 1e-7 --max-step-off 1e-3 --points-on 10 --points-off 50 \
-    --production H2O2,O2 --consumption O2 --out out/pulsed
+
+# Stochastic (Gillespie SSA); the run file needs an [ssa] section with its volume
+radkin run my_ssa.toml --t-span 0 1e-3 --solver ssa --out out/ssa
+
+# 3D voxel grid seeded by a Geant4-DNA track (LSODA, or --solver ssa for the RDME)
+radkin voxel data/voxel_example.toml --out out/voxel
+
+# Particle-based IRT stage
+radkin irt data/irt_example.toml --out out/irt
 ```
 
-| Option | radiopyo equivalent |
-|---|---|
-| `--mode run` (default) | `UnitCell.run(t_span, ...)` |
-| `--mode chunked` | `prepare_chunked_run(...).run()` |
-| `--mode single-pulse` | `prepare_single_pulse(...).run()` |
-| `--t-eval FILE` | `t_eval=` (times separated by blanks; `run` mode) |
-| `--rtol --atol --max-step --first-step --no-jac` | `rtol`, `atol`, `max_step`, `first_step`, `use_jac=False` |
-| `--sparse-jacobian` | none: sparse Jacobian and sparse LU (rsoda feature `sparse`) instead of dense |
-| `--max-step-on/off/trans/final`, `--trans-time` | `max_step_size_on/off/trans/final`, `trans_time` |
-| `--points-on/--points-off N` | `points_per_chunk_on/off` |
-| `--beam LABEL`, `--let X`, `--temperature C` | `set_beam(label, LET=)`, `change_LET`, `set_temperature` |
-
-`--sparse-jacobian` (library: `RunOptions::jacobian = JacobianMode::Sparse`)
-builds the Jacobian's sparsity pattern from the reaction tables and solves the
-stiff steps with a sparse LU. Results match the dense run within the golden
-tolerances. For the single cell (15 to 22 species) it is not faster; it is
-meant for larger systems. `cargo run --release --example bench -- CONFIG
---t-span 0 1 --jacobian both` times both.
-
-The beam comes from the config (`[[beam.<type>]]`, with its `LET`).
-`data/tonneau_2025.toml` is the chemistry of Tonneau et al. 2025 (PMB 70 235021) with the
-inputs of the paper's original runs (variable G-values, LET 0.56 keV/µm, 30 Gy single
-pulse at 1e7 Gy/s). Logging: `RUST_LOG=info`.
-
-## Output files
-
-Each run writes into `--out`:
-
-| File | radiopyo | Units |
-|---|---|---|
-| `concentrations.csv` | `res.to_pandas()` | µmol/L; `t` then dynamic species, then fixed species |
-| `reaction_rates.csv` | `res.reconstruct_reactions()` | mol/L/s; columns `KR_i`/`CR_i` (pairs first), `G_<sp>`, `EZ_i` |
-| `species_integrals.csv` | `res.integrate_species()` | µmol/L·s |
-| `production_<sp>.csv` | `res.integrate_production_of(sp)` | µmol/L, sorted descending |
-| `consumption_<sp>.csv` | `res.integrate_consumption_of(sp)` | µmol/L, sorted descending |
-| `run.json` | — | inputs, G-values, bursts, short ON spans, solver counters, `label -> str(reaction)` |
-
-`pd.read_csv("concentrations.csv", index_col=0)` gives the same DataFrame as
-`res.to_pandas()`.
-
-## Stochastic solver (SSA)
-
-`solver = "ssa"` runs the same chemistry on integer molecule counts with Gillespie's
-exact stochastic simulation algorithm, instead of the rate equations. It is meant for
-small volumes and low doses, where the rate equations stop being valid, and as an
-independent check of the LSODA results at large volume. Select it in the run file or
-with `--solver`:
-
-```toml
-solver = "ssa"        # "lsoda" (default) or "ssa"; put it before any [table]
-
-[ssa]
-volume = 1e-15        # L: volume of the unit cell (required)
-trajectories = 100    # ensemble size (default 100)
-seed = 0              # default 0
-tau_leap = false      # default false: exact SSA
-tau_epsilon = 0.03    # accuracy of a leap when tau_leap = true
-rate_correction = "hellander"  # voxel runs only: "hellander" (default) or "none"
-
-[ssa.species_levels]  # voxel runs only: grid level of a species (default 0, fine)
-O2 = 2
-```
-
-```bash
-radkin run CONFIG --t-span 0 1e-3 --solver ssa --out out/ssa
-```
-
-`--solver lsoda|ssa` overrides the `solver` key. `solver` and `[ssa]` are read from the
-run file itself, not from its includes.
-
-- Each reaction fires with a propensity taken from its rate law: for `2 A -> ...` it is
-  `k/(N_A V) n (n - 1)` and two molecules are removed, which matches the rate
-  `k [A]^2` of the LSODA path at large counts.
-- Each G-value is a source that produces molecules at `G x dose rate x N_A V` per
-  second while the beam is on.
-- The run is an ensemble of `trajectories` independent trajectories. Trajectory `i`
-  draws from stream `i` of a ChaCha8 generator keyed by `seed`, so a seed gives the same
-  output on every platform and for every thread count.
-- Outputs: `concentrations.csv` holds the ensemble mean in the LSODA layout (`t`,
-  dynamic species, fixed species; µmol/L), followed by one `<species>_std` column per
-  dynamic species (standard deviation over the trajectories). `run.json` records the
-  solver settings and the number of events. The other LSODA files are not written.
-- Output times: `--t-eval FILE`, else 200 log-spaced times over `--t-span`.
-- `--beam`, `--let` and `--temperature` work as with LSODA. The LSODA-only options
-  (`--mode chunked|single-pulse`, tolerances, step sizes, `--production`,
-  `--consumption`) are rejected.
-- A configuration without beam runs the reactions only.
-
-`tau_leap = true` switches to tau-leaping (Cao, Gillespie and Petzold 2006), which
-fires many reactions per step. It is an approximation: the ensemble mean has an error
-proportional to `tau_epsilon` (about 0.4 % of a species' peak at the default 0.03).
-It is hundreds of times faster than the exact SSA on large counts without fast
-equilibria, and brings nothing on the water chemistry, where the acid-base equilibria
-force exact steps. Measurements and the validation are in `docs/ssa.md`;
-`cargo run --release --example ssa_bench -- radicals 1e-12 32` compares the two.
-
-`radkin voxel CONFIG --solver ssa --out DIR` (or `solver = "ssa"` in the file) runs the
-voxel grid stochastically: reactions fire in each voxel on its own counts, and
-diffusion is a hop of one molecule to a neighbouring voxel at rate `D / h²` (the
-reaction-diffusion master equation, in place of the Strang splitting).
-
-- It takes the same `[voxel]` sections. `[ssa] volume` is not used (each voxel has its
-  own volume); `trajectories` and `seed` are. The splitting and rsoda settings of
-  `[voxel.run]` are ignored.
-- Bimolecular propensities are mesh-corrected by default (`rate_correction =
-  "hellander"`): on a grid of spacing `h` each one is scaled by `1 / (1 - h*/h)`,
-  `h*` the reaction's critical spacing, so that nm voxels keep the macroscopic rate.
-  `"none"` gives the plain RDME. Details and limits are in `docs/ssa.md`.
-- The initial solution is drawn per voxel (Poisson); the Geant4 molecules are injected
-  as whole molecules.
-- Outputs keep the layout of the deterministic run with the ensemble mean, plus
-  `snapshots/t<k>_<sp>_std.npy` and the `N_<sp>_std`, `G_<sp>_std` columns of
-  `yields.csv`.
-- No checkpoint is written and `--resume` is rejected.
-- `max_coarsen_levels` works as in the deterministic run, with its own test: the grid
-  drops a level when the counts of every 2x2x2 block are statistically uniform
-  (`coarsen_tol_factor` sets the threshold; the default 0.1 gave 7 times fewer hops on a
-  homogenising case with no measurable change of the results). It refines back to the
-  fine grid before each seed.
-- `[ssa.species_levels]` puts a species on a coarser level of the grid hierarchy (level
-  `L`: blocks of `2^L` voxels per axis), where it hops and reacts. A reaction fires in
-  the voxel of its coarsest reactant, and its products go where the finest consumed
-  molecule was. It cuts the hops of a numerous fast background species: O2 on level 2
-  of a 100 nm grid in aerated water gave 14 times fewer hops with no measurable change,
-  as long as the track does not deplete O2 at the scale of the coarse voxels (a dense
-  track does, and then the result is biased). Global coarsening (`max_coarsen_levels`)
-  acts as a floor, and tau-leaping works with it. The run logs a suggested level for
-  each background species; it is never applied. See `docs/ssa.md`.
-- `tau_leap = true` leaps reactions and hops together. It pays on smooth grids with
-  thousands of molecules per voxel (5x to 38x measured); on a track at nm voxels no
-  leap is taken and the run stays exact.
-- At a few nm per voxel the result differs from the deterministic run (more surviving
-  radicals, less H2O2 and H2): the rate equations stop being valid at about one molecule
-  per voxel. A warning is logged when the spacing is too small for a reaction to be
-  represented on a grid. See `docs/ssa.md`.
-
-One molecule in the volume is `1 / (N_A V)` mol/L: 1.66 nmol/L for 1e-15 L (1 µm³).
-The cost grows with the number of reaction events, so with the volume, the dose and
-the simulated time.
-
-## Library
+As a library:
 
 ```rust
 use radkin::unit_cell::{RunOptions, UnitCell};
@@ -182,210 +92,34 @@ let res = cell.run((1e-7, 10.0), &RunOptions::default(), None)?;
 let (labels, rows) = res.concentrations();
 ```
 
-The kernel (`radkin::kernel::{derive, jacobian, reaction_rates}`) works on one cell's state
-slice with caller-provided buffers: it is meant to be called per voxel by the Phase-2
-spatial driver.
+Results are written as CSV, JSON and NumPy (`.npy`, `.npz`) files. Logging:
+`RUST_LOG=info`.
 
-## Comparison with radiopyo
+## Validation
 
-`tools/` holds Python scripts run in an environment where radiopyo is importable:
-
-- `export_golden.py`: exports radiopyo's golden data to `tests/golden/*.json` (committed).
-- `compare_radiopyo.py`: runs both codes on the same inputs (a wrapper TOML including your
-  config and adding the beam) and compares species, reaction rates and integrals.
-- `acceptance.ps1`: the Phase-1 matrix — pure water, Labarbe and the Tonneau 2025 paper
-  config, × constant, single-pulse, pulsed and macro-pulsed beams, × run / chunked
-  (/ single-pulse) modes. All 27 cases pass at `rtol = 1e-6`; the observed differences are
-  ~1e-8 relative.
-
-```powershell
-pwsh tools/acceptance.ps1 -Python <python with radiopyo> -Radiopyo <radiopyo checkout>
-```
-
-Results agree to solver tolerance, not bit for bit: scipy's `solve_ivp` wraps ODEPACK's
-LSODA while rsoda is a direct port of the thread-safe Fortran fork.
-
-## Voxel reaction-diffusion (Phase 2)
-
-`radkin voxel CONFIG --out DIR` runs the chemistry of `CONFIG` (with its includes) on a
-uniform Cartesian voxel grid seeded by Geant4-DNA molecules. Each splitting step is
-Strang: reaction(dt/2), diffusion(dt), reaction(dt/2) (ADR 0002 in `.work/adr/`).
-
-- The reaction half-step is an independent rsoda run per voxel, parallelised with rayon
-  (cargo feature `parallel`, on by default; the results are bit-identical to serial).
-- Diffusion uses Crank-Nicolson ADI with zero-flux boundaries. After each injection,
-  backward-Euler substeps (Rannacher start) keep the concentrations non-negative.
-- dt is adaptive by step doubling and lands exactly on seed and snapshot times.
-- G-values in `yields.csv` are net of the background chemistry: the seedless uniform
-  solution is integrated alongside, so a background that drifts (e.g. a pH slightly off
-  equilibrium) does not show up as yield.
-- Background voxels, which still hold only the uniform initial solution (within
-  `1e-3 * solver_atol + 1e-12 * |c|`), share one rsoda run per half-step, so untouched
-  voxels cost almost nothing. Diffusion then acts on the deviation from that background.
-  Set `background_voxels = false` in `[voxel.run]` to integrate every voxel.
-- Global coarsening (off by default) merges every 2x2x2 block of voxels into one once the whole
-  field is smooth, and refines back to the fine grid at the next injection. It is meant for runs
-  that continue until the system has homogenised, where it cuts the cost of the late steps. It
-  does nothing while a spur is still localized (see the `[voxel]` keys below).
-
-```toml
-[includes]
-toml = ["radkin/CONFIG_PAPER_01.toml"]   # chemistry
-
-[voxel]
-clip = false                 # true: drop out-of-grid molecules (lost fraction is logged)
-# max_coarsen_levels = 0     # halvings allowed (0 = off); each grid dim must be divisible by 2^levels
-# coarsen_tol_factor = 0.1   # > 0: coarsen when the spread is below factor * (atol + rtol * |mean|)
-
-[voxel.grid]
-dims = [8, 8, 12]
-spacing_nm = 6.0             # or [dx, dy, dz]
-origin_nm = [-24, -24, -36]
-
-[voxel.diffusion]            # m^2/s; defaults are Geant4-DNA option3's (HO3: O3's)
-O2 = 2.4e-9                  # (e_aq, OH_r, ..., O_atom); other species do not diffuse
-
-[voxel.geant4]
-aliases = { "O2(B)" = "O2" } # Geant4 name -> radkin label (option3 species built in)
-ignore = ["H2O^0"]
-
-[[voxel.seed]]               # one entry per injection
-file = "track.csv"           # species,x,y,z[,event_id]; positions in nm
-time = 1e-12                 # s
-events = [0]                 # optional event_id filter
-offset_nm = [0, 0, 0]
-energy_ev = 360.0            # optional: deposited energy, enables G(t)
-
-[voxel.run]
-t_end = 1e-7
-snapshots = [1e-12, 1e-9, 1e-7]
-rtol = 1e-2                  # splitting error control (atol in µmol/L)
-atol = 1e-3
-# background_voxels = true   # share one integration for untouched voxels
-# checkpoint_every = 2       # checkpoint every 2 snapshot times (default: end only)
-```
-
-**Coarsening keys** (`[voxel]`):
-
-- `max_coarsen_levels` (integer >= 0, default 0 = off): how many times the grid may be halved
-  (dims / 2, spacing x 2 per level). Every dimension of `[voxel.grid] dims` must be divisible
-  by `2^max_coarsen_levels`; a violation is a configuration error naming the axis.
-- `coarsen_tol_factor` (> 0, default 0.1): a level is dropped when, for every species and every
-  2x2x2 block, the spread (max - min) over the block and its face neighbours is at most
-  `coarsen_tol_factor * (atol + rtol * |mean|)`, with `atol` and `rtol` of `[voxel.run]`. Smaller
-  is more conservative. On the example case at `t_end = 1e-5` the domain totals stay within
-  1e-6 (relative) of the fine run up to a factor of about 3; see `docs/perf/voxel.md`.
-
-Merging conserves the amount of every species, and diffusion and reaction then run on the
-coarse voxels. Snapshots and checkpoints are always written on the fine grid (the coarse state
-is copied to its fine voxels) and the `yields.csv` sums are volume-weighted, so outputs have the
-same shape with or without coarsening. A resumed run recomputes its level from the checkpoint. The coarsened result agrees
-with the fine run within the merge tolerance, not bit for bit.
-
-The background species come from the chemistry's initial concentrations, uniform over the
-grid. Each molecule adds `1/(N_A V)` to its voxel. The molecule CSV is written on the
-Geant4 side, e.g. from a chem `TimeStepAction` with `G4MolecularConfiguration::GetName()`
-(`e_aq^-1`, `°OH^0`, `H3O^1`, ...) or the user IDs (`e_aq`, `°OH`, `H3Op`, `OHm`, ...).
-
-Outputs:
-
-| file | content |
+| Against | Result |
 |---|---|
-| `yields.csv` | `t`, `N_<sp>` (molecules in the domain) at every accepted step; with `energy_ev`, `G_<sp>` = (N - N(t_start)) / (E / 100 eV) |
-| `snapshots/t<k>_<sp>.npy` | concentration field [mol/L], C order, shape `(nz, ny, nx)` |
-| `snapshots.json` | grid, species, snapshot times and files, step counts |
+| radiopyo | Right-hand side, Jacobian and G-values at 1e-12; 27-case acceptance matrix (3 chemistries × 4 beams × run modes) within `rtol = 1e-6`, observed differences ~1e-8 |
+| LSODA | SSA ensemble means and RDME totals agree with the deterministic runs at large counts |
+| Geant4-DNA IRT_syn | On 2000 single-track events, G(t) within 1 % for e⁻aq, •OH, H•, H₃O⁺, OH⁻ and H₂ from 100 ps to 10 µs, within 4 % for H₂O₂ |
 
-**Checkpoints.** Every voxel run writes `DIR/checkpoint.npz` at `t_end`, and every
-`checkpoint_every` snapshot times if set (each write replaces the file atomically).
-`radkin voxel CONFIG --resume OLD/checkpoint.npz --out NEW` starts from it instead of
-`t_start`, for three uses:
+## Documentation
 
-- recovery: rerun the same configuration after a crash or a kill;
-- extension: raise `t_end` and continue a finished run;
-- new conditions: change the beam, solver settings or seeds. Seeds already injected are
-  skipped; new seeds must come at or after the checkpoint time.
+| Topic | |
+|---|---|
+| Deterministic solver: command line, outputs, library, comparison with radiopyo | [docs/lsoda.md](docs/lsoda.md) |
+| Voxel reaction-diffusion: configuration, coarsening, checkpoints, caveats | [docs/voxel.md](docs/voxel.md) |
+| Stochastic solver and RDME: usage, model, validation, cost | [docs/ssa.md](docs/ssa.md) |
+| IRT stage: model, pair rules, boundaries, handover, validation | [docs/irt.md](docs/irt.md) |
+| Performance measurements | [docs/perf/](docs/perf/) |
+| Bundled data | [data/README.md](data/README.md) |
 
-The grid (dims, spacing, origin) and the species order must match the checkpoint. Other
-differences are logged as warnings. The resumed run restarts its step control from the
-saved dt, so it agrees with an uninterrupted run within the splitting tolerance, not bit
-for bit. It writes only the part after the checkpoint into `NEW` (`N(t_start)` of its
-G-values is taken at the checkpoint time); joining the outputs is left to the user. The
-checkpoint is a NumPy archive: `np.load("checkpoint.npz")` gives `state` (µmol/L, shape
-`(n_species, nz, ny, nx)`), `time` (`[t, dt]`), `grid`, `seeds`, `background` and
-`meta.json` (species, dims, settings summary).
+## Reference chemistry
 
-`python -I tools/compare_geant4.py DIR [--geant4 g4.csv]` plots G(t), optionally against
-Geant4-DNA chemistry yields (a CSV with columns `t,species,G`).
-
-**Mean-field caveat.** Each voxel is well mixed, so one molecule in a (5 nm)^3 voxel is
-about 13 mM, and second-order terms such as `e_aq + e_aq` act even on a lone molecule.
-Voxels larger than the spur size (a few nm) dilute a spur over the voxel and
-underestimate recombination: on a 100 keV electron track (Geant4-DNA option3 seeds at
-1 ps), G(OH) at 10 µs is 5.2 with 1 µm voxels, 4.3 with 250 nm and 4.2 with 40 nm on a
-track segment, against 2.1–3.3 for Geant4-DNA IRT. Voxels much smaller than the mean distance between molecules make
-the continuum description meaningless. Check that the results are stable as the voxel
-size changes, and compare against Geant4-DNA step-by-step chemistry before trusting
-absolute G-values. The example (`data/voxel_example.toml`, a synthetic track) shows the
-workflow; its numbers are illustrative only.
-
-## IRT stage
-
-`radkin irt CONFIG --out DIR` runs the chemistry of `CONFIG` on the molecules of its
-seeds as particles: every molecule has a position, and reactions are drawn as
-independent reaction times, one per pair of particles and one per particle for its
-first-order and background reactions. It replaces the chemistry stage of Geant4-DNA
-(IRT_syn) from the molecules at 1 ps, so that Geant4 is only needed up to the end of
-the physico-chemical stage, and it takes several tracks at once, injected at their own
-times, with the background reactions of the solution (O2, pH). ADR 0007 in
-`.work/adr/`; the method, its validation and its limits are in `docs/irt.md`.
-
-```toml
-[includes]
-toml = ["radkin/chem_g4.toml"]   # Geant4-DNA option3 chemistry, with its reaction types
-
-[irt]
-t_end = 1e-6             # s: end of the stage
-trajectories = 32        # independent trajectories of the same molecules (default 1)
-random_seed = 1
-resampling = "incremental"  # "incremental" (default) or "full" (cross-check, slower)
-start_contact = true     # false for molecules Geant4 wrote after its chemistry started
-background_reactions = true
-boundary = "none"        # "none", "reflective" or "outflow" (the last two need a box)
-
-[[irt.seed]]             # as [[voxel.seed]]
-file = "voxel_example_molecules.csv"
-time = 1e-12
-energy_ev = 360.0
-```
-
-```bash
-radkin irt data/irt_example.toml --out out/irt_example
-```
-
-- Outputs: `yields.csv` (`t`, `N_<sp>`, `G_<sp>` per 100 eV, and their standard
-  deviations over the trajectories, the columns of the RDME `yields.csv`) and `irt.json`
-  (settings, event counts, firings of each reaction).
-- The formulas of the reaction times are those of Geant4-DNA 11.4.3. A reaction takes
-  its type (fully or partially diffusion-controlled) from the `irt_type` key of the
-  network, else from its rate constant against its diffusion limit. Any radkin network
-  runs; the species table (radius, charge, diffusion coefficient) is Geant4's for the
-  water species and can be extended in `[irt.species.<label>]`.
-- On 2000 single-track events in free space G(t) is within 1 % of Geant4-DNA IRT_syn
-  for e_aq, •OH, H•, H3O⁺, OH⁻ and H2 from 100 ps to 10 us, and within 4 % for H2O2
-  (`python -I tools/compare_irt_geant4.py --g4 <run dir> --same-pass`).
-- The default pair rule, `resampling = "incremental"`, keeps the sampled reaction times
-  and brings 100 overlapping tracks to 1 us in half a second per trajectory
-  (`docs/perf/irt-scaling.md`). `"full"` draws every pair again after each reaction: a
-  cross-check, much slower and 5.5 % high on H2O2.
-- With an `[irt]` section `radkin voxel --solver ssa` runs the IRT stage first and hands
-  its molecules over to the RDME at `irt.t_end` (the handover time). The stage then needs
-  `boundary = "reflective"`: its walls are the faces of the grid.
-- Results with several overlapping tracks, and aerated results, have no reference at the
-  particle level yet: treat them as provisional.
-
-`data/chem_g4.toml` is written by `python -I tools/export_g4_chem.py` from the reaction
-table Geant4 dumped at run time (`tests/data/irt/g4_chemistry_dump.txt`).
+`data/tonneau_2025.toml` is the chemistry of Tonneau et al. 2025, *Phys. Med. Biol.*
+70 235021, with the inputs of the paper's runs. `data/chem_g4.toml` is the Geant4-DNA
+option3 chemistry used by the IRT stage.
 
 ## License
 
-LGPL-3.0-or-later, as radiopyo. Bundled data: see [data/README.md](data/README.md).
+[LGPL-3.0-or-later](LICENSE), as radiopyo.

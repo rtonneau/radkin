@@ -1,8 +1,108 @@
 # Stochastic solver (SSA)
 
 `solver = "ssa"` simulates the reaction network on integer molecule counts with
-Gillespie's stochastic simulation algorithm. The code is in `src/ssa/`; usage is in the
-README. This file records how the solver is built and how it was validated.
+Gillespie's stochastic simulation algorithm. The code is in `src/ssa/`. This file
+gives its usage, then records how the solver is built and how it was validated.
+
+## Usage
+
+`solver = "ssa"` runs the same chemistry on integer molecule counts with Gillespie's
+exact stochastic simulation algorithm, instead of the rate equations. It is meant for
+small volumes and low doses, where the rate equations stop being valid, and as an
+independent check of the LSODA results at large volume. Select it in the run file or
+with `--solver`:
+
+```toml
+solver = "ssa"        # "lsoda" (default) or "ssa"; put it before any [table]
+
+[ssa]
+volume = 1e-15        # L: volume of the unit cell (required)
+trajectories = 100    # ensemble size (default 100)
+seed = 0              # default 0
+tau_leap = false      # default false: exact SSA
+tau_epsilon = 0.03    # accuracy of a leap when tau_leap = true
+rate_correction = "hellander"  # voxel runs only: "hellander" (default) or "none"
+
+[ssa.species_levels]  # voxel runs only: grid level of a species (default 0, fine)
+O2 = 2
+```
+
+```bash
+radkin run CONFIG --t-span 0 1e-3 --solver ssa --out out/ssa
+```
+
+`--solver lsoda|ssa` overrides the `solver` key. `solver` and `[ssa]` are read from the
+run file itself, not from its includes.
+
+- Each reaction fires with a propensity taken from its rate law: for `2 A -> ...` it is
+  `k/(N_A V) n (n - 1)` and two molecules are removed, which matches the rate
+  `k [A]^2` of the LSODA path at large counts.
+- Each G-value is a source that produces molecules at `G x dose rate x N_A V` per
+  second while the beam is on.
+- The run is an ensemble of `trajectories` independent trajectories. Trajectory `i`
+  draws from stream `i` of a ChaCha8 generator keyed by `seed`, so a seed gives the same
+  output on every platform and for every thread count.
+- Outputs: `concentrations.csv` holds the ensemble mean in the LSODA layout (`t`,
+  dynamic species, fixed species; µmol/L), followed by one `<species>_std` column per
+  dynamic species (standard deviation over the trajectories). `run.json` records the
+  solver settings and the number of events. The other LSODA files are not written.
+- Output times: `--t-eval FILE`, else 200 log-spaced times over `--t-span`.
+- `--beam`, `--let` and `--temperature` work as with LSODA. The LSODA-only options
+  (`--mode chunked|single-pulse`, tolerances, step sizes, `--production`,
+  `--consumption`) are rejected.
+- A configuration without beam runs the reactions only.
+
+`tau_leap = true` switches to tau-leaping (Cao, Gillespie and Petzold 2006), which
+fires many reactions per step. It is an approximation: the ensemble mean has an error
+proportional to `tau_epsilon` (about 0.4 % of a species' peak at the default 0.03).
+It is hundreds of times faster than the exact SSA on large counts without fast
+equilibria, and brings nothing on the water chemistry, where the acid-base equilibria
+force exact steps. Measurements and the validation are in `docs/ssa.md`;
+`cargo run --release --example ssa_bench -- radicals 1e-12 32` compares the two.
+
+`radkin voxel CONFIG --solver ssa --out DIR` (or `solver = "ssa"` in the file) runs the
+voxel grid stochastically: reactions fire in each voxel on its own counts, and
+diffusion is a hop of one molecule to a neighbouring voxel at rate `D / h²` (the
+reaction-diffusion master equation, in place of the Strang splitting).
+
+- It takes the same `[voxel]` sections. `[ssa] volume` is not used (each voxel has its
+  own volume); `trajectories` and `seed` are. The splitting and rsoda settings of
+  `[voxel.run]` are ignored.
+- Bimolecular propensities are mesh-corrected by default (`rate_correction =
+  "hellander"`): on a grid of spacing `h` each one is scaled by `1 / (1 - h*/h)`,
+  `h*` the reaction's critical spacing, so that nm voxels keep the macroscopic rate.
+  `"none"` gives the plain RDME. Details and limits are in `docs/ssa.md`.
+- The initial solution is drawn per voxel (Poisson); the Geant4 molecules are injected
+  as whole molecules.
+- Outputs keep the layout of the deterministic run with the ensemble mean, plus
+  `snapshots/t<k>_<sp>_std.npy` and the `N_<sp>_std`, `G_<sp>_std` columns of
+  `yields.csv`.
+- No checkpoint is written and `--resume` is rejected.
+- `max_coarsen_levels` works as in the deterministic run, with its own test: the grid
+  drops a level when the counts of every 2x2x2 block are statistically uniform
+  (`coarsen_tol_factor` sets the threshold; the default 0.1 gave 7 times fewer hops on a
+  homogenising case with no measurable change of the results). It refines back to the
+  fine grid before each seed.
+- `[ssa.species_levels]` puts a species on a coarser level of the grid hierarchy (level
+  `L`: blocks of `2^L` voxels per axis), where it hops and reacts. A reaction fires in
+  the voxel of its coarsest reactant, and its products go where the finest consumed
+  molecule was. It cuts the hops of a numerous fast background species: O2 on level 2
+  of a 100 nm grid in aerated water gave 14 times fewer hops with no measurable change,
+  as long as the track does not deplete O2 at the scale of the coarse voxels (a dense
+  track does, and then the result is biased). Global coarsening (`max_coarsen_levels`)
+  acts as a floor, and tau-leaping works with it. The run logs a suggested level for
+  each background species; it is never applied. See `docs/ssa.md`.
+- `tau_leap = true` leaps reactions and hops together. It pays on smooth grids with
+  thousands of molecules per voxel (5x to 38x measured); on a track at nm voxels no
+  leap is taken and the run stays exact.
+- At a few nm per voxel the result differs from the deterministic run (more surviving
+  radicals, less H2O2 and H2): the rate equations stop being valid at about one molecule
+  per voxel. A warning is logged when the spacing is too small for a reaction to be
+  represented on a grid. See `docs/ssa.md`.
+
+One molecule in the volume is `1 / (N_A V)` mol/L: 1.66 nmol/L for 1e-15 L (1 µm³).
+The cost grows with the number of reaction events, so with the volume, the dose and
+the simulated time.
 
 ## Model
 
