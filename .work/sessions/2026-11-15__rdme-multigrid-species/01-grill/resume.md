@@ -49,7 +49,7 @@ None.
 
 ## Notes
 
-- Sources: `docs/literature/md_mistral/Multi-Grid Reaction-Diffusion Master Equation Applications to Morphogen Gradient Modelling_2024/..._lite.md` (eq. 19-25, 41) and `docs/literature/md_mistral/Hierarchical algorithm for the reaction-diffusion master equation_2020/..._lite.md` (III.A-C, eq. 9-14). The literature directory is untracked in the main checkout, not in this worktree.
+- Sources: `docs/literature/md_mistral/multigrid_RDME_2024/..._lite.md` (eq. 19-25, 41) and `docs/literature/md_mistral/hierarchical_RDME_2020/..._lite.md` (III.A-C, eq. 9-14). The literature directory is untracked in the main checkout, not in this worktree.
 - From the scout seed (architecture review 2026-11-14, "Worth exploring").
 - Sequencing: rebase onto `main` after `2026-11-15__rdme-mesh-corrected-rates` merges, before the reaction tickets.
 - Glossary: Species level (new), Coarsening level (updated: a floor for species levels). ADR 0005.
