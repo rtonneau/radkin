@@ -1,13 +1,42 @@
 //! Constants shared with radiopyo (same values).
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Beginning of every beam ON phase skipped, its radiolytic yield added analytically [s].
 pub const T_ZERO: f64 = 1e-7;
 /// Default first step given to LSODA [s].
 pub const FIRST_STEP: f64 = 1e-15;
-/// Shortest configured beam ON time [s] (0.4 µs; a shorter configured ON time is rejected, a shorter run-time ON span is added analytically).
+/// Default shortest beam ON time [s] (0.4 µs; a shorter configured ON time is rejected, a shorter run-time ON span is added analytically). The value in use is [`min_beam_on_time`].
 pub const MIN_BEAM_ON_TIME: f64 = 0.4e-6;
+
+/// Bits of the shortest beam ON time in use (process-wide, as radiopyo's `set_min_beam_on_time`).
+static MIN_BEAM_ON_TIME_BITS: AtomicU64 = AtomicU64::new(0x3E9A_D7F2_9ABC_AF48);
+
+/// Shortest beam ON time in use [s] (default [`MIN_BEAM_ON_TIME`]).
+pub fn min_beam_on_time() -> f64 {
+    f64::from_bits(MIN_BEAM_ON_TIME_BITS.load(Ordering::Relaxed))
+}
+
+/// Set the shortest beam ON time [s] for every beam built and every run started afterwards
+/// (process-wide; `None` restores [`MIN_BEAM_ON_TIME`]). Beams already built are not re-checked.
+/// A value below [`T_ZERO`] is accepted with a warning: ON spans not longer than `T_ZERO`
+/// are always added analytically.
+pub fn set_min_beam_on_time(value: Option<f64>) -> crate::error::Result<()> {
+    let v = value.unwrap_or(MIN_BEAM_ON_TIME);
+    if !(v.is_finite() && v > 0.0) {
+        return Err(crate::error::RadkinError::Value(format!(
+            "min beam ON time must be a positive finite time [s], got {v}"
+        )));
+    }
+    if v < T_ZERO {
+        log::warn!(
+            "min beam ON time {v:.3e} s is below T_ZERO={T_ZERO:.3e} s: beam ON spans not longer than T_ZERO are still added analytically"
+        );
+    }
+    MIN_BEAM_ON_TIME_BITS.store(v.to_bits(), Ordering::Relaxed);
+    Ok(())
+}
 /// Relative slack on the configured ON time check.
 pub const ON_TIME_RTOL: f64 = 1e-9;
 /// Relative tolerance used when counting periods.

@@ -6,8 +6,8 @@ use std::time::Instant;
 use crate::chemistry::env::SimEnv;
 use crate::config::Config;
 use crate::consts::{
-    DEFAULT_ATOL, DEFAULT_RTOL, DEFAULT_TRANS_TIME, FIRST_STEP, MIN_BEAM_ON_TIME, T_ZERO,
-    THINNING_FIRST_OFFSET, data_dir,
+    DEFAULT_ATOL, DEFAULT_RTOL, DEFAULT_TRANS_TIME, FIRST_STEP, T_ZERO, THINNING_FIRST_OFFSET,
+    data_dir,
 };
 use crate::error::{RadkinError, Result};
 use crate::gvalues::GValuesBoscolo;
@@ -141,8 +141,19 @@ pub fn widen_empty_span(t_span: (f64, f64)) -> (f64, f64) {
 
 /// A run-time ON span shorter than `min_on_time` (with roundoff slack).
 pub fn is_short_on_span(t_span: (f64, f64), min_on_time: f64) -> bool {
-    let slack = min_on_time * 1e-9 + 4.0 * f64::EPSILON * t_span.0.abs().max(t_span.1.abs());
-    t_span.1 - t_span.0 < min_on_time - slack
+    t_span.1 - t_span.0 < min_on_time - span_slack(t_span, min_on_time)
+}
+
+/// Roundoff slack when comparing `stop - start` with `duration`.
+fn span_slack(t_span: (f64, f64), duration: f64) -> f64 {
+    duration * 1e-9 + 4.0 * f64::EPSILON * t_span.0.abs().max(t_span.1.abs())
+}
+
+/// A run-time ON span that is not integrated: shorter than the shortest beam ON
+/// time in use ([`crate::consts::min_beam_on_time`]) or not longer than [`T_ZERO`].
+pub fn is_analytic_on_span(t_span: (f64, f64)) -> bool {
+    is_short_on_span(t_span, crate::consts::min_beam_on_time())
+        || t_span.1 - t_span.0 <= T_ZERO + span_slack(t_span, T_ZERO)
 }
 
 /// Dose rate of a chunk: the beam at its midpoint.
@@ -346,7 +357,7 @@ impl UnitCell {
         self.last_burst_dose_rate = None;
         self.last_short_on_span = None;
         if beam_on && options.use_beam {
-            if is_short_on_span(t_span, MIN_BEAM_ON_TIME) {
+            if is_analytic_on_span(t_span) {
                 return self.short_on_span_step(t_span, y_start, dose_rate, options, &beam);
             }
             t_span = (t_span.0 + T_ZERO, t_span.1);
@@ -401,7 +412,8 @@ impl UnitCell {
         });
         self.last_exec_time = 0.0;
         log::warn!(
-            "Beam ON span [{start:.6e}, {stop:.6e}] s ({duration:.3e} s) is shorter than MIN_BEAM_ON_TIME={MIN_BEAM_ON_TIME:.3e} s: not integrated, its radiolytic yield at {dr:.3e} Gy/s is added analytically"
+            "Beam ON span [{start:.6e}, {stop:.6e}] s ({duration:.3e} s) is shorter than MIN_BEAM_ON_TIME={:.3e} s: not integrated, its radiolytic yield at {dr:.3e} Gy/s is added analytically",
+            crate::consts::min_beam_on_time()
         );
         if options.t_eval.as_ref().is_some_and(|t| !t.is_empty()) {
             log::warn!("t_eval ignored on the short ON span: one point stored at {stop:.6e} s");

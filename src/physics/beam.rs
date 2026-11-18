@@ -1,6 +1,6 @@
 //! Particle beams (port of radiopyo `physics/beam.py`).
 
-use crate::consts::{COUNT_RTOL, MIN_BEAM_ON_TIME, ON_TIME_RTOL};
+use crate::consts::{COUNT_RTOL, ON_TIME_RTOL, min_beam_on_time};
 use crate::error::{RadkinError, Result};
 use crate::physics::timer::{MacroTimer, Timer, TimerState, split_periods};
 use crate::pyfloat::{floordiv, pymod, round6};
@@ -294,7 +294,8 @@ impl Beam {
     }
 
     fn check_on_times(&self) -> Result<()> {
-        let threshold = MIN_BEAM_ON_TIME * (1.0 - ON_TIME_RTOL);
+        let min_on = min_beam_on_time();
+        let threshold = min_on * (1.0 - ON_TIME_RTOL);
         let mut on_times: Vec<(&str, f64)> = Vec::new();
         match self.kind {
             BeamKind::MacroPulsed(m) => {
@@ -312,7 +313,7 @@ impl Beam {
         for (name, on_time) in on_times {
             if on_time < threshold {
                 return Err(RadkinError::ShortBeamOn(format!(
-                    "{} beam: beam ON time {name}={on_time:.3e} s is shorter than MIN_BEAM_ON_TIME={MIN_BEAM_ON_TIME:.3e} s",
+                    "{} beam: beam ON time {name}={on_time:.3e} s is shorter than MIN_BEAM_ON_TIME={min_on:.3e} s",
                     self.beam_type()
                 )));
             }
