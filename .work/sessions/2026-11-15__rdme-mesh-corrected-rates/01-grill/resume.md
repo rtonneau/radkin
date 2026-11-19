@@ -47,6 +47,6 @@ None.
 
 ## Notes
 
-- Sources: `docs/literature/md_mistral/hellander2012/hellander2012_lite.md` (eq. 1, Theorem 1: N_steps = 1.5164 N) and `docs/literature/md_mistral/Hierarchical algorithm for the reaction-diffusion master equation_2020/..._lite.md` (eq. 6-8).
+- Sources: `docs/literature/md_mistral/hellander2012/hellander2012_lite.md` (eq. 1, Theorem 1: N_steps = 1.5164 N) and `docs/literature/md_mistral/hierarchical_RDME_2020/..._lite.md` (eq. 6-8).
 - Glossary: Critical spacing, Mesh correction. ADR 0004: correction on by default.
 - From the scout seed (architecture review 2026-11-14).
